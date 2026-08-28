@@ -139,10 +139,51 @@ export async function getClassLogsForTeacher(classId) {
 export async function getClassRoster(classId) {
   const { data, error } = await supabase
     .from('students')
-    .select('id, nickname')
+    .select('id, nickname, total_days')
     .eq('class_id', classId);
   if (error) throw error;
   return data;
+}
+
+export async function getClassCurrentBooks(classId) {
+  const { data, error } = await supabase
+    .from('books')
+    .select('student_id, title, started_at, students!inner(class_id)')
+    .eq('students.class_id', classId)
+    .eq('is_completed', false)
+    .order('started_at', { ascending: false });
+  if (error) throw error;
+  const byStudent = {};
+  for (const row of data) {
+    if (!byStudent[row.student_id]) byStudent[row.student_id] = row.title;
+  }
+  return byStudent;
+}
+
+export async function getClassReadingSessions(classId) {
+  const { data, error } = await supabase
+    .from('reading_sessions')
+    .select('student_id, is_reading, students!inner(class_id)')
+    .eq('students.class_id', classId)
+    .eq('is_reading', true);
+  if (error) throw error;
+  const byStudent = {};
+  for (const row of data) byStudent[row.student_id] = true;
+  return byStudent;
+}
+
+export async function setReadingSession(studentId, isReading) {
+  const { error } = await supabase
+    .from('reading_sessions')
+    .upsert({ student_id: studentId, is_reading: isReading, started_at: isReading ? new Date().toISOString() : null, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function sendCheer({ fromStudentId, toStudentId, emoji }) {
+  const { error } = await supabase
+    .from('cheers')
+    .insert({ from_student_id: fromStudentId, to_student_id: toStudentId, emoji });
+  if (error) throw error;
 }
 
 export async function logout() {

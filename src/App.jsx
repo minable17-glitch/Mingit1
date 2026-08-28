@@ -5,6 +5,7 @@ import {
   getClassById, updateClassSettings, getClassProgress,
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
+  getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
 } from "./lib/api";
 import { getSession, setSession, clearSession } from "./lib/session";
 
@@ -223,34 +224,13 @@ function CommunalTree({ size = 182, pct = 60 }) {
   );
 }
 
-const STUDENTS = [
-  { nick: "초코", book: "마당을 나온 암탉", stage: 3 },
-  { nick: "뭉치", book: "무민은 특별해", stage: 4, reading: true },
-  { nick: "별이", book: "해리포터", stage: 5 },
-  { nick: "하늘", book: "강아지똥", stage: 2 },
-  { nick: "콩이", book: "나무를 심은 사람", stage: 3 },
-  { nick: "반달", book: "어린 왕자", stage: 1 },
-  { nick: "토리", book: "긴긴밤", stage: 4 },
-];
 const BADGES = [
   { icon: "🐿️", title: "개근 다람쥐", who: "별이", detail: "연속 14일 물주기" },
   { icon: "☀️", title: "햇살 요정", who: "토리", detail: "응원 32번 보냄" },
   { icon: "💧", title: "물조리개 대장", who: "초코", detail: "우리 반 나무 +48" },
   { icon: "🍎", title: "열매 부자", who: "뭉치", detail: "이번 주 3권 완독" },
 ];
-const STREAK_TOP = [["별이", 14], ["초코", 12], ["콩이", 11]];
 const CHEERS = ["❤️", "🔥", "👏", "🌟"];
-const STUDENT_STATS = [
-  { nick: "초코", days: 11, min: 128, done: 2 },
-  { nick: "뭉치", days: 9, min: 140, done: 3 },
-  { nick: "별이", days: 14, min: 210, done: 2 },
-  { nick: "하늘", days: 6, min: 66, done: 1 },
-  { nick: "콩이", days: 11, min: 119, done: 1 },
-  { nick: "반달", days: 4, min: 48, done: 0 },
-  { nick: "토리", days: 12, min: 150, done: 2 },
-];
-const NOTE_POOL = ["재미있었다", "주인공이 멋있었다", "슬펐지만 여운이 남았다", "다음 내용이 궁금하다", "친구에게 추천하고 싶다"];
-
 function Cover({ title, cover, size = 46 }) {
   if (cover) {
     return (
@@ -290,6 +270,8 @@ export default function App() {
   const [sessionMinutes, setSessionMinutes] = useState(0);
   const [reflecting, setReflecting] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const ocrInputRef = useRef(null);
   const [secs, setSecs] = useState(600);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState("");
@@ -306,6 +288,7 @@ export default function App() {
   const [myLog, setMyLog] = useState([]);
   const [teacherLogs, setTeacherLogs] = useState([]);
   const [teacherRoster, setTeacherRoster] = useState([]);
+  const [classmates, setClassmates] = useState([]);
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
   const myStage = stageFromDays(myLog.length);
@@ -333,6 +316,36 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  const refreshClassmates = async (classId, myStudentId) => {
+    try {
+      const [roster, books, sessions] = await Promise.all([
+        getClassRoster(classId),
+        getClassCurrentBooks(classId),
+        getClassReadingSessions(classId),
+      ]);
+      setClassmates(
+        roster
+          .filter((s) => s.id !== myStudentId)
+          .map((s) => ({
+            id: s.id,
+            nick: s.nickname,
+            book: books[s.id] || "아직 책을 안 골랐어요",
+            stage: stageFromDays(s.total_days),
+            totalDays: s.total_days,
+            reading: !!sessions[s.id],
+          }))
+      );
+    } catch { /* 학급원 정보는 실패해도 화면은 계속 사용 가능 */ }
+  };
+
+  useEffect(() => {
+    if (screen !== "main" || tab !== "forest" || !classInfo?.id) return;
+    refreshClassmates(classInfo.id, studentInfo?.id);
+    const t = setInterval(() => refreshClassmates(classInfo.id, studentInfo?.id), 12000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, tab, role, classInfo?.id, studentInfo?.id]);
 
   useEffect(() => {
     if (tab !== "search") return;
@@ -460,9 +473,16 @@ export default function App() {
     setScreen("role");
   };
 
+  const syncReadingSession = (isReading) => {
+    if (role === "student" && studentInfo?.id) {
+      setReadingSession(studentInfo.id, isReading).catch(() => {});
+    }
+  };
+
   const finishAuto = () => {
     clearInterval(timerRef.current);
     setReading(false);
+    syncReadingSession(false);
     setSessionMinutes(dailyTargetMinutes);
     setReflecting(true);
   };
@@ -489,16 +509,40 @@ export default function App() {
     setReadMode(mode);
     setSecs(mode === "free" ? 0 : dailyTargetMinutes * 60);
     setReading(true);
+    syncReadingSession(true);
   };
 
   const finishManual = () => {
     clearInterval(timerRef.current);
     setReading(false);
+    syncReadingSession(false);
     const minutesRead = readMode === "free"
       ? Math.max(1, Math.round(secs / 60))
       : Math.max(1, Math.round((dailyTargetMinutes * 60 - secs) / 60));
     setSessionMinutes(minutesRead);
     setReflecting(true);
+  };
+
+  const handleOcrFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setOcrBusy(true);
+    try {
+      const { default: Tesseract } = await import("tesseract.js");
+      const { data } = await Tesseract.recognize(file, "kor+eng");
+      const text = (data?.text || "").trim();
+      if (text) {
+        setNote((n) => (n.trim() ? `${n.trim()}\n${text}` : text));
+        showToast("구절을 인식했어요. 필요하면 다듬어주세요 ✏️");
+      } else {
+        showToast("글자를 잘 못 읽었어요. 더 밝은 곳에서 다시 찍어볼까요?");
+      }
+    } catch {
+      showToast("구절 스캔에 실패했어요.");
+    } finally {
+      setOcrBusy(false);
+    }
   };
 
   const submit = async () => {
@@ -591,7 +635,13 @@ export default function App() {
   };
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
-  const allTrees = [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage }, ...STUDENTS];
+  const allTrees = role === "student"
+    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage }, ...classmates]
+    : classmates;
+  const topDays = [
+    ...(role === "student" ? [{ nick: myNick, days: myLog.length }] : []),
+    ...classmates.map((c) => ({ nick: c.nick, days: c.totalDays || 0 })),
+  ].sort((a, b) => b.days - a.days).slice(0, 3);
   const daysSinceStart = classInfo?.start_date
     ? Math.min(30, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
@@ -1006,12 +1056,14 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                  <div style={{ fontSize: 10.5, color: "#a7b3a0", textAlign: "center", padding: "6px 0 0" }}>※ 배지 4종은 아직 예시예요. 다음 업데이트에서 실제 집계로 연결돼요.</div>
                   <div style={{ marginTop: 16, background: "#fff", borderRadius: 16, padding: "14px 16px", border: "1px solid #eee5d3" }}>
-                    <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 8 }}>🐿️ 개근왕 TOP 3</div>
-                    {STREAK_TOP.map(([who, d], i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < 2 ? "1px dashed #eee5d3" : "none" }}>
-                        <span style={{ fontSize: 14 }}>{["🥇", "🥈", "🥉"][i]} <span className="cs-hand" style={{ fontSize: 17, color: C.ink }}>{who}</span></span>
-                        <span style={{ fontSize: 12.5, color: C.inkSoft }}>연속 {d}일</span>
+                    <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 8 }}>🐿️ 참여왕 TOP 3</div>
+                    {topDays.length === 0 && <div style={{ fontSize: 12.5, color: C.inkSoft, padding: "6px 0" }}>아직 기록이 없어요.</div>}
+                    {topDays.map((s, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < topDays.length - 1 ? "1px dashed #eee5d3" : "none" }}>
+                        <span style={{ fontSize: 14 }}>{["🥇", "🥈", "🥉"][i]} <span className="cs-hand" style={{ fontSize: 17, color: C.ink }}>{s.nick}</span></span>
+                        <span style={{ fontSize: 12.5, color: C.inkSoft }}>누적 {s.days}일</span>
                       </div>
                     ))}
                   </div>
@@ -1079,7 +1131,14 @@ export default function App() {
                   <div style={{ fontSize: 12.5, color: C.inkSoft, textAlign: "center", marginBottom: 8 }}>응원을 보내볼까요? 💬</div>
                   <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                     {CHEERS.map((c) => (
-                      <button key={c} onClick={() => { const nk = selected.nick; setSelected(null); showToast(`${nk}에게 응원을 보냈어요! ${c}`); }}
+                      <button key={c} onClick={async () => {
+                        const nk = selected.nick; const toId = selected.id; setSelected(null);
+                        if (role === "student" && studentInfo?.id && toId) {
+                          try { await sendCheer({ fromStudentId: studentInfo.id, toStudentId: toId, emoji: c }); }
+                          catch { showToast("응원 전송에 실패했어요."); return; }
+                        }
+                        showToast(`${nk}에게 응원을 보냈어요! ${c}`);
+                      }}
                         style={{ fontSize: 26, width: 56, height: 56, borderRadius: 16, border: "1px solid #eee5d3", background: "#fff", cursor: "pointer" }}>{c}</button>
                     ))}
                   </div>
@@ -1165,7 +1224,7 @@ export default function App() {
             <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{readMode === "free" ? "자유롭게 읽는 중" : `목표 ${dailyTargetMinutes}분`}</div>
             <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-              <button onClick={() => { clearInterval(timerRef.current); setReading(false); }} style={{ padding: "11px 20px", borderRadius: 14,
+              <button onClick={() => { clearInterval(timerRef.current); setReading(false); syncReadingSession(false); }} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>그만두기</button>
               <button onClick={finishManual} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
                 background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "지금 마치기 ✓"}</button>
@@ -1180,8 +1239,10 @@ export default function App() {
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
               <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
               <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수)</div>
-              <button onClick={() => showToast("구절 스캔(OCR)은 다음 단계에서 연결돼요 📷")} style={{ width: "100%", padding: 12, borderRadius: 14,
-                marginBottom: 12, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: "pointer" }}>📷 마음에 드는 구절 스캔하기 (선택)</button>
+              <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFile} />
+              <button onClick={() => ocrInputRef.current?.click()} disabled={ocrBusy} style={{ width: "100%", padding: 12, borderRadius: 14,
+                marginBottom: 12, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
+                {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기 (선택)"}</button>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
