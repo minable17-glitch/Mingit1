@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
+import { createClass, teacherLogin, studentLogin, logout as apiLogout } from "./lib/api";
+import { getSession, setSession, clearSession } from "./lib/session";
 
 // ─────────────────────────────────────────────────────────────
 // 새싹책방 — 30일 독서 챌린지 프로토타입 (탭 구조)
@@ -257,6 +259,17 @@ export default function App() {
   const [screen, setScreen] = useState("splash");
   const [enter, setEnter] = useState(false);
   const [tab, setTab] = useState("forest");
+
+  // ── 역할·학급·학생 세션 ──
+  const [role, setRole] = useState(null); // 'teacher' | 'student'
+  const [classInfo, setClassInfo] = useState(null); // { id, name, code, start_date, goal_pct }
+  const [studentInfo, setStudentInfo] = useState(null); // { id, nickname }
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
+  const [teacherLoginForm, setTeacherLoginForm] = useState({ code: "", password: "" });
+  const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
+  const [createdClass, setCreatedClass] = useState(null);
   const [myStage, setMyStage] = useState(2);
   const [myBook, setMyBook] = useState("몬스터 차일드");
   const [doneToday, setDoneToday] = useState(false);
@@ -284,9 +297,110 @@ export default function App() {
   useEffect(() => {
     if (screen !== "splash") return;
     const t1 = setTimeout(() => setEnter(true), 2600);
-    const t2 = setTimeout(() => setScreen("main"), 3600);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => clearTimeout(t1);
   }, [screen]);
+
+  const proceedFromSplash = () => {
+    const saved = getSession();
+    if (saved && saved.role === "teacher" && saved.classInfo) {
+      setRole("teacher");
+      setClassInfo(saved.classInfo);
+      setScreen("main");
+    } else if (saved && saved.role === "student" && saved.classInfo && saved.studentInfo) {
+      setRole("student");
+      setClassInfo(saved.classInfo);
+      setStudentInfo(saved.studentInfo);
+      setScreen("main");
+    } else {
+      setScreen("role");
+    }
+  };
+
+  const handleCreateClass = async () => {
+    setAuthError("");
+    if (!teacherForm.name.trim() || teacherForm.password.length < 4) {
+      setAuthError("학급 이름과 4자리 이상 비밀번호를 입력해주세요.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const cls = await createClass({
+        name: teacherForm.name.trim(),
+        adminPassword: teacherForm.password,
+        startDate: today,
+        goalPct: teacherForm.goalPct,
+      });
+      setCreatedClass(cls);
+      setRole("teacher");
+      setClassInfo(cls);
+      setSession({ role: "teacher", classInfo: cls });
+      setScreen("teacher-code");
+    } catch (e) {
+      setAuthError(e.message || "학급을 만들지 못했어요. 다시 시도해주세요.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleTeacherLogin = async () => {
+    setAuthError("");
+    if (!teacherLoginForm.code.trim() || !teacherLoginForm.password) {
+      setAuthError("학급 코드와 비밀번호를 입력해주세요.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const cls = await teacherLogin({
+        classCode: teacherLoginForm.code.trim(),
+        adminPassword: teacherLoginForm.password,
+      });
+      setRole("teacher");
+      setClassInfo(cls);
+      setSession({ role: "teacher", classInfo: cls });
+      setScreen("main");
+    } catch (e) {
+      setAuthError(e.message || "로그인에 실패했어요.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleStudentJoin = async () => {
+    setAuthError("");
+    if (!studentJoinForm.code.trim() || !studentJoinForm.nickname.trim() || studentJoinForm.pin.length !== 4) {
+      setAuthError("학급 코드, 닉네임, PIN 4자리를 모두 입력해주세요.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const student = await studentLogin({
+        classCode: studentJoinForm.code.trim(),
+        nickname: studentJoinForm.nickname.trim(),
+        pin: studentJoinForm.pin,
+      });
+      const cls = { id: student.class_id };
+      setRole("student");
+      setClassInfo(cls);
+      setStudentInfo({ id: student.id, nickname: student.nickname });
+      setSession({ role: "student", classInfo: cls, studentInfo: { id: student.id, nickname: student.nickname } });
+      setScreen("main");
+    } catch (e) {
+      setAuthError(e.message || "참여에 실패했어요. 코드와 PIN을 확인해주세요.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await apiLogout();
+    clearSession();
+    setRole(null);
+    setClassInfo(null);
+    setStudentInfo(null);
+    setShowTeacher(false);
+    setScreen("role");
+  };
 
   useEffect(() => {
     if (!reading) return;
@@ -341,7 +455,8 @@ export default function App() {
     }
   };
 
-  const allTrees = [{ me: true, nick: "나", book: myBook, stage: myStage }, ...STUDENTS];
+  const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
+  const allTrees = [{ me: true, nick: myNick, book: myBook, stage: myStage }, ...STUDENTS];
   const n = allTrees.length;
   const positioned = allTrees.map((t, i) => {
     const deg = 90 + i * (360 / n); const rad = (deg * Math.PI) / 180;
@@ -385,13 +500,141 @@ export default function App() {
 
         {/* 스플래시 */}
         {screen === "splash" && (
-          <div onClick={() => setScreen("main")} style={{ position: "absolute", inset: 0, display: "flex",
+          <div onClick={proceedFromSplash} style={{ position: "absolute", inset: 0, display: "flex",
             flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
             background: `linear-gradient(${C.skyTop}, ${C.skyBot})` }}>
             <div style={{ animation: "cs-sprout 1s ease both" }}><Tree stage={2} size={140} /></div>
             <div className="cs-jua" style={{ fontSize: 44, color: C.greenDk, marginTop: 10, animation: "cs-rise .7s ease .9s both" }}>새싹책방</div>
             <div style={{ fontSize: 15, color: C.inkSoft, marginTop: 3, animation: "cs-fade .8s ease 1.5s both" }}>하루 10분, 우리 반이 함께 키우는 숲</div>
             {enter && <div style={{ marginTop: 32, fontSize: 13, color: C.inkSoft, animation: "cs-fade .5s ease both" }}>화면을 눌러 시작하기</div>}
+          </div>
+        )}
+
+        {/* 역할 선택 */}
+        {screen === "role" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
+            <Tree stage={2} size={100} />
+            <div className="cs-jua" style={{ fontSize: 26, color: C.greenDk, marginBottom: 6 }}>새싹책방</div>
+            <button onClick={() => { setAuthError(""); setScreen("teacher-entry"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+              padding: "18px 20px", borderRadius: 18, border: "none", fontSize: 17, color: "#fff", cursor: "pointer",
+              background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e44" }}>👩‍🏫 선생님으로 시작</button>
+            <button onClick={() => { setAuthError(""); setScreen("student-join"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+              padding: "18px 20px", borderRadius: 18, border: `1.5px solid ${C.green}`, fontSize: 17, color: C.greenDk, cursor: "pointer",
+              background: "#fff" }}>🧒 학생으로 참여</button>
+          </div>
+        )}
+
+        {/* 선생님: 새 학급 만들기 / 기존 학급 로그인 선택 */}
+        {screen === "teacher-entry" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 6 }}>👩‍🏫 선생님</div>
+            <button onClick={() => { setAuthError(""); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+              padding: "16px 20px", borderRadius: 16, border: "none", fontSize: 16, color: "#fff", cursor: "pointer",
+              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>새 학급 만들기</button>
+            <button onClick={() => { setAuthError(""); setScreen("teacher-login"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+              padding: "16px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 16, color: C.greenDk, cursor: "pointer",
+              background: "#fff" }}>이미 만든 학급 관리하기</button>
+            <button onClick={() => setScreen("role")} style={{ marginTop: 6, border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 새 학급 만들기 폼 */}
+        {screen === "teacher-create" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, overflowY: "auto" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>새 학급 만들기</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>학급 이름</label>
+            <input value={teacherForm.name} onChange={(e) => setTeacherForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="예: 3학년 2반" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>관리자 비밀번호 (4자리 이상)</label>
+            <input type="password" value={teacherForm.password} onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>오늘의 반 목표 참여율</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[70, 80, 90, 100].map((g) => (
+                <button key={g} onClick={() => setTeacherForm((f) => ({ ...f, goalPct: g }))} className="cs-jua"
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: teacherForm.goalPct === g ? "none" : "1px solid #e2dac9",
+                    background: teacherForm.goalPct === g ? C.green : "#fff", color: teacherForm.goalPct === g ? "#fff" : C.ink,
+                    fontSize: 14, cursor: "pointer" }}>{g}%</button>
+              ))}
+            </div>
+            {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
+            <button onClick={handleCreateClass} disabled={authBusy} className="cs-jua" style={{ marginTop: 10, padding: 15, borderRadius: 16,
+              border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
+              background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {authBusy ? "만드는 중..." : "학급 만들기"}</button>
+            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 학급 코드 발급 완료 */}
+        {screen === "teacher-code" && createdClass && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
+            <div style={{ fontSize: 40 }}>🎉</div>
+            <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>학급이 만들어졌어요!</div>
+            <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center" }}>학생들에게 이 코드를 알려주세요.</div>
+            <div className="cs-jua" style={{ fontSize: 34, color: C.gold, background: "#fff", padding: "16px 32px",
+              borderRadius: 18, border: `2px dashed ${C.gold}`, letterSpacing: 2 }}>{createdClass.code}</div>
+            <button onClick={() => setScreen("main")} className="cs-jua" style={{ marginTop: 10, padding: "14px 36px", borderRadius: 16,
+              border: "none", fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              시작하기</button>
+          </div>
+        )}
+
+        {/* 선생님: 기존 학급 로그인 */}
+        {screen === "teacher-login" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>학급 관리자 로그인</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>학급 코드</label>
+            <input value={teacherLoginForm.code} onChange={(e) => setTeacherLoginForm((f) => ({ ...f, code: e.target.value }))}
+              placeholder="예: 숲7423" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>관리자 비밀번호</label>
+            <input type="password" value={teacherLoginForm.password} onChange={(e) => setTeacherLoginForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
+            <button onClick={handleTeacherLogin} disabled={authBusy} className="cs-jua" style={{ marginTop: 10, padding: 15, borderRadius: 16,
+              border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
+              background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {authBusy ? "확인 중..." : "로그인"}</button>
+            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 학생: 학급 코드 + 닉네임 + PIN */}
+        {screen === "student-join" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>🧒 학생으로 참여</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>학급 코드</label>
+            <input value={studentJoinForm.code} onChange={(e) => setStudentJoinForm((f) => ({ ...f, code: e.target.value }))}
+              placeholder="선생님이 알려준 코드" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>닉네임</label>
+            <input value={studentJoinForm.nickname} onChange={(e) => setStudentJoinForm((f) => ({ ...f, nickname: e.target.value }))}
+              placeholder="이름 대신 쓸 닉네임" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>PIN 4자리 (처음이면 새로 정하기, 두 번째면 이전과 동일하게)</label>
+            <input value={studentJoinForm.pin} onChange={(e) => setStudentJoinForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+              placeholder="숫자 4자리" inputMode="numeric" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, letterSpacing: 4 }} />
+            {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
+            <button onClick={handleStudentJoin} disabled={authBusy} className="cs-jua" style={{ marginTop: 10, padding: 15, borderRadius: 16,
+              border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
+              background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {authBusy ? "확인 중..." : "참여하기"}</button>
+            <button onClick={() => setScreen("role")} style={{ border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
 
@@ -403,8 +646,22 @@ export default function App() {
               {tab === "forest" && (
                 <>
                   <div style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div className="cs-jua" style={{ fontSize: 23, color: C.greenDk }}>🌱 새싹책방</div>
-                    <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ 12 / 30</div>
+                    <div>
+                      <div className="cs-jua" style={{ fontSize: 23, color: C.greenDk }}>🌱 새싹책방</div>
+                      {classInfo && (
+                        <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 1 }}>
+                          {classInfo.name ? `${classInfo.name} · ` : ""}코드 {classInfo.code}
+                          {role === "student" && studentInfo ? ` · ${studentInfo.nickname}` : ""}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {role === "teacher" && (
+                        <button onClick={() => setShowTeacher(true)} style={{ border: "none", background: "#ffffffcc",
+                          borderRadius: 20, padding: "5px 12px", fontSize: 12, color: C.greenDk, cursor: "pointer" }}>👩‍🏫 반 관리</button>
+                      )}
+                      <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ 12 / 30</div>
+                    </div>
                   </div>
                   <div style={{ padding: "0 18px 4px" }}>
                     <div style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
@@ -582,9 +839,14 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={() => setShowTeacher(true)} style={{ width: "100%", marginTop: 16, padding: 12,
-                    borderRadius: 14, border: "1px dashed #cbb98a", background: "#fff", color: C.gold, fontSize: 13.5,
-                    cursor: "pointer" }}>👩‍🏫 선생님용 · 반 관리 열기</button>
+                  {role === "teacher" && (
+                    <button onClick={() => setShowTeacher(true)} style={{ width: "100%", marginTop: 16, padding: 12,
+                      borderRadius: 14, border: "1px dashed #cbb98a", background: "#fff", color: C.gold, fontSize: 13.5,
+                      cursor: "pointer" }}>👩‍🏫 선생님용 · 반 관리 열기</button>
+                  )}
+                  <button onClick={handleLogout} style={{ width: "100%", marginTop: 10, padding: 10,
+                    borderRadius: 14, border: "none", background: "transparent", color: C.inkSoft, fontSize: 12.5,
+                    cursor: "pointer" }}>로그아웃</button>
                 </div>
               )}
             </div>
