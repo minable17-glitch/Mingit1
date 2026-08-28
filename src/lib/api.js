@@ -115,15 +115,23 @@ export async function startBook(studentId, { title, author }) {
   return data;
 }
 
-export async function submitLog({ studentId, bookId, minutes, note }) {
+export async function submitLog({ studentId, bookId, minutes, note, overflowMinutes = 0 }) {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('logs')
-    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note })
+    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, overflow_minutes: overflowMinutes })
     .select('id, log_date, minutes, note')
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function markBookCompleted(bookId) {
+  const { error } = await supabase
+    .from('books')
+    .update({ is_completed: true, completed_at: new Date().toISOString() })
+    .eq('id', bookId);
+  if (error) throw error;
 }
 
 export async function getClassLogsForTeacher(classId) {
@@ -139,10 +147,35 @@ export async function getClassLogsForTeacher(classId) {
 export async function getClassRoster(classId) {
   const { data, error } = await supabase
     .from('students')
-    .select('id, nickname, total_days')
+    .select('id, nickname, total_days, communal_minutes')
     .eq('class_id', classId);
   if (error) throw error;
   return data;
+}
+
+export async function getClassCompletedBookCounts(studentIds) {
+  if (!studentIds.length) return {};
+  const { data, error } = await supabase
+    .from('books')
+    .select('student_id')
+    .in('student_id', studentIds)
+    .eq('is_completed', true);
+  if (error) throw error;
+  const byStudent = {};
+  for (const row of data) byStudent[row.student_id] = (byStudent[row.student_id] || 0) + 1;
+  return byStudent;
+}
+
+export async function getClassCheersSentCounts(studentIds) {
+  if (!studentIds.length) return {};
+  const { data, error } = await supabase
+    .from('cheers')
+    .select('from_student_id')
+    .in('from_student_id', studentIds);
+  if (error) throw error;
+  const byStudent = {};
+  for (const row of data) byStudent[row.from_student_id] = (byStudent[row.from_student_id] || 0) + 1;
+  return byStudent;
 }
 
 export async function getClassCurrentBooks(studentIds) {

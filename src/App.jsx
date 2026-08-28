@@ -6,7 +6,10 @@ import {
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
+  markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts,
 } from "./lib/api";
+
+const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 import { getSession, setSession, clearSession } from "./lib/session";
 
 function stageFromDays(days) {
@@ -224,12 +227,6 @@ function CommunalTree({ size = 182, pct = 60 }) {
   );
 }
 
-const BADGES = [
-  { icon: "🐿️", title: "개근 다람쥐", who: "별이", detail: "연속 14일 물주기" },
-  { icon: "☀️", title: "햇살 요정", who: "토리", detail: "응원 32번 보냄" },
-  { icon: "💧", title: "물조리개 대장", who: "초코", detail: "우리 반 나무 +48" },
-  { icon: "🍎", title: "열매 부자", who: "뭉치", detail: "이번 주 3권 완독" },
-];
 const CHEERS = ["❤️", "🔥", "👏", "🌟"];
 function Cover({ title, cover, size = 46 }) {
   if (cover) {
@@ -284,11 +281,14 @@ export default function App() {
   const [searchError, setSearchError] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [showTeacher, setShowTeacher] = useState(false);
+  const [showFeelings, setShowFeelings] = useState(false);
   const [pin, setPin] = useState("");
   const [myLog, setMyLog] = useState([]);
   const [teacherLogs, setTeacherLogs] = useState([]);
   const [teacherRoster, setTeacherRoster] = useState([]);
+  const [teacherCompletedCounts, setTeacherCompletedCounts] = useState({});
   const [classmates, setClassmates] = useState([]);
+  const [badgeStats, setBadgeStats] = useState([]);
   const [classmatesError, setClassmatesError] = useState("");
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
@@ -313,7 +313,11 @@ export default function App() {
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
     } else if (role === "teacher" && classInfo?.id) {
       getClassLogsForTeacher(classInfo.id).then(setTeacherLogs).catch(() => {});
-      getClassRoster(classInfo.id).then(setTeacherRoster).catch(() => {});
+      getClassRoster(classInfo.id).then((roster) => {
+        setTeacherRoster(roster);
+        const ids = roster.map((s) => s.id);
+        getClassCompletedBookCounts(ids).then(setTeacherCompletedCounts).catch(() => {});
+      }).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
@@ -321,11 +325,14 @@ export default function App() {
   const refreshClassmates = async (classId, myStudentId) => {
     try {
       const roster = await getClassRoster(classId);
+      const allIds = roster.map((s) => s.id);
       const others = roster.filter((s) => s.id !== myStudentId);
-      const ids = others.map((s) => s.id);
-      const [books, sessions] = await Promise.all([
-        getClassCurrentBooks(ids),
-        getClassReadingSessions(ids),
+      const otherIds = others.map((s) => s.id);
+      const [books, sessions, completedCounts, cheerCounts] = await Promise.all([
+        getClassCurrentBooks(otherIds),
+        getClassReadingSessions(otherIds),
+        getClassCompletedBookCounts(allIds),
+        getClassCheersSentCounts(allIds),
       ]);
       setClassmatesError("");
       setClassmates(
@@ -336,6 +343,17 @@ export default function App() {
           stage: stageFromDays(s.total_days),
           totalDays: s.total_days,
           reading: !!sessions[s.id],
+          completedBooks: completedCounts[s.id] || 0,
+        }))
+      );
+      setBadgeStats(
+        roster.map((s) => ({
+          id: s.id,
+          nick: s.nickname,
+          totalDays: s.total_days,
+          communalMinutes: s.communal_minutes || 0,
+          completedBooks: completedCounts[s.id] || 0,
+          cheersSent: cheerCounts[s.id] || 0,
         }))
       );
     } catch (e) {
@@ -344,7 +362,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (screen !== "main" || tab !== "forest" || !classInfo?.id) return;
+    if (screen !== "main" || (tab !== "forest" && tab !== "rank") || !classInfo?.id) return;
     refreshClassmates(classInfo.id, studentInfo?.id);
     const t = setInterval(() => refreshClassmates(classInfo.id, studentInfo?.id), 12000);
     return () => clearInterval(t);
@@ -527,6 +545,19 @@ export default function App() {
     setReflecting(true);
   };
 
+  const handleCompleteBook = async () => {
+    if (!currentBook?.id || role !== "student" || !studentInfo?.id) return;
+    try {
+      await markBookCompleted(currentBook.id);
+      const finishedTitle = currentBook.title;
+      setCurrentBook(null);
+      setMyBook(null);
+      showToast(`'${finishedTitle}'을(를) 다 읽었어요! 열매가 열렸어요 🍎`);
+    } catch (e) {
+      showToast(e.message || "완독 처리에 실패했어요.");
+    }
+  };
+
   const handleOcrFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -562,17 +593,21 @@ export default function App() {
     }
     setSubmitBusy(true);
     try {
+      const overflowMinutes = Math.max(0, Math.min(sessionMinutes, DAILY_CAP_MINUTES) - dailyTargetMinutes);
       await submitLog({
         studentId: studentInfo.id,
         bookId: currentBook?.id ?? null,
         minutes: sessionMinutes,
         note: savedNote,
+        overflowMinutes,
       });
       setReflecting(false); setNote("");
       setDoneToday(true); setBloomPulse(true);
       setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes }, ...l]);
       setTab("forest");
-      showToast(`물을 줬어요! 오늘 ${sessionMinutes}분 읽었어요 🌱`);
+      showToast(overflowMinutes > 0
+        ? `물을 줬어요! 오늘 ${sessionMinutes}분 읽고 우리 반 나무에 ${overflowMinutes}분 더 기여했어요 🌱💧`
+        : `물을 줬어요! 오늘 ${sessionMinutes}분 읽었어요 🌱`);
       setTimeout(() => setBloomPulse(false), 1400);
       if (classInfo?.id) refreshClassProgress(classInfo.id);
     } catch (e) {
@@ -588,6 +623,11 @@ export default function App() {
   const TOTAL = classProgress.total_students ?? 0;
   const joinedToday = classProgress.joined_today ?? 0;
   const classPct = classProgress.class_pct || 0;
+  const communalMinutesTotal = classProgress.communal_minutes || 0;
+  // 우리 반 나무(공동 나무)는 30일 참여도(classPct)를 기본으로 하고,
+  // 학생들이 목표 시간을 초과해 기여한 분량만큼 추가로 더 활짝 피어난다.
+  const communalBonus = TOTAL > 0 ? Math.min(25, Math.round(communalMinutesTotal / (TOTAL * 10))) : 0;
+  const communalPct = Math.min(100, classPct + communalBonus);
   const todayRate = TOTAL > 0 ? Math.round((joinedToday / TOTAL) * 100) : 0;
   const goalCount = Math.ceil((TOTAL * goalPct) / 100);
   const remain = Math.max(0, goalCount - joinedToday);
@@ -599,7 +639,7 @@ export default function App() {
       nick: s.nickname,
       days: rows.length,
       min: rows.reduce((sum, r) => sum + (r.minutes || 0), 0),
-      done: 0,
+      done: teacherCompletedCounts[s.id] || 0,
     };
   });
 
@@ -642,10 +682,21 @@ export default function App() {
   const allTrees = role === "student"
     ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage }, ...classmates]
     : classmates;
-  const topDays = [
-    ...(role === "student" ? [{ nick: myNick, days: myLog.length }] : []),
-    ...classmates.map((c) => ({ nick: c.nick, days: c.totalDays || 0 })),
-  ].sort((a, b) => b.days - a.days).slice(0, 3);
+  const topDays = [...badgeStats]
+    .sort((a, b) => b.totalDays - a.totalDays)
+    .slice(0, 3)
+    .map((s) => ({ nick: s.nick, days: s.totalDays }));
+
+  const topByKey = (key) => {
+    const top = [...badgeStats].sort((a, b) => b[key] - a[key])[0];
+    return top && top[key] > 0 ? top : null;
+  };
+  const realBadges = [
+    { icon: "🐿️", title: "개근 다람쥐", holder: topByKey("totalDays"), detail: (s) => `누적 ${s.totalDays}일 참여` },
+    { icon: "☀️", title: "햇살 요정", holder: topByKey("cheersSent"), detail: (s) => `응원 ${s.cheersSent}번 보냄` },
+    { icon: "💧", title: "물조리개 대장", holder: topByKey("communalMinutes"), detail: (s) => `우리 반 나무 +${s.communalMinutes}분` },
+    { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
+  ];
   const daysSinceStart = classInfo?.start_date
     ? Math.min(30, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
@@ -908,7 +959,7 @@ export default function App() {
                     <div style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
                       animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
                       <div style={{ transform: "translateY(-100%)", transformOrigin: "bottom center", animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite" }}>
-                        <CommunalTree size={188} pct={classPct} /></div></div>
+                        <CommunalTree size={188} pct={communalPct} /></div></div>
                     <div style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
                       background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
                       boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
@@ -920,7 +971,8 @@ export default function App() {
                         <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
                           borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
                           <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
-                          <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.book}</div>
+                          <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {t.book}{t.completedBooks > 0 ? ` 🍎${t.completedBooks}` : ""}</div>
                           {t.reading && <div style={{ fontSize: 8, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
                         </div>
                       </div>
@@ -990,6 +1042,11 @@ export default function App() {
                   <Tree stage={myStage} size={150} />
                   <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook || "아직 없어요"}</div>
+                  {myBook && role === "student" && (
+                    <button onClick={handleCompleteBook} style={{ border: "none", background: "transparent", color: C.gold,
+                      fontSize: 12.5, textDecoration: "underline", cursor: "pointer", marginBottom: 8 }}>
+                      🍎 이 책 다 읽었어요 (완독하기)</button>
+                  )}
                   {doneToday ? (
                     <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
                       borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}`, marginTop: 10 }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
@@ -1071,16 +1128,21 @@ export default function App() {
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🏆 이주의 주인공</div>
                   <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "2px 0 16px" }}>매주 월요일 새로 시작해요. 누구나 주인공이 될 수 있어요!</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    {BADGES.map((b, i) => (
+                    {realBadges.map((b, i) => (
                       <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "16px 12px", textAlign: "center", border: "1px solid #eee5d3" }}>
                         <div style={{ fontSize: 32 }}>{b.icon}</div>
                         <div className="cs-jua" style={{ fontSize: 14, color: C.gold, marginTop: 4 }}>이주의 {b.title}</div>
-                        <div className="cs-hand" style={{ fontSize: 20, color: C.greenDk, lineHeight: 1.1 }}>{b.who}</div>
-                        <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 2 }}>{b.detail}</div>
+                        {b.holder ? (
+                          <>
+                            <div className="cs-hand" style={{ fontSize: 20, color: C.greenDk, lineHeight: 1.1 }}>{b.holder.nick}</div>
+                            <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 2 }}>{b.detail(b.holder)}</div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 6 }}>아직 없어요</div>
+                        )}
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10.5, color: "#a7b3a0", textAlign: "center", padding: "6px 0 0" }}>※ 배지 4종은 아직 예시예요. 다음 업데이트에서 실제 집계로 연결돼요.</div>
                   <div style={{ marginTop: 16, background: "#fff", borderRadius: 16, padding: "14px 16px", border: "1px solid #eee5d3" }}>
                     <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 8 }}>🐿️ 참여왕 TOP 3</div>
                     {topDays.length === 0 && <div style={{ fontSize: 12.5, color: C.inkSoft, padding: "6px 0" }}>아직 기록이 없어요.</div>}
@@ -1226,6 +1288,31 @@ export default function App() {
                     <span style={{ width: 54, textAlign: "right" }}>{s.done}권</span>
                   </div>
                 ))}
+              </div>
+
+              {/* 느낀점 모아보기 (교사만) */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <button onClick={() => setShowFeelings((v) => !v)} className="cs-jua" style={{ width: "100%", border: "none", background: "transparent",
+                  cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14.5, color: C.greenDk, padding: 0 }}>
+                  <span>📖 학생 느낀점 모아보기</span><span style={{ fontSize: 12, color: C.inkSoft }}>{showFeelings ? "숨기기 ▲" : "보기 ▼"}</span>
+                </button>
+                {showFeelings && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+                    {teacherLogs.length === 0 && (
+                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 12.5, padding: 10 }}>아직 기록이 없어요.</div>
+                    )}
+                    {teacherLogs.map((l, i) => (
+                      <div key={i} style={{ background: C.paper, borderRadius: 12, padding: 10, border: "1px solid #eee5d3" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span className="cs-hand" style={{ fontSize: 14, color: C.greenDk }}>{l.students?.nickname}</span>
+                          <span style={{ fontSize: 10.5, color: C.inkSoft }}>{formatLogDate(l.log_date)} · 📖 {l.books?.title || ""}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.4 }}>"{l.note}"</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>느낀점은 학생끼리는 비공개이고, 선생님만 열람할 수 있어요.</div>
               </div>
 
               <button onClick={exportExcel} className="cs-jua" style={{ width: "100%", padding: 15, borderRadius: 16, border: "none",
