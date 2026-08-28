@@ -289,11 +289,12 @@ export default function App() {
   const [teacherLogs, setTeacherLogs] = useState([]);
   const [teacherRoster, setTeacherRoster] = useState([]);
   const [classmates, setClassmates] = useState([]);
+  const [classmatesError, setClassmatesError] = useState("");
+  const [classmatesDebug, setClassmatesDebug] = useState("");
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
   const myStage = stageFromDays(myLog.length);
   const timerRef = useRef(null);
-  const classmatesErrorShownRef = useRef(false);
 
   const refreshClassProgress = async (classId) => {
     try {
@@ -327,6 +328,8 @@ export default function App() {
         getClassCurrentBooks(ids),
         getClassReadingSessions(ids),
       ]);
+      setClassmatesError("");
+      setClassmatesDebug(`roster:${roster.length}건`);
       setClassmates(
         others.map((s) => ({
           id: s.id,
@@ -338,10 +341,7 @@ export default function App() {
         }))
       );
     } catch (e) {
-      if (!classmatesErrorShownRef.current) {
-        classmatesErrorShownRef.current = true;
-        showToast(`학급원 정보를 못 불러왔어요: ${e.message || e}`);
-      }
+      setClassmatesError(e?.message || e?.error_description || JSON.stringify(e) || "알 수 없는 오류");
     }
   };
 
@@ -857,6 +857,15 @@ export default function App() {
                       <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ {daysSinceStart} / 30</div>
                     </div>
                   </div>
+                  {classmatesError && (
+                    <div style={{ margin: "0 18px 8px", background: "#fde8e8", border: "1px solid #e0a0a0", borderRadius: 10,
+                      padding: "8px 12px", fontSize: 12, color: "#8a2c2c" }}>
+                      학급원 정보 오류: {classmatesError}
+                    </div>
+                  )}
+                  {!classmatesError && classmatesDebug && (
+                    <div style={{ margin: "0 18px 8px", fontSize: 10.5, color: "#a7b3a0" }}>{classmatesDebug} · 학급원 {classmates.length}명 표시 중</div>
+                  )}
                   <div style={{ padding: "0 18px 4px" }}>
                     <div style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
