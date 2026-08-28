@@ -587,13 +587,13 @@ export default function App() {
   const mm = String(Math.floor(secs / 60)).padStart(2, "0");
   const ss = String(secs % 60).padStart(2, "0");
 
-  const TOTAL = classProgress.total_students || 1;
-  const joinedToday = classProgress.joined_today || 0;
+  const TOTAL = classProgress.total_students ?? 0;
+  const joinedToday = classProgress.joined_today ?? 0;
   const classPct = classProgress.class_pct || 0;
-  const todayRate = Math.round((joinedToday / TOTAL) * 100);
+  const todayRate = TOTAL > 0 ? Math.round((joinedToday / TOTAL) * 100) : 0;
   const goalCount = Math.ceil((TOTAL * goalPct) / 100);
   const remain = Math.max(0, goalCount - joinedToday);
-  const goalMet = todayRate >= goalPct;
+  const goalMet = TOTAL > 0 && todayRate >= goalPct;
 
   const teacherStats = teacherRoster.map((s) => {
     const rows = teacherLogs.filter((l) => l.student_id === s.id);
@@ -881,8 +881,11 @@ export default function App() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 7 }}>
                         <span style={{ fontSize: 12.5, color: C.ink }}>오늘 {joinedToday}/{TOTAL}명 참여 ({todayRate}%)</span>
                         <span className="cs-hand" style={{ fontSize: 14, color: goalMet ? C.gold : C.green }}>
-                          {goalMet ? "오늘 목표 달성! 다 함께 해냈어요 🎉" : `${remain}명만 더 하면 달성! 🌟`}</span>
+                          {TOTAL === 0 ? "아직 참여한 학생이 없어요" : goalMet ? "오늘 목표 달성! 다 함께 해냈어요 🎉" : `${remain}명만 더 하면 달성! 🌟`}</span>
                       </div>
+                      {TOTAL === 0 && role === "teacher" && classInfo?.code && (
+                        <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 4 }}>학급 코드 <b>{classInfo.code}</b>를 학생들에게 알려주세요!</div>
+                      )}
                     </div>
                   </div>
                   <div style={{ padding: "0 18px" }}>
