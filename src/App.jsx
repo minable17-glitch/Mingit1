@@ -652,11 +652,21 @@ export default function App() {
     ? Math.min(30, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
   const n = allTrees.length;
+  // 공동 나무는 화면 가운데(left 28%~72%)를 넓게 차지하므로, 개인 나무는
+  // 그 바깥 왼쪽/오른쪽 두 구역에만 배치해 나무 그림·이름표가 절대 겹치지 않게 한다.
+  const rightN = Math.ceil(n / 2);
+  const leftN = n - rightN;
   const positioned = allTrees.map((t, i) => {
-    const deg = 90 + i * (360 / n); const rad = (deg * Math.PI) / 180;
+    let deg;
+    if (i < rightN) {
+      deg = rightN > 1 ? -54 + i * (108 / (rightN - 1)) : 0;
+    } else {
+      const k = i - rightN;
+      deg = leftN > 1 ? 126 + k * (108 / (leftN - 1)) : 180;
+    }
+    const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
-    // 공동 나무(가운데 아래쪽, top 60%대)와 겹치지 않도록 세로 범위를 위쪽으로 제한
-    return { ...t, left: 50 + 38 * cos, top: 34 + 18 * sin, scale: 0.68 + 0.28 * ((sin + 1) / 2), z: Math.min(14, Math.round(2 + (sin + 1) * 10)) };
+    return { ...t, left: 50 + 38 * cos, top: 42 + 26 * sin, scale: 0.68 + 0.3 * ((sin + 1) / 2), z: Math.min(14, Math.round(2 + (sin + 1) * 10)) };
   });
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
