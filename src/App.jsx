@@ -290,7 +290,6 @@ export default function App() {
   const [teacherRoster, setTeacherRoster] = useState([]);
   const [classmates, setClassmates] = useState([]);
   const [classmatesError, setClassmatesError] = useState("");
-  const [classmatesDebug, setClassmatesDebug] = useState("");
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
   const myStage = stageFromDays(myLog.length);
@@ -329,7 +328,6 @@ export default function App() {
         getClassReadingSessions(ids),
       ]);
       setClassmatesError("");
-      setClassmatesDebug(`roster:${roster.length}건`);
       setClassmates(
         others.map((s) => ({
           id: s.id,
@@ -873,9 +871,6 @@ export default function App() {
                       학급원 정보 오류: {classmatesError}
                     </div>
                   )}
-                  {!classmatesError && classmatesDebug && (
-                    <div style={{ margin: "0 18px 8px", fontSize: 10.5, color: "#a7b3a0" }}>{classmatesDebug} · 학급원 {classmates.length}명 표시 중</div>
-                  )}
                   <div style={{ padding: "0 18px 4px" }}>
                     <div style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
@@ -904,7 +899,7 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
-                  <div style={{ position: "relative", height: 412, marginTop: 4 }}>
+                  <div style={{ position: "relative", height: 412, marginTop: 4, overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 6, right: 22, animation: "cs-sun 6s ease-in-out infinite" }}>
                       <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="27" fill={C.sun} opacity="0.24" /><circle cx="30" cy="30" r="17" fill={C.sun} /></svg></div>
                     <Scenery />
@@ -931,7 +926,7 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", padding: "2px 0 10px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿</div>
+                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿</div>
                 </>
               )}
 
