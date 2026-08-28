@@ -1,0 +1,747 @@
+import React, { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
+
+// ─────────────────────────────────────────────────────────────
+// 새싹책방 — 30일 독서 챌린지 프로토타입 (탭 구조)
+// 탭: 숲 · 책 찾기 · 읽기 · 내 기록 · 랭킹
+// ※ 책 검색은 목업, OCR·엑셀·백엔드는 다음 단계에서 연결
+// ─────────────────────────────────────────────────────────────
+
+const C = {
+  skyTop: "#FCEFCF", skyBot: "#E7F1DC", grassA: "#CFE7A6", grassB: "#A9CE78",
+  trunk: "#AE7749", trunkDark: "#855834", leafL: "#9BD187", leafM: "#6FB86C", leafD: "#4E9459",
+  bloom: "#F79FB5", bloomC: "#FBD968", sun: "#FBD24E", water: "#7CC4D6",
+  ink: "#35503F", inkSoft: "#6E8574", gold: "#EDA83A", green: "#57A365", greenDk: "#3F7E4E",
+  paper: "#FBF7EE", face: "#3C4E3D",
+};
+const STAGE_NAME = ["씨앗", "새싹", "줄기", "잎", "꽃봉오리", "활짝 핀 꽃"];
+const COVERS = ["#F6C6C6", "#F7DEA6", "#BFE3C0", "#C6D8F6", "#E3C6F6", "#F6D9BF"];
+
+function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
+  const w = size, h = size * 1.25;
+  const face = (cx, cy, k) => (
+    <g>
+      <circle cx={cx - 10 * k} cy={cy + 4 * k} r={2.4 * k} fill={C.bloom} opacity="0.5" />
+      <circle cx={cx + 10 * k} cy={cy + 4 * k} r={2.4 * k} fill={C.bloom} opacity="0.5" />
+      <ellipse cx={cx - 6 * k} cy={cy - 1 * k} rx={1.5 * k} ry={2.1 * k} fill={C.face} />
+      <ellipse cx={cx + 6 * k} cy={cy - 1 * k} rx={1.5 * k} ry={2.1 * k} fill={C.face} />
+      <path d={`M ${cx - 3.4 * k} ${cy + 3.2 * k} Q ${cx} ${cy + 6 * k} ${cx + 3.4 * k} ${cy + 3.2 * k}`}
+        stroke={C.face} strokeWidth={1.2 * k} fill="none" strokeLinecap="round" />
+    </g>
+  );
+  const fluffy = (cy, R) => {
+    const bumps = [[50, cy - R * 0.62, R * 0.52], [50 - R * 0.6, cy - R * 0.18, R * 0.5],
+      [50 + R * 0.6, cy - R * 0.18, R * 0.5], [50 - R * 0.34, cy - R * 0.55, R * 0.42], [50 + R * 0.34, cy - R * 0.55, R * 0.42]];
+    return (
+      <g>
+        {bumps.map((b, i) => <circle key={"b" + i} cx={b[0]} cy={b[1]} r={b[2]} fill={C.leafD} />)}
+        <ellipse cx="50" cy={cy} rx={R} ry={R * 0.94} fill={C.leafD} />
+        <ellipse cx={50 - R * 0.28} cy={cy + R * 0.12} rx={R * 0.66} ry={R * 0.62} fill={C.leafM} />
+        <ellipse cx={50 + R * 0.3} cy={cy + R * 0.08} rx={R * 0.58} ry={R * 0.55} fill={C.leafM} />
+        <ellipse cx="50" cy={cy - R * 0.28} rx={R * 0.6} ry={R * 0.5} fill={C.leafL} />
+      </g>
+    );
+  };
+  const flowers = (cy, R, open) => {
+    const spots = [[50, cy - R * 0.72], [50 - R * 0.72, cy - R * 0.1], [50 + R * 0.72, cy - R * 0.1],
+      [50 - R * 0.42, cy + R * 0.5], [50 + R * 0.42, cy + R * 0.5], [50, cy + R * 0.66]];
+    const n = open ? (communal ? 6 : 5) : 3;
+    return spots.slice(0, n).map((s, i) => open ? (
+      <g key={"f" + i}>
+        {[0, 72, 144, 216, 288].map((a) => { const rad = (a * Math.PI) / 180;
+          return <circle key={a} cx={s[0] + Math.cos(rad) * 2.6} cy={s[1] + Math.sin(rad) * 2.6} r={1.9} fill={C.bloom} />; })}
+        <circle cx={s[0]} cy={s[1]} r={1.7} fill={C.bloomC} />
+      </g>
+    ) : <circle key={"f" + i} cx={s[0]} cy={s[1]} r={2.3} fill={C.bloom} opacity="0.9" />);
+  };
+  const canopyMap = { 2: [72, 16], 3: [60, 23], 4: [54, 28], 5: [50, 30] };
+  const [cy, R] = canopyMap[stage] || canopyMap[3];
+  const k = R / 23;
+  const trunkTop = stage <= 1 ? 96 : stage === 2 ? 82 : cy + R * 0.7;
+  return (
+    <svg viewBox="0 0 100 122" width={w} height={h} style={{ overflow: "visible", display: "block" }}>
+      {communal && stage >= 4 && <circle cx="50" cy={cy} r={R + 18} fill={C.sun} opacity="0.13" />}
+      {stage <= 0 && (<g>
+        <ellipse cx="50" cy="108" rx="10" ry="6" fill={C.trunkDark} />
+        <path d="M50 102 q4 -6 1 -11" stroke={C.leafD} strokeWidth="2.4" fill="none" strokeLinecap="round" />
+        <circle cx="50" cy="90" r="3.2" fill={C.leafM} /></g>)}
+      {stage === 1 && (<g>
+        <rect x="48.3" y="90" width="3.4" height="22" rx="1.7" fill={C.leafD} />
+        <ellipse cx="42" cy="88" rx="8" ry="5.5" fill={C.leafM} transform="rotate(-28 42 88)" />
+        <ellipse cx="58" cy="88" rx="8" ry="5.5" fill={C.leafL} transform="rotate(28 58 88)" />
+        {face(50, 96, 0.8)}</g>)}
+      {stage >= 2 && (<>
+        <rect x={50 - 4} y={trunkTop} width="8" height={112 - trunkTop} rx="4" fill={communal ? C.trunkDark : C.trunk} />
+        {fluffy(cy, R)}{stage >= 4 && flowers(cy, R, stage === 5)}{face(50, cy + 1, k)}</>)}
+      {reading && <g className="cs-drip"><path d="M50 20 q3.2 5 0 8.4 q-3.2 -3.4 0 -8.4 z" fill={C.water} /></g>}
+    </svg>
+  );
+}
+
+// 정원 배경 꾸미기 — 언덕·구름·잔디 빈터·들꽃·버섯·풀숲·조약돌
+function Scenery() {
+  const flowers = [
+    { x: 55, y: 352, c: "#F79FB5", s: 1.1 }, { x: 112, y: 388, c: "#FBD968", s: 1.2 },
+    { x: 384, y: 360, c: "#F79FB5", s: 1.1 }, { x: 412, y: 390, c: "#C6A8F0", s: 1.1 },
+    { x: 28, y: 392, c: "#FBD968", s: 1 }, { x: 225, y: 406, c: "#F79FB5", s: 1.1 },
+    { x: 305, y: 398, c: "#C6A8F0", s: 1 }, { x: 158, y: 406, c: "#FBD968", s: 0.95 },
+    { x: 350, y: 392, c: "#9BD187", s: 0.9 },
+  ];
+  const tufts = [{ x: 88, y: 372 }, { x: 150, y: 398 }, { x: 262, y: 392 }, { x: 332, y: 382 },
+    { x: 402, y: 402 }, { x: 44, y: 372 }, { x: 200, y: 400 }, { x: 365, y: 372 }];
+  const mush = [{ x: 72, y: 402, s: 1 }, { x: 352, y: 406, s: 1.1 }];
+  const peb = [{ x: 132, y: 410 }, { x: 292, y: 406 }, { x: 245, y: 412 }];
+  return (
+    <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }}
+      viewBox="0 0 440 412" preserveAspectRatio="none">
+      <defs>
+        <radialGradient id="grass" cx="50%" cy="42%" r="70%">
+          <stop offset="0%" stopColor="#D9EDAF" /><stop offset="100%" stopColor="#A6CD77" />
+        </radialGradient>
+      </defs>
+      {[[78, 58, 1], [352, 92, 0.85]].map((c, i) => (
+        <g key={"cl" + i} opacity="0.9">
+          <ellipse cx={c[0]} cy={c[1]} rx={26 * c[2]} ry={15 * c[2]} fill="#fff" />
+          <ellipse cx={c[0] + 22 * c[2]} cy={c[1] + 3 * c[2]} rx={20 * c[2]} ry={13 * c[2]} fill="#fff" />
+          <ellipse cx={c[0] - 20 * c[2]} cy={c[1] + 4 * c[2]} rx={17 * c[2]} ry={11 * c[2]} fill="#fff" />
+        </g>
+      ))}
+      <ellipse cx="120" cy="360" rx="210" ry="95" fill="#BCDD8F" />
+      <ellipse cx="360" cy="372" rx="200" ry="90" fill="#B0D682" />
+      <ellipse cx="220" cy="398" rx="248" ry="120" fill="url(#grass)" />
+      <ellipse cx="205" cy="330" rx="150" ry="40" fill="#DDF0B4" opacity="0.5" />
+      <ellipse cx="220" cy="250" rx="66" ry="13" fill="#3f7e4e" opacity="0.12" />
+      {[[24, 336, 1], [420, 346, 1.1]].map((b, i) => (
+        <g key={"bs" + i}>
+          <circle cx={b[0]} cy={b[1]} r={20 * b[2]} fill={C.leafD} />
+          <circle cx={b[0] - 16 * b[2]} cy={b[1] + 6 * b[2]} r={15 * b[2]} fill={C.leafM} />
+          <circle cx={b[0] + 16 * b[2]} cy={b[1] + 6 * b[2]} r={15 * b[2]} fill={C.leafM} />
+          <circle cx={b[0]} cy={b[1] + 8 * b[2]} r={15 * b[2]} fill={C.leafL} />
+        </g>
+      ))}
+      {tufts.map((t, i) => (
+        <g key={"tf" + i} stroke={C.leafD} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.8">
+          <path d={`M${t.x} ${t.y} q-3 -8 -4 -12`} /><path d={`M${t.x} ${t.y} q0 -9 0 -14`} /><path d={`M${t.x} ${t.y} q3 -8 4 -12`} />
+        </g>
+      ))}
+      {peb.map((p, i) => <ellipse key={"pb" + i} cx={p.x} cy={p.y} rx="6" ry="3.4" fill="#C9C3B2" />)}
+      {mush.map((m, i) => (
+        <g key={"ms" + i}>
+          <rect x={m.x - 2.4 * m.s} y={m.y - 2} width={4.8 * m.s} height={9 * m.s} rx={2 * m.s} fill="#FBF3E2" />
+          <ellipse cx={m.x} cy={m.y - 2} rx={7 * m.s} ry={5 * m.s} fill="#E8776E" />
+          <circle cx={m.x - 2.5 * m.s} cy={m.y - 3 * m.s} r={1.2 * m.s} fill="#fff" />
+          <circle cx={m.x + 2 * m.s} cy={m.y - 2 * m.s} r={1 * m.s} fill="#fff" />
+        </g>
+      ))}
+      {flowers.map((f, i) => (
+        <g key={"fw" + i}>
+          <rect x={f.x - 0.6} y={f.y} width="1.2" height={9 * f.s} fill={C.leafD} opacity="0.6" />
+          {[0, 60, 120, 180, 240, 300].map((a) => { const r = (a * Math.PI) / 180;
+            return <circle key={a} cx={f.x + Math.cos(r) * 3.2 * f.s} cy={f.y + Math.sin(r) * 3.2 * f.s} r={2.3 * f.s} fill={f.c} />; })}
+          <circle cx={f.x} cy={f.y} r={1.9 * f.s} fill="#FBD968" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// 공용 나무 — 학생 나무와 다른, 크고 웅장한 3단 나무 (기여도 열매 + 표정)
+function CommunalTree({ size = 182, pct = 60 }) {
+  const w = size, h = size * 1.35;
+  const nFruit = Math.min(7, Math.floor(pct / 13));
+  const bloom = pct >= 55, bigBloom = pct >= 90;
+  const fruitSpots = [[26, 86], [40, 92], [60, 92], [74, 86], [33, 79], [67, 79], [50, 96]];
+  const fCol = ["#F2857E", "#F7B750", "#F79FB5"];
+  const flowerSpots = [[30, 44], [50, 30], [70, 44], [38, 58], [62, 58], [50, 50], [22, 56], [78, 56]];
+  return (
+    <svg viewBox="0 0 100 132" width={w} height={h} style={{ overflow: "visible", display: "block" }}>
+      <circle cx="50" cy="56" r="52" fill={C.sun} opacity="0.15" />
+      <circle cx="50" cy="56" r="38" fill={C.sun} opacity="0.11" />
+      <path d="M41 121 Q39 96 44 76 L56 76 Q61 96 59 121 Z" fill={C.trunkDark} />
+      <path d="M47 121 Q46 100 48 80 L51 80 L51 121 Z" fill="#6e4526" opacity="0.45" />
+      <ellipse cx="41" cy="121" rx="9" ry="4" fill={C.trunkDark} />
+      <ellipse cx="59" cy="121" rx="9" ry="4" fill={C.trunkDark} />
+      {/* 3단 캐노피 (뒤 어두운 층) */}
+      <ellipse cx="50" cy="72" rx="41" ry="27" fill={C.leafD} />
+      <ellipse cx="50" cy="50" rx="33" ry="25" fill={C.leafD} />
+      <ellipse cx="50" cy="31" rx="23" ry="19" fill={C.leafD} />
+      {/* 앞 밝은 층 */}
+      <ellipse cx="43" cy="75" rx="30" ry="20" fill={C.leafM} />
+      <ellipse cx="59" cy="73" rx="27" ry="18" fill={C.leafM} />
+      <ellipse cx="50" cy="52" rx="25" ry="19" fill={C.leafM} />
+      <ellipse cx="42" cy="61" rx="16" ry="13" fill={C.leafL} opacity="0.9" />
+      <ellipse cx="50" cy="33" rx="16" ry="13" fill={C.leafL} />
+      <circle cx="33" cy="25" r="8" fill={C.leafM} />
+      <circle cx="67" cy="27" r="9" fill={C.leafM} />
+      {bloom && flowerSpots.slice(0, bigBloom ? 8 : 5).map((s, i) => (
+        <g key={"fl" + i}>
+          {[0, 72, 144, 216, 288].map((a) => { const r = (a * Math.PI) / 180;
+            return <circle key={a} cx={s[0] + Math.cos(r) * 2.8} cy={s[1] + Math.sin(r) * 2.8} r={2} fill={C.bloom} />; })}
+          <circle cx={s[0]} cy={s[1]} r="1.8" fill={C.bloomC} />
+        </g>
+      ))}
+      {Array.from({ length: nFruit }).map((_, i) => { const s = fruitSpots[i]; return (
+        <g key={"fr" + i}>
+          <line x1={s[0]} y1={s[1] - 4} x2={s[0]} y2={s[1] - 1} stroke={C.leafD} strokeWidth="0.8" />
+          <circle cx={s[0]} cy={s[1]} r="3" fill={fCol[i % 3]} />
+          <circle cx={s[0] - 0.9} cy={s[1] - 0.9} r="0.9" fill="#fff" opacity="0.6" />
+        </g>
+      ); })}
+      <g>
+        <circle cx="37" cy="60" r="4.2" fill={C.bloom} opacity="0.45" />
+        <circle cx="63" cy="60" r="4.2" fill={C.bloom} opacity="0.45" />
+        <ellipse cx="44" cy="55" rx="2.3" ry="3.3" fill={C.face} />
+        <ellipse cx="56" cy="55" rx="2.3" ry="3.3" fill={C.face} />
+        <path d="M43.5 61 Q50 67.5 56.5 61" stroke={C.face} strokeWidth="1.9" fill="none" strokeLinecap="round" />
+      </g>
+      {bigBloom && [[16, 40], [84, 44], [50, 14]].map((s, i) => (
+        <text key={"sp" + i} x={s[0]} y={s[1]} fontSize="7" textAnchor="middle">✨</text>
+      ))}
+    </svg>
+  );
+}
+
+const STUDENTS = [
+  { nick: "초코", book: "마당을 나온 암탉", stage: 3 },
+  { nick: "뭉치", book: "무민은 특별해", stage: 4, reading: true },
+  { nick: "별이", book: "해리포터", stage: 5 },
+  { nick: "하늘", book: "강아지똥", stage: 2 },
+  { nick: "콩이", book: "나무를 심은 사람", stage: 3 },
+  { nick: "반달", book: "어린 왕자", stage: 1 },
+  { nick: "토리", book: "긴긴밤", stage: 4 },
+];
+const MOCK_BOOKS = [
+  { title: "몬스터 차일드", author: "이재문" },
+  { title: "긴긴밤", author: "루리" },
+  { title: "마당을 나온 암탉", author: "황선미" },
+  { title: "강아지똥", author: "권정생" },
+  { title: "몽실 언니", author: "권정생" },
+  { title: "나무를 심은 사람", author: "장 지오노" },
+  { title: "어린 왕자", author: "생텍쥐페리" },
+  { title: "해리포터와 마법사의 돌", author: "J.K. 롤링" },
+  { title: "마틸다", author: "로알드 달" },
+  { title: "초정리 편지", author: "배유안" },
+  { title: "푸른 사자 와니니", author: "이현" },
+  { title: "복실이네 가족사진", author: "이금이" },
+];
+const BADGES = [
+  { icon: "🐿️", title: "개근 다람쥐", who: "별이", detail: "연속 14일 물주기" },
+  { icon: "☀️", title: "햇살 요정", who: "토리", detail: "응원 32번 보냄" },
+  { icon: "💧", title: "물조리개 대장", who: "초코", detail: "우리 반 나무 +48" },
+  { icon: "🍎", title: "열매 부자", who: "뭉치", detail: "이번 주 3권 완독" },
+];
+const STREAK_TOP = [["별이", 14], ["초코", 12], ["콩이", 11]];
+const CHEERS = ["❤️", "🔥", "👏", "🌟"];
+const STUDENT_STATS = [
+  { nick: "초코", days: 11, min: 128, done: 2 },
+  { nick: "뭉치", days: 9, min: 140, done: 3 },
+  { nick: "별이", days: 14, min: 210, done: 2 },
+  { nick: "하늘", days: 6, min: 66, done: 1 },
+  { nick: "콩이", days: 11, min: 119, done: 1 },
+  { nick: "반달", days: 4, min: 48, done: 0 },
+  { nick: "토리", days: 12, min: 150, done: 2 },
+];
+const NOTE_POOL = ["재미있었다", "주인공이 멋있었다", "슬펐지만 여운이 남았다", "다음 내용이 궁금하다", "친구에게 추천하고 싶다"];
+
+function Cover({ title, size = 46 }) {
+  const c = COVERS[title.length % COVERS.length];
+  return (
+    <div style={{ width: size, height: size * 1.3, borderRadius: 8, background: c, flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 5px #0002" }}>
+      <span className="cs-jua" style={{ fontSize: size * 0.5, color: "#fff" }}>{title[0]}</span>
+    </div>
+  );
+}
+
+export default function App() {
+  const [screen, setScreen] = useState("splash");
+  const [enter, setEnter] = useState(false);
+  const [tab, setTab] = useState("forest");
+  const [myStage, setMyStage] = useState(2);
+  const [myBook, setMyBook] = useState("몬스터 차일드");
+  const [doneToday, setDoneToday] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [reflecting, setReflecting] = useState(false);
+  const [secs, setSecs] = useState(600);
+  const [note, setNote] = useState("");
+  const [toast, setToast] = useState("");
+  const [classPct, setClassPct] = useState(62);
+  const [bloomPulse, setBloomPulse] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [query, setQuery] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
+  const [goalPct, setGoalPct] = useState(80);
+  const [joinedToday, setJoinedToday] = useState(5);
+  const [showTeacher, setShowTeacher] = useState(false);
+  const TOTAL = 1 + STUDENTS.length;
+  const [pin, setPin] = useState("");
+  const [myLog, setMyLog] = useState([
+    { date: "3월 13일", book: "몬스터 차일드", note: "괴물이라고 놀림받는 마음이 어떤 건지 조금 알 것 같았다." },
+    { date: "3월 12일", book: "몬스터 차일드", note: "동생을 지키려는 하늬가 멋있었다." },
+  ]);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (screen !== "splash") return;
+    const t1 = setTimeout(() => setEnter(true), 2600);
+    const t2 = setTimeout(() => setScreen("main"), 3600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [screen]);
+
+  useEffect(() => {
+    if (!reading) return;
+    timerRef.current = setInterval(() => {
+      setSecs((s) => { if (s <= 1) { clearInterval(timerRef.current); finishReading(); return 0; } return s - 1; });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [reading]);
+
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
+  const startReading = () => { setSecs(600); setReading(true); };
+  const finishReading = () => { clearInterval(timerRef.current); setReading(false); setReflecting(true); };
+  const submit = () => {
+    if (!note.trim()) return;
+    const saved = note.trim();
+    setReflecting(false); setNote("");
+    setMyStage((s) => Math.min(5, s + 1));
+    setClassPct((p) => Math.min(100, p + 3));
+    setDoneToday(true); setBloomPulse(true);
+    if (!doneToday) setJoinedToday((j) => Math.min(TOTAL, j + 1));
+    setMyLog((l) => [{ date: "오늘", book: myBook, note: saved }, ...l]);
+    setTab("forest");
+    showToast("물을 줬어요! 오늘도 한 뼘 자랐어요 🌱");
+    setTimeout(() => setBloomPulse(false), 1400);
+  };
+
+  const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+  const ss = String(secs % 60).padStart(2, "0");
+
+  const todayRate = Math.round((joinedToday / TOTAL) * 100);
+  const goalCount = Math.ceil((TOTAL * goalPct) / 100);
+  const remain = Math.max(0, goalCount - joinedToday);
+  const goalMet = todayRate >= goalPct;
+  const meStat = { nick: "나", days: myLog.length, min: myLog.length * 10, done: 0 };
+  const allStats = [meStat, ...STUDENT_STATS];
+
+  const exportExcel = () => {
+    try {
+      const daily = [];
+      myLog.forEach((e) => daily.push({ 닉네임: "나", 날짜: e.date, 책제목: e.book, "읽은시간(분)": 10, 느낀점: e.note, 완료: "O" }));
+      STUDENTS.forEach((s) => ["3월 13일", "3월 12일"].forEach((d, idx) =>
+        daily.push({ 닉네임: s.nick, 날짜: d, 책제목: s.book, "읽은시간(분)": 10 + idx * 3,
+          느낀점: NOTE_POOL[(s.nick.length + idx) % NOTE_POOL.length], 완료: "O" })));
+      const summary = allStats.map((s) => ({ 닉네임: s.nick, 완료일수: s.days, "총 독서시간(분)": s.min, 완독권수: s.done }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(daily), "일별기록");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "학생요약");
+      XLSX.writeFile(wb, "새싹책방_독서기록.xlsx");
+      showToast("엑셀 파일을 내려받았어요 📄");
+    } catch (e) {
+      showToast("미리보기에선 다운로드가 막힐 수 있어요. 실제 앱에선 저장돼요.");
+    }
+  };
+
+  const allTrees = [{ me: true, nick: "나", book: myBook, stage: myStage }, ...STUDENTS];
+  const n = allTrees.length;
+  const positioned = allTrees.map((t, i) => {
+    const deg = 90 + i * (360 / n); const rad = (deg * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return { ...t, left: 50 + 38 * cos, top: 45 + 30 * sin, scale: 0.68 + 0.34 * ((sin + 1) / 2), z: Math.round(2 + (sin + 1) * 12) };
+  });
+  const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
+  const results = query.trim() ? MOCK_BOOKS.filter((b) => (b.title + b.author).includes(query.trim())) : MOCK_BOOKS;
+
+  const TABS = [
+    { id: "forest", icon: "🌳", label: "숲" },
+    { id: "search", icon: "🔍", label: "책 찾기" },
+    { id: "read", icon: "📖", label: "읽기", center: true },
+    { id: "log", icon: "📔", label: "내 기록" },
+    { id: "rank", icon: "🏆", label: "랭킹" },
+  ];
+
+  return (
+    <div style={{ fontFamily: "'Gowun Dodum', sans-serif", color: C.ink, width: "100%", minHeight: "100%",
+      display: "flex", justifyContent: "center", background: "#DDE9D3" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&family=Gowun+Dodum&display=swap');
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        .cs-jua { font-family: 'Jua', sans-serif; } .cs-hand { font-family: 'Gaegu', cursive; }
+        @keyframes cs-sprout { 0%{transform:scale(0) translateY(20px);opacity:0} 60%{transform:scale(1.1);opacity:1} 100%{transform:scale(1);opacity:1} }
+        @keyframes cs-rise { from{transform:translateY(14px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes cs-fade { from{opacity:0} to{opacity:1} }
+        @keyframes cs-drip { 0%{transform:translateY(-4px);opacity:0} 30%{opacity:1} 100%{transform:translateY(26px);opacity:0} }
+        @keyframes cs-sway { 0%,100%{transform:rotate(-1.5deg)} 50%{transform:rotate(1.5deg)} }
+        @keyframes cs-pulse { 0%,100%{transform:translateX(-50%) scale(1)} 50%{transform:translateX(-50%) scale(1.05)} }
+        @keyframes cs-shimmer { 0%,100%{opacity:.45} 50%{opacity:1} }
+        @keyframes cs-sun { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+        @keyframes cs-up { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        @keyframes cs-float { 0%,100%{transform:translate(0,0) rotate(-6deg)} 50%{transform:translate(12px,-16px) rotate(8deg)} }
+        .cs-drip { animation: cs-drip 1.3s ease-in infinite; }
+        @media (prefers-reduced-motion: reduce){ *{animation:none!important} }
+      `}</style>
+
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", position: "relative", overflow: "hidden",
+        background: `linear-gradient(${C.skyTop}, ${C.skyBot} 66%)` }}>
+
+        {/* 스플래시 */}
+        {screen === "splash" && (
+          <div onClick={() => setScreen("main")} style={{ position: "absolute", inset: 0, display: "flex",
+            flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            background: `linear-gradient(${C.skyTop}, ${C.skyBot})` }}>
+            <div style={{ animation: "cs-sprout 1s ease both" }}><Tree stage={2} size={140} /></div>
+            <div className="cs-jua" style={{ fontSize: 44, color: C.greenDk, marginTop: 10, animation: "cs-rise .7s ease .9s both" }}>새싹책방</div>
+            <div style={{ fontSize: 15, color: C.inkSoft, marginTop: 3, animation: "cs-fade .8s ease 1.5s both" }}>하루 10분, 우리 반이 함께 키우는 숲</div>
+            {enter && <div style={{ marginTop: 32, fontSize: 13, color: C.inkSoft, animation: "cs-fade .5s ease both" }}>화면을 눌러 시작하기</div>}
+          </div>
+        )}
+
+        {screen === "main" && (
+          <>
+            <div style={{ minHeight: "100vh", paddingBottom: 78 }}>
+
+              {/* ── 숲 탭 ── */}
+              {tab === "forest" && (
+                <>
+                  <div style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div className="cs-jua" style={{ fontSize: 23, color: C.greenDk }}>🌱 새싹책방</div>
+                    <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ 12 / 30</div>
+                  </div>
+                  <div style={{ padding: "0 18px 4px" }}>
+                    <div style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                        <span className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk }}>🎯 오늘의 반 목표</span>
+                        <span style={{ fontSize: 12, color: C.inkSoft }}>목표 참여율 {goalPct}%</span>
+                      </div>
+                      <div style={{ position: "relative", height: 12, background: "#eef2e8", borderRadius: 7, overflow: "visible" }}>
+                        <div style={{ width: `${todayRate}%`, height: "100%", borderRadius: 7,
+                          background: goalMet ? `linear-gradient(90deg, ${C.gold}, #f0b73f)` : `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .5s ease" }} />
+                        <div style={{ position: "absolute", left: `${goalPct}%`, top: -3, bottom: -3, width: 2, background: C.greenDk, borderRadius: 2 }} />
+                        <div style={{ position: "absolute", left: `${goalPct}%`, top: -16, transform: "translateX(-50%)", fontSize: 11 }}>🚩</div>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 7 }}>
+                        <span style={{ fontSize: 12.5, color: C.ink }}>오늘 {joinedToday}/{TOTAL}명 참여 ({todayRate}%)</span>
+                        <span className="cs-hand" style={{ fontSize: 14, color: goalMet ? C.gold : C.green }}>
+                          {goalMet ? "오늘 목표 달성! 다 함께 해냈어요 🎉" : `${remain}명만 더 하면 달성! 🌟`}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "0 18px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft, marginBottom: 4 }}>
+                      <span>우리 반 숲 (30일 누적)</span><span>{classPct}%</span></div>
+                    <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
+                      <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
+                  </div>
+                  <div style={{ position: "relative", height: 412, marginTop: 4 }}>
+                    <div style={{ position: "absolute", top: 6, right: 22, animation: "cs-sun 6s ease-in-out infinite" }}>
+                      <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="27" fill={C.sun} opacity="0.24" /><circle cx="30" cy="30" r="17" fill={C.sun} /></svg></div>
+                    <Scenery />
+                    <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
+                    <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
+                    <div style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
+                      animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
+                      <div style={{ transform: "translateY(-100%)", transformOrigin: "bottom center", animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite" }}>
+                        <CommunalTree size={188} pct={classPct} /></div></div>
+                    <div style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
+                      background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
+                      boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
+                    {positioned.map((t, i) => (
+                      <div key={i} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${t.left}%`, top: `${t.top}%`,
+                        transform: "translate(-50%,-100%)", zIndex: t.z, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
+                          <Tree stage={t.stage} size={72 * t.scale} reading={t.reading} /></div>
+                        <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
+                          borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
+                          <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
+                          <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.book}</div>
+                          {t.reading && <div style={{ fontSize: 8, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", padding: "2px 0 10px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿</div>
+                </>
+              )}
+
+              {/* ── 책 찾기 탭 ── */}
+              {tab === "search" && (
+                <div style={{ padding: "18px 18px 0" }}>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🔍 책 찾기</div>
+                  <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "3px 0 12px" }}>읽을 책을 골라 내 나무에 걸어두세요.</div>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "10px 14px", marginBottom: 8, display: "flex",
+                    alignItems: "center", gap: 8, border: "1px solid #eadfce" }}>
+                    <span style={{ fontSize: 14, color: C.greenDk }}>지금 읽는 책</span>
+                    <span className="cs-jua" style={{ fontSize: 15, color: C.ink }}>{myBook}</span>
+                  </div>
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목이나 작가를 검색해보세요"
+                    style={{ width: "100%", padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2", fontSize: 15,
+                      fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, marginBottom: 12 }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                    {results.map((b, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 14,
+                        padding: 10, border: "1px solid #eee5d3" }}>
+                        <Cover title={b.title} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
+                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{b.author}</div>
+                        </div>
+                        <button onClick={() => { setMyBook(b.title); showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`); setTab("read"); }}
+                          className="cs-jua" style={{ border: "none", background: myBook === b.title ? "#cbd8c3" : C.green, color: "#fff",
+                            borderRadius: 12, padding: "9px 13px", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                          {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
+                      </div>
+                    ))}
+                    {results.length === 0 && <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#a7b3a0", textAlign: "center", padding: "14px 0 4px" }}>※ 지금은 예시 목록이에요. 실제 도서 검색은 다음 단계에서 연결돼요.</div>
+                </div>
+              )}
+
+              {/* ── 읽기 탭 ── */}
+              {tab === "read" && (
+                <div style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", minHeight: "70vh", justifyContent: "center" }}>
+                  <Tree stage={myStage} size={150} />
+                  <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
+                  <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", marginBottom: 26, maxWidth: 260 }}>
+                    10분을 읽고 느낀 점 한 줄을 남기면 나무에 물을 줄 수 있어요.</div>
+                  {doneToday ? (
+                    <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
+                      borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}` }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
+                  ) : (
+                    <button onClick={startReading} className="cs-jua" style={{ border: "none", padding: "17px 40px", borderRadius: 20,
+                      fontSize: 19, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e55" }}>
+                      📖 10분 읽기 시작</button>
+                  )}
+                </div>
+              )}
+
+              {/* ── 내 기록 탭 ── */}
+              {tab === "log" && (
+                <div style={{ padding: "18px 18px 0" }}>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>📔 내 기록</div>
+                  {!unlocked ? (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "50px 0" }}>
+                      <div style={{ fontSize: 40 }}>🔒</div>
+                      <div style={{ fontSize: 14, color: C.ink, margin: "10px 0 4px" }}>내 느낀점은 나만 볼 수 있어요</div>
+                      <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 18 }}>비밀번호 4자리를 입력하세요</div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} style={{ width: 16, height: 16, borderRadius: "50%", background: pin.length > i ? C.green : "#d7ddd2" }} />
+                        ))}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 64px)", gap: 10 }}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, "←", 0, "✓"].map((k, i) => (
+                          <button key={i} onClick={() => {
+                            if (k === "←") setPin((p) => p.slice(0, -1));
+                            else if (k === "✓") { if (pin.length === 4) { setUnlocked(true); setPin(""); } }
+                            else setPin((p) => (p.length < 4 ? p + k : p));
+                          }} className="cs-jua" style={{ height: 56, borderRadius: 14, border: "none", fontSize: 20,
+                            background: k === "✓" ? C.green : "#fff", color: k === "✓" ? "#fff" : C.ink, cursor: "pointer", boxShadow: "0 2px 5px #0000000d" }}>{k}</button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 14 }}>※ 체험용: 아무 숫자 4자리나 넣고 ✓</div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ fontSize: 12.5, color: C.inkSoft }}>지금까지 {myLog.length}일 기록했어요 🌱</div>
+                      {myLog.map((e, i) => (
+                        <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #eee5d3" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
+                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}</span>
+                          </div>
+                          <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{e.note}”</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 랭킹 탭 ── */}
+              {tab === "rank" && (
+                <div style={{ padding: "18px 18px 0" }}>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🏆 이주의 주인공</div>
+                  <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "2px 0 16px" }}>매주 월요일 새로 시작해요. 누구나 주인공이 될 수 있어요!</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {BADGES.map((b, i) => (
+                      <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "16px 12px", textAlign: "center", border: "1px solid #eee5d3" }}>
+                        <div style={{ fontSize: 32 }}>{b.icon}</div>
+                        <div className="cs-jua" style={{ fontSize: 14, color: C.gold, marginTop: 4 }}>이주의 {b.title}</div>
+                        <div className="cs-hand" style={{ fontSize: 20, color: C.greenDk, lineHeight: 1.1 }}>{b.who}</div>
+                        <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 2 }}>{b.detail}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 16, background: "#fff", borderRadius: 16, padding: "14px 16px", border: "1px solid #eee5d3" }}>
+                    <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 8 }}>🐿️ 개근왕 TOP 3</div>
+                    {STREAK_TOP.map(([who, d], i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < 2 ? "1px dashed #eee5d3" : "none" }}>
+                        <span style={{ fontSize: 14 }}>{["🥇", "🥈", "🥉"][i]} <span className="cs-hand" style={{ fontSize: 17, color: C.ink }}>{who}</span></span>
+                        <span style={{ fontSize: 12.5, color: C.inkSoft }}>연속 {d}일</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowTeacher(true)} style={{ width: "100%", marginTop: 16, padding: 12,
+                    borderRadius: 14, border: "1px dashed #cbb98a", background: "#fff", color: C.gold, fontSize: 13.5,
+                    cursor: "pointer" }}>👩‍🏫 선생님용 · 반 관리 열기</button>
+                </div>
+              )}
+            </div>
+
+            {/* 하단 탭바 */}
+            <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: Z.tabbar, display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: 440, background: "#fff", borderTop: "1px solid #ececdf",
+                display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "8px 6px 12px", boxShadow: "0 -2px 12px #0000000a" }}>
+                {TABS.map((t) => {
+                  const active = tab === t.id;
+                  if (t.center) return (
+                    <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "transparent", cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", transform: "translateY(-10px)" }}>
+                      <div style={{ width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(${C.green}, ${C.greenDk})`,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: "0 5px 12px #3f7e4e55",
+                        border: "3px solid #fff" }}>{t.icon}</div>
+                      <span className="cs-jua" style={{ fontSize: 11, color: C.greenDk, marginTop: 2 }}>{t.label}</span>
+                    </button>
+                  );
+                  return (
+                    <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "transparent", cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: 1, opacity: active ? 1 : 0.5 }}>
+                      <span style={{ fontSize: 21 }}>{t.icon}</span>
+                      <span style={{ fontSize: 11, color: active ? C.greenDk : C.inkSoft, fontWeight: active ? 700 : 400 }}>{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 나무 상세 + 응원 */}
+        {selected && (
+          <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 22px 30px", animation: "cs-up .28s ease" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Tree stage={selected.stage} size={64} />
+                <div>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>{selected.nick}</div>
+                  <div style={{ fontSize: 13.5, color: C.ink }}>📖 {selected.book}</div>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>지금 {STAGE_NAME[selected.stage]} 단계</div>
+                </div>
+              </div>
+              {selected.me ? (
+                <button onClick={() => { setSelected(null); setTab("log"); }} className="cs-jua" style={{ width: "100%", marginTop: 16,
+                  padding: 14, borderRadius: 14, border: "none", fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+                  🔒 내 독서기록 보기</button>
+              ) : (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 12.5, color: C.inkSoft, textAlign: "center", marginBottom: 8 }}>응원을 보내볼까요? 💬</div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    {CHEERS.map((c) => (
+                      <button key={c} onClick={() => { const nk = selected.nick; setSelected(null); showToast(`${nk}에게 응원을 보냈어요! ${c}`); }}
+                        style={{ fontSize: 26, width: 56, height: 56, borderRadius: 16, border: "1px solid #eee5d3", background: "#fff", cursor: "pointer" }}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 선생님용 · 반 관리 */}
+        {showTeacher && (
+          <div onClick={() => setShowTeacher(false)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: 260,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 20px 30px", animation: "cs-up .28s ease", maxHeight: "88vh", overflowY: "auto" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
+              <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>👩‍🏫 선생님용 · 반 관리</div>
+              <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "2px 0 14px" }}>총 {TOTAL}명 · 오늘 {joinedToday}명 참여 ({todayRate}%)</div>
+
+              {/* 목표 설정 */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🎯 오늘의 반 참여율 목표</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[70, 80, 90, 100].map((g) => (
+                    <button key={g} onClick={() => setGoalPct(g)} style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                      border: goalPct === g ? "none" : "1px solid #e2dac9", background: goalPct === g ? C.green : "#fff",
+                      color: goalPct === g ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{g}%</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>목표를 정하면 학생들 숲 화면에 "몇 명 더 하면 달성"으로 함께 보여요.</div>
+              </div>
+
+              {/* 학생 요약 미리보기 */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>📊 학생 요약</div>
+                <div style={{ display: "flex", fontSize: 11.5, color: C.inkSoft, padding: "0 0 6px", borderBottom: "1px solid #eee5d3" }}>
+                  <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 60, textAlign: "right" }}>완료일</span>
+                  <span style={{ width: 66, textAlign: "right" }}>총 분</span><span style={{ width: 54, textAlign: "right" }}>완독</span>
+                </div>
+                {allStats.map((s, i) => (
+                  <div key={i} style={{ display: "flex", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < allStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
+                    <span style={{ flex: 1 }} className="cs-hand">{s.nick}</span>
+                    <span style={{ width: 60, textAlign: "right" }}>{s.days}일</span>
+                    <span style={{ width: 66, textAlign: "right" }}>{s.min}분</span>
+                    <span style={{ width: 54, textAlign: "right" }}>{s.done}권</span>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={exportExcel} className="cs-jua" style={{ width: "100%", padding: 15, borderRadius: 16, border: "none",
+                fontSize: 17, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 5px 14px #3f7e4e44" }}>
+                📄 엑셀로 내보내기 (.xlsx)</button>
+              <div style={{ fontSize: 11, color: "#a7b3a0", textAlign: "center", marginTop: 10 }}>
+                일별 기록(날짜·책·시간·느낀점)과 학생 요약이 시트 2장으로 저장돼요. 느낀점은 학생끼리는 비공개, 선생님만 볼 수 있어요.</div>
+            </div>
+          </div>
+        )}
+
+        {/* 타이머 */}
+        {reading && (
+          <div style={{ position: "fixed", inset: 0, background: `linear-gradient(${C.skyTop}, ${C.skyBot})`, display: "flex",
+            flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: Z.timer, padding: 24 }}>
+            <div style={{ fontSize: 14, color: C.inkSoft }}>지금 읽는 책</div>
+            <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
+            <Tree stage={myStage} size={140} reading />
+            <div className="cs-jua" style={{ fontSize: 58, color: C.ink, letterSpacing: 3, marginTop: 4 }}>{mm}:{ss}</div>
+            <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 2, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
+            <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+              <button onClick={() => { clearInterval(timerRef.current); setReading(false); }} style={{ padding: "11px 20px", borderRadius: 14,
+                border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>그만두기</button>
+              <button onClick={finishReading} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
+                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>건너뛰기 (체험용) ⏭</button>
+            </div>
+          </div>
+        )}
+
+        {/* 느낀점 */}
+        {reflecting && (
+          <div style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
+              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수)</div>
+              <button onClick={() => showToast("구절 스캔(OCR)은 다음 단계에서 연결돼요 📷")} style={{ width: "100%", padding: 12, borderRadius: 14,
+                marginBottom: 12, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: "pointer" }}>📷 마음에 드는 구절 스캔하기 (선택)</button>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
+                style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
+                  fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
+              <button onClick={submit} disabled={!note.trim()} className="cs-jua" style={{ width: "100%", marginTop: 14, padding: 15, borderRadius: 16,
+                border: "none", fontSize: 17, color: "#fff", cursor: note.trim() ? "pointer" : "not-allowed",
+                background: note.trim() ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe", boxShadow: note.trim() ? "0 5px 14px #3f7e4e44" : "none" }}>💧 물 주기</button>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", background: "#2e3d2fee", color: "#fff",
+            padding: "11px 18px", borderRadius: 30, fontSize: 13.5, zIndex: Z.toast, maxWidth: "88%", textAlign: "center" }}>{toast}</div>
+        )}
+      </div>
+    </div>
+  );
+}
