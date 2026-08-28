@@ -148,3 +148,9 @@ export async function getClassRoster(classId) {
 export async function logout() {
   await supabase.auth.signOut();
 }
+
+export async function searchBooks(query) {
+  const { data, error } = await supabase.functions.invoke('search-books', { body: { query } });
+  if (error) throw error;
+  return data?.books || [];
+}

@@ -4,7 +4,7 @@ import {
   createClass, teacherLogin, studentLogin, logout as apiLogout,
   getClassById, updateClassSettings, getClassProgress,
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
-  getClassLogsForTeacher, getClassRoster,
+  getClassLogsForTeacher, getClassRoster, searchBooks,
 } from "./lib/api";
 import { getSession, setSession, clearSession } from "./lib/session";
 
@@ -232,20 +232,6 @@ const STUDENTS = [
   { nick: "반달", book: "어린 왕자", stage: 1 },
   { nick: "토리", book: "긴긴밤", stage: 4 },
 ];
-const MOCK_BOOKS = [
-  { title: "몬스터 차일드", author: "이재문" },
-  { title: "긴긴밤", author: "루리" },
-  { title: "마당을 나온 암탉", author: "황선미" },
-  { title: "강아지똥", author: "권정생" },
-  { title: "몽실 언니", author: "권정생" },
-  { title: "나무를 심은 사람", author: "장 지오노" },
-  { title: "어린 왕자", author: "생텍쥐페리" },
-  { title: "해리포터와 마법사의 돌", author: "J.K. 롤링" },
-  { title: "마틸다", author: "로알드 달" },
-  { title: "초정리 편지", author: "배유안" },
-  { title: "푸른 사자 와니니", author: "이현" },
-  { title: "복실이네 가족사진", author: "이금이" },
-];
 const BADGES = [
   { icon: "🐿️", title: "개근 다람쥐", who: "별이", detail: "연속 14일 물주기" },
   { icon: "☀️", title: "햇살 요정", who: "토리", detail: "응원 32번 보냄" },
@@ -265,12 +251,18 @@ const STUDENT_STATS = [
 ];
 const NOTE_POOL = ["재미있었다", "주인공이 멋있었다", "슬펐지만 여운이 남았다", "다음 내용이 궁금하다", "친구에게 추천하고 싶다"];
 
-function Cover({ title, size = 46 }) {
-  const c = COVERS[title.length % COVERS.length];
+function Cover({ title, cover, size = 46 }) {
+  if (cover) {
+    return (
+      <img src={cover} alt="" width={size} height={size * 1.3} style={{ width: size, height: size * 1.3, borderRadius: 8,
+        objectFit: "cover", flexShrink: 0, boxShadow: "0 2px 5px #0002" }} />
+    );
+  }
+  const c = COVERS[(title?.length || 0) % COVERS.length];
   return (
     <div style={{ width: size, height: size * 1.3, borderRadius: 8, background: c, flexShrink: 0,
       display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 5px #0002" }}>
-      <span className="cs-jua" style={{ fontSize: size * 0.5, color: "#fff" }}>{title[0]}</span>
+      <span className="cs-jua" style={{ fontSize: size * 0.5, color: "#fff" }}>{title?.[0] || "?"}</span>
     </div>
   );
 }
@@ -305,6 +297,9 @@ export default function App() {
   const [bloomPulse, setBloomPulse] = useState(false);
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [showTeacher, setShowTeacher] = useState(false);
   const [pin, setPin] = useState("");
@@ -338,6 +333,20 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  useEffect(() => {
+    if (tab !== "search") return;
+    if (!query.trim()) { setResults([]); setSearchError(""); return; }
+    setSearching(true);
+    setSearchError("");
+    const t = setTimeout(() => {
+      searchBooks(query.trim())
+        .then((books) => setResults(books))
+        .catch(() => setSearchError("검색에 실패했어요. 잠시 후 다시 시도해주세요."))
+        .finally(() => setSearching(false));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [query, tab]);
 
   useEffect(() => {
     if (screen !== "splash") return;
@@ -593,7 +602,6 @@ export default function App() {
     return { ...t, left: 50 + 38 * cos, top: 45 + 30 * sin, scale: 0.68 + 0.34 * ((sin + 1) / 2), z: Math.round(2 + (sin + 1) * 12) };
   });
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
-  const results = query.trim() ? MOCK_BOOKS.filter((b) => (b.title + b.author).includes(query.trim())) : MOCK_BOOKS;
 
   const TABS = [
     { id: "forest", icon: "🌳", label: "숲" },
@@ -862,10 +870,19 @@ export default function App() {
                     style={{ width: "100%", padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2", fontSize: 15,
                       fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, marginBottom: 12 }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    {results.map((b, i) => (
+                    {!query.trim() && (
+                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>책 제목이나 작가 이름을 검색해보세요 🔎</div>
+                    )}
+                    {searching && (
+                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 중...</div>
+                    )}
+                    {searchError && (
+                      <div style={{ textAlign: "center", color: "#d15b5b", fontSize: 13, padding: 20 }}>{searchError}</div>
+                    )}
+                    {!searching && !searchError && results.map((b, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 14,
                         padding: 10, border: "1px solid #eee5d3" }}>
-                        <Cover title={b.title} />
+                        <Cover title={b.title} cover={b.cover} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
                           <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{b.author}</div>
@@ -886,9 +903,10 @@ export default function App() {
                           {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
                       </div>
                     ))}
-                    {results.length === 0 && <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>}
+                    {!searching && !searchError && query.trim() && results.length === 0 && (
+                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#a7b3a0", textAlign: "center", padding: "14px 0 4px" }}>※ 지금은 예시 목록이에요. 실제 도서 검색은 다음 단계에서 연결돼요.</div>
                 </div>
               )}
 
