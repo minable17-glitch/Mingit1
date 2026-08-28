@@ -27,6 +27,7 @@ create table if not exists students (
   nickname text not null,
   pin_hash text not null,
   auth_user_id uuid,
+  total_days int not null default 0,
   created_at timestamptz not null default now(),
   unique (class_id, nickname)
 );
@@ -53,6 +54,20 @@ create table if not exists logs (
   created_at timestamptz not null default now(),
   unique (student_id, log_date)
 );
+
+create or replace function bump_student_days()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update students set total_days = total_days + 1 where id = new.student_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_bump_student_days on logs;
+create trigger trg_bump_student_days
+  after insert on logs
+  for each row execute function bump_student_days();
 
 create table if not exists cheers (
   id uuid primary key default gen_random_uuid(),
