@@ -43,9 +43,104 @@ export async function studentLogin({ classCode, nickname, pin }) {
 export async function getClassById(classId) {
   const { data, error } = await supabase
     .from('classes')
-    .select('id, name, code, start_date, goal_pct')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
     .eq('id', classId)
     .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateClassSettings(classId, { goalPct, dailyTargetMinutes }) {
+  const patch = {};
+  if (goalPct !== undefined) patch.goal_pct = goalPct;
+  if (dailyTargetMinutes !== undefined) patch.daily_target_minutes = dailyTargetMinutes;
+  const { data, error } = await supabase
+    .from('classes')
+    .update(patch)
+    .eq('id', classId)
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getClassProgress(classId) {
+  const { data, error } = await supabase.rpc('get_class_progress', { p_class_id: classId });
+  if (error) throw error;
+  return data[0];
+}
+
+export async function getMyLogs(studentId) {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('id, log_date, minutes, note, book_id, books(title)')
+    .eq('student_id', studentId)
+    .order('log_date', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function getTodayLog(studentId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('logs')
+    .select('id, log_date, minutes, note')
+    .eq('student_id', studentId)
+    .eq('log_date', today)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getCurrentBook(studentId) {
+  const { data, error } = await supabase
+    .from('books')
+    .select('id, title, author, is_completed')
+    .eq('student_id', studentId)
+    .eq('is_completed', false)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function startBook(studentId, { title, author }) {
+  const { data, error } = await supabase
+    .from('books')
+    .insert({ student_id: studentId, title, author })
+    .select('id, title, author, is_completed')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function submitLog({ studentId, bookId, minutes, note }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('logs')
+    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note })
+    .select('id, log_date, minutes, note')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getClassLogsForTeacher(classId) {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('student_id, log_date, minutes, note, books(title), students!inner(nickname, class_id)')
+    .eq('students.class_id', classId)
+    .order('log_date', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function getClassRoster(classId) {
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, nickname')
+    .eq('class_id', classId);
   if (error) throw error;
   return data;
 }

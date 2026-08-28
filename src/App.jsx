@@ -1,7 +1,27 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { createClass, teacherLogin, studentLogin, logout as apiLogout } from "./lib/api";
+import {
+  createClass, teacherLogin, studentLogin, logout as apiLogout,
+  getClassById, updateClassSettings, getClassProgress,
+  getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
+  getClassLogsForTeacher, getClassRoster,
+} from "./lib/api";
 import { getSession, setSession, clearSession } from "./lib/session";
+
+function stageFromDays(days) {
+  if (days <= 0) return 0;
+  if (days < 4) return 1;
+  if (days < 10) return 2;
+  if (days < 18) return 3;
+  if (days < 26) return 4;
+  return 5;
+}
+
+function formatLogDate(isoDate) {
+  if (!isoDate) return "";
+  const d = new Date(isoDate + "T00:00:00");
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
 
 // ─────────────────────────────────────────────────────────────
 // 새싹책방 — 30일 독서 챌린지 프로토타입 (탭 구조)
@@ -270,29 +290,54 @@ export default function App() {
   const [teacherLoginForm, setTeacherLoginForm] = useState({ code: "", password: "" });
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
   const [createdClass, setCreatedClass] = useState(null);
-  const [myStage, setMyStage] = useState(2);
-  const [myBook, setMyBook] = useState("몬스터 차일드");
+  const [currentBook, setCurrentBook] = useState(null); // { id, title, author } | null
+  const [myBook, setMyBook] = useState(null);
   const [doneToday, setDoneToday] = useState(false);
   const [reading, setReading] = useState(false);
+  const [readMode, setReadMode] = useState("target"); // 'target' | 'free'
+  const [sessionMinutes, setSessionMinutes] = useState(0);
   const [reflecting, setReflecting] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
   const [secs, setSecs] = useState(600);
   const [note, setNote] = useState("");
   const [toast, setToast] = useState("");
-  const [classPct, setClassPct] = useState(62);
+  const [classProgress, setClassProgress] = useState({ joined_today: 0, total_students: 1, class_pct: 0 });
   const [bloomPulse, setBloomPulse] = useState(false);
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
   const [unlocked, setUnlocked] = useState(false);
-  const [goalPct, setGoalPct] = useState(80);
-  const [joinedToday, setJoinedToday] = useState(5);
   const [showTeacher, setShowTeacher] = useState(false);
-  const TOTAL = 1 + STUDENTS.length;
   const [pin, setPin] = useState("");
-  const [myLog, setMyLog] = useState([
-    { date: "3월 13일", book: "몬스터 차일드", note: "괴물이라고 놀림받는 마음이 어떤 건지 조금 알 것 같았다." },
-    { date: "3월 12일", book: "몬스터 차일드", note: "동생을 지키려는 하늬가 멋있었다." },
-  ]);
+  const [myLog, setMyLog] = useState([]);
+  const [teacherLogs, setTeacherLogs] = useState([]);
+  const [teacherRoster, setTeacherRoster] = useState([]);
+  const goalPct = classInfo?.goal_pct ?? 80;
+  const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
+  const myStage = stageFromDays(myLog.length);
   const timerRef = useRef(null);
+
+  const refreshClassProgress = async (classId) => {
+    try {
+      const p = await getClassProgress(classId);
+      setClassProgress(p);
+    } catch { /* 참여율은 실패해도 화면은 계속 사용 가능 */ }
+  };
+
+  useEffect(() => {
+    if (screen !== "main" || !classInfo?.id) return;
+    refreshClassProgress(classInfo.id);
+    if (role === "student" && studentInfo?.id) {
+      getTodayLog(studentInfo.id).then((l) => setDoneToday(!!l)).catch(() => {});
+      getMyLogs(studentInfo.id).then((logs) => {
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes })));
+      }).catch(() => {});
+      getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
+    } else if (role === "teacher" && classInfo?.id) {
+      getClassLogsForTeacher(classInfo.id).then(setTeacherLogs).catch(() => {});
+      getClassRoster(classInfo.id).then(setTeacherRoster).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, role, classInfo?.id, studentInfo?.id]);
 
   useEffect(() => {
     if (screen !== "splash") return;
@@ -300,17 +345,19 @@ export default function App() {
     return () => clearTimeout(t1);
   }, [screen]);
 
-  const proceedFromSplash = () => {
+  const proceedFromSplash = async () => {
     const saved = getSession();
     if (saved && saved.role === "teacher" && saved.classInfo) {
       setRole("teacher");
       setClassInfo(saved.classInfo);
       setScreen("main");
+      getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
     } else if (saved && saved.role === "student" && saved.classInfo && saved.studentInfo) {
       setRole("student");
       setClassInfo(saved.classInfo);
       setStudentInfo(saved.studentInfo);
       setScreen("main");
+      getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
     } else {
       setScreen("role");
     }
@@ -325,12 +372,13 @@ export default function App() {
     setAuthBusy(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const cls = await createClass({
+      const created = await createClass({
         name: teacherForm.name.trim(),
         adminPassword: teacherForm.password,
         startDate: today,
         goalPct: teacherForm.goalPct,
       });
+      const cls = await getClassById(created.id);
       setCreatedClass(cls);
       setRole("teacher");
       setClassInfo(cls);
@@ -351,10 +399,11 @@ export default function App() {
     }
     setAuthBusy(true);
     try {
-      const cls = await teacherLogin({
+      const loggedIn = await teacherLogin({
         classCode: teacherLoginForm.code.trim(),
         adminPassword: teacherLoginForm.password,
       });
+      const cls = await getClassById(loggedIn.id);
       setRole("teacher");
       setClassInfo(cls);
       setSession({ role: "teacher", classInfo: cls });
@@ -379,7 +428,7 @@ export default function App() {
         nickname: studentJoinForm.nickname.trim(),
         pin: studentJoinForm.pin,
       });
-      const cls = { id: student.class_id };
+      const cls = await getClassById(student.class_id);
       setRole("student");
       setClassInfo(cls);
       setStudentInfo({ id: student.id, nickname: student.nickname });
@@ -402,49 +451,126 @@ export default function App() {
     setScreen("role");
   };
 
+  const finishAuto = () => {
+    clearInterval(timerRef.current);
+    setReading(false);
+    setSessionMinutes(dailyTargetMinutes);
+    setReflecting(true);
+  };
+
   useEffect(() => {
     if (!reading) return;
     timerRef.current = setInterval(() => {
-      setSecs((s) => { if (s <= 1) { clearInterval(timerRef.current); finishReading(); return 0; } return s - 1; });
+      setSecs((s) => {
+        if (readMode === "target" && s <= 1) {
+          clearInterval(timerRef.current);
+          finishAuto();
+          return 0;
+        }
+        return readMode === "free" ? s + 1 : s - 1;
+      });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [reading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading, readMode]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
-  const startReading = () => { setSecs(600); setReading(true); };
-  const finishReading = () => { clearInterval(timerRef.current); setReading(false); setReflecting(true); };
-  const submit = () => {
+
+  const startReading = (mode) => {
+    setReadMode(mode);
+    setSecs(mode === "free" ? 0 : dailyTargetMinutes * 60);
+    setReading(true);
+  };
+
+  const finishManual = () => {
+    clearInterval(timerRef.current);
+    setReading(false);
+    const minutesRead = readMode === "free"
+      ? Math.max(1, Math.round(secs / 60))
+      : Math.max(1, Math.round((dailyTargetMinutes * 60 - secs) / 60));
+    setSessionMinutes(minutesRead);
+    setReflecting(true);
+  };
+
+  const submit = async () => {
     if (!note.trim()) return;
-    const saved = note.trim();
-    setReflecting(false); setNote("");
-    setMyStage((s) => Math.min(5, s + 1));
-    setClassPct((p) => Math.min(100, p + 3));
-    setDoneToday(true); setBloomPulse(true);
-    if (!doneToday) setJoinedToday((j) => Math.min(TOTAL, j + 1));
-    setMyLog((l) => [{ date: "오늘", book: myBook, note: saved }, ...l]);
-    setTab("forest");
-    showToast("물을 줬어요! 오늘도 한 뼘 자랐어요 🌱");
-    setTimeout(() => setBloomPulse(false), 1400);
+    const savedNote = note.trim();
+    if (role !== "student" || !studentInfo?.id) {
+      // 선생님 계정은 체험용으로만 동작 (실제 저장 없음)
+      setReflecting(false); setNote(""); setDoneToday(true); setBloomPulse(true);
+      setTab("forest");
+      showToast("선생님 계정에서는 기록이 저장되지 않아요 (체험용)");
+      setTimeout(() => setBloomPulse(false), 1400);
+      return;
+    }
+    setSubmitBusy(true);
+    try {
+      await submitLog({
+        studentId: studentInfo.id,
+        bookId: currentBook?.id ?? null,
+        minutes: sessionMinutes,
+        note: savedNote,
+      });
+      setReflecting(false); setNote("");
+      setDoneToday(true); setBloomPulse(true);
+      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes }, ...l]);
+      setTab("forest");
+      showToast(`물을 줬어요! 오늘 ${sessionMinutes}분 읽었어요 🌱`);
+      setTimeout(() => setBloomPulse(false), 1400);
+      if (classInfo?.id) refreshClassProgress(classInfo.id);
+    } catch (e) {
+      showToast(e.message?.includes("duplicate") ? "오늘은 이미 기록했어요." : (e.message || "저장에 실패했어요. 다시 시도해주세요."));
+    } finally {
+      setSubmitBusy(false);
+    }
   };
 
   const mm = String(Math.floor(secs / 60)).padStart(2, "0");
   const ss = String(secs % 60).padStart(2, "0");
 
+  const TOTAL = classProgress.total_students || 1;
+  const joinedToday = classProgress.joined_today || 0;
+  const classPct = classProgress.class_pct || 0;
   const todayRate = Math.round((joinedToday / TOTAL) * 100);
   const goalCount = Math.ceil((TOTAL * goalPct) / 100);
   const remain = Math.max(0, goalCount - joinedToday);
   const goalMet = todayRate >= goalPct;
-  const meStat = { nick: "나", days: myLog.length, min: myLog.length * 10, done: 0 };
-  const allStats = [meStat, ...STUDENT_STATS];
+
+  const teacherStats = teacherRoster.map((s) => {
+    const rows = teacherLogs.filter((l) => l.student_id === s.id);
+    return {
+      nick: s.nickname,
+      days: rows.length,
+      min: rows.reduce((sum, r) => sum + (r.minutes || 0), 0),
+      done: 0,
+    };
+  });
+
+  const handleUpdateGoal = async (g) => {
+    if (!classInfo?.id) return;
+    try {
+      const updated = await updateClassSettings(classInfo.id, { goalPct: g });
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+    } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
+  };
+
+  const handleUpdateTarget = async (m) => {
+    if (!classInfo?.id) return;
+    try {
+      const updated = await updateClassSettings(classInfo.id, { dailyTargetMinutes: m });
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+    } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
+  };
 
   const exportExcel = () => {
     try {
-      const daily = [];
-      myLog.forEach((e) => daily.push({ 닉네임: "나", 날짜: e.date, 책제목: e.book, "읽은시간(분)": 10, 느낀점: e.note, 완료: "O" }));
-      STUDENTS.forEach((s) => ["3월 13일", "3월 12일"].forEach((d, idx) =>
-        daily.push({ 닉네임: s.nick, 날짜: d, 책제목: s.book, "읽은시간(분)": 10 + idx * 3,
-          느낀점: NOTE_POOL[(s.nick.length + idx) % NOTE_POOL.length], 완료: "O" })));
-      const summary = allStats.map((s) => ({ 닉네임: s.nick, 완료일수: s.days, "총 독서시간(분)": s.min, 완독권수: s.done }));
+      const daily = teacherLogs.map((l) => ({
+        닉네임: l.students?.nickname || "", 날짜: formatLogDate(l.log_date), 책제목: l.books?.title || "",
+        "읽은시간(분)": l.minutes, 느낀점: l.note, 완료: "O",
+      }));
+      const summary = teacherStats.map((s) => ({ 닉네임: s.nick, 완료일수: s.days, "총 독서시간(분)": s.min, 완독권수: s.done }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(daily), "일별기록");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "학생요약");
@@ -456,7 +582,10 @@ export default function App() {
   };
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
-  const allTrees = [{ me: true, nick: myNick, book: myBook, stage: myStage }, ...STUDENTS];
+  const allTrees = [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage }, ...STUDENTS];
+  const daysSinceStart = classInfo?.start_date
+    ? Math.min(30, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
+    : 1;
   const n = allTrees.length;
   const positioned = allTrees.map((t, i) => {
     const deg = 90 + i * (360 / n); const rad = (deg * Math.PI) / 180;
@@ -660,7 +789,7 @@ export default function App() {
                         <button onClick={() => setShowTeacher(true)} style={{ border: "none", background: "#ffffffcc",
                           borderRadius: 20, padding: "5px 12px", fontSize: 12, color: C.greenDk, cursor: "pointer" }}>👩‍🏫 반 관리</button>
                       )}
-                      <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ 12 / 30</div>
+                      <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ {daysSinceStart} / 30</div>
                     </div>
                   </div>
                   <div style={{ padding: "0 18px 4px" }}>
@@ -727,7 +856,7 @@ export default function App() {
                   <div style={{ background: "#fff", borderRadius: 14, padding: "10px 14px", marginBottom: 8, display: "flex",
                     alignItems: "center", gap: 8, border: "1px solid #eadfce" }}>
                     <span style={{ fontSize: 14, color: C.greenDk }}>지금 읽는 책</span>
-                    <span className="cs-jua" style={{ fontSize: 15, color: C.ink }}>{myBook}</span>
+                    <span className="cs-jua" style={{ fontSize: 15, color: C.ink }}>{myBook || "아직 없어요"}</span>
                   </div>
                   <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목이나 작가를 검색해보세요"
                     style={{ width: "100%", padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2", fontSize: 15,
@@ -741,7 +870,17 @@ export default function App() {
                           <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
                           <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{b.author}</div>
                         </div>
-                        <button onClick={() => { setMyBook(b.title); showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`); setTab("read"); }}
+                        <button onClick={async () => {
+                          if (role === "student" && studentInfo?.id) {
+                            try {
+                              const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author });
+                              setCurrentBook(book);
+                            } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
+                          }
+                          setMyBook(b.title);
+                          showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
+                          setTab("read");
+                        }}
                           className="cs-jua" style={{ border: "none", background: myBook === b.title ? "#cbd8c3" : C.green, color: "#fff",
                             borderRadius: 12, padding: "9px 13px", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
                           {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
@@ -758,16 +897,31 @@ export default function App() {
                 <div style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", minHeight: "70vh", justifyContent: "center" }}>
                   <Tree stage={myStage} size={150} />
                   <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
-                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
-                  <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", marginBottom: 26, maxWidth: 260 }}>
-                    10분을 읽고 느낀 점 한 줄을 남기면 나무에 물을 줄 수 있어요.</div>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook || "아직 없어요"}</div>
                   {doneToday ? (
                     <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
-                      borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}` }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
+                      borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}`, marginTop: 10 }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
+                  ) : !myBook ? (
+                    <>
+                      <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", marginBottom: 20, maxWidth: 260 }}>
+                        먼저 읽을 책을 골라주세요.</div>
+                      <button onClick={() => setTab("search")} className="cs-jua" style={{ border: "none", padding: "15px 34px", borderRadius: 18,
+                        fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+                        🔍 책 찾으러 가기</button>
+                    </>
                   ) : (
-                    <button onClick={startReading} className="cs-jua" style={{ border: "none", padding: "17px 40px", borderRadius: 20,
-                      fontSize: 19, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e55" }}>
-                      📖 10분 읽기 시작</button>
+                    <>
+                      <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", marginBottom: 22, maxWidth: 260 }}>
+                        읽고 느낀 점 한 줄을 남기면 나무에 물을 줄 수 있어요.</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 280 }}>
+                        <button onClick={() => startReading("target")} className="cs-jua" style={{ border: "none", padding: "16px 20px", borderRadius: 20,
+                          fontSize: 18, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e55" }}>
+                          📖 {dailyTargetMinutes}분 읽기 시작</button>
+                        <button onClick={() => startReading("free")} className="cs-jua" style={{ padding: "14px 20px", borderRadius: 20,
+                          fontSize: 15, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
+                          ⏱ 자유롭게 읽기</button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -801,11 +955,15 @@ export default function App() {
                   ) : (
                     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ fontSize: 12.5, color: C.inkSoft }}>지금까지 {myLog.length}일 기록했어요 🌱</div>
+                      {myLog.length === 0 && (
+                        <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>
+                          아직 기록이 없어요. 오늘 첫 기록을 남겨볼까요? 📖</div>
+                      )}
                       {myLog.map((e, i) => (
                         <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #eee5d3" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
-                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}</span>
+                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}</span>
                           </div>
                           <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{e.note}”</div>
                         </div>
@@ -928,12 +1086,25 @@ export default function App() {
                 <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🎯 오늘의 반 참여율 목표</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {[70, 80, 90, 100].map((g) => (
-                    <button key={g} onClick={() => setGoalPct(g)} style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                    <button key={g} onClick={() => handleUpdateGoal(g)} style={{ flex: 1, padding: "10px 0", borderRadius: 12,
                       border: goalPct === g ? "none" : "1px solid #e2dac9", background: goalPct === g ? C.green : "#fff",
                       color: goalPct === g ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{g}%</button>
                   ))}
                 </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>목표를 정하면 학생들 숲 화면에 "몇 명 더 하면 달성"으로 함께 보여요.</div>
+              </div>
+
+              {/* 하루 읽기 목표 시간 */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>⏱ 하루 읽기 챌린지 시간</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[10, 15, 20, 30].map((m) => (
+                    <button key={m} onClick={() => handleUpdateTarget(m)} style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                      border: dailyTargetMinutes === m ? "none" : "1px solid #e2dac9", background: dailyTargetMinutes === m ? C.green : "#fff",
+                      color: dailyTargetMinutes === m ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{m}분</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>학생 읽기 화면의 기본 타이머 시간이 바뀌어요. "자유롭게 읽기"는 계속 선택할 수 있어요.</div>
               </div>
 
               {/* 학생 요약 미리보기 */}
@@ -943,8 +1114,11 @@ export default function App() {
                   <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 60, textAlign: "right" }}>완료일</span>
                   <span style={{ width: 66, textAlign: "right" }}>총 분</span><span style={{ width: 54, textAlign: "right" }}>완독</span>
                 </div>
-                {allStats.map((s, i) => (
-                  <div key={i} style={{ display: "flex", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < allStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
+                {teacherStats.length === 0 && (
+                  <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 12.5, padding: 14 }}>아직 참여한 학생이 없어요.</div>
+                )}
+                {teacherStats.map((s, i) => (
+                  <div key={i} style={{ display: "flex", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < teacherStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
                     <span style={{ flex: 1 }} className="cs-hand">{s.nick}</span>
                     <span style={{ width: 60, textAlign: "right" }}>{s.days}일</span>
                     <span style={{ width: 66, textAlign: "right" }}>{s.min}분</span>
@@ -970,12 +1144,13 @@ export default function App() {
             <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
             <Tree stage={myStage} size={140} reading />
             <div className="cs-jua" style={{ fontSize: 58, color: C.ink, letterSpacing: 3, marginTop: 4 }}>{mm}:{ss}</div>
-            <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 2, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
+            <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{readMode === "free" ? "자유롭게 읽는 중" : `목표 ${dailyTargetMinutes}분`}</div>
+            <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
               <button onClick={() => { clearInterval(timerRef.current); setReading(false); }} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>그만두기</button>
-              <button onClick={finishReading} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
-                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>건너뛰기 (체험용) ⏭</button>
+              <button onClick={finishManual} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
+                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "지금 마치기 ✓"}</button>
             </div>
           </div>
         )}
@@ -992,9 +1167,10 @@ export default function App() {
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
-              <button onClick={submit} disabled={!note.trim()} className="cs-jua" style={{ width: "100%", marginTop: 14, padding: 15, borderRadius: 16,
-                border: "none", fontSize: 17, color: "#fff", cursor: note.trim() ? "pointer" : "not-allowed",
-                background: note.trim() ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe", boxShadow: note.trim() ? "0 5px 14px #3f7e4e44" : "none" }}>💧 물 주기</button>
+              <button onClick={submit} disabled={!note.trim() || submitBusy} className="cs-jua" style={{ width: "100%", marginTop: 14, padding: 15, borderRadius: 16,
+                border: "none", fontSize: 17, color: "#fff", cursor: note.trim() && !submitBusy ? "pointer" : "not-allowed",
+                background: note.trim() && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe", boxShadow: note.trim() ? "0 5px 14px #3f7e4e44" : "none" }}>
+                {submitBusy ? "저장 중..." : "💧 물 주기"}</button>
             </div>
           </div>
         )}

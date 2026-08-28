@@ -16,6 +16,7 @@ create table if not exists classes (
   admin_password_hash text not null,
   start_date date not null default current_date,
   goal_pct int not null default 80,
+  daily_target_minutes int not null default 10,
   teacher_auth_user_id uuid,
   created_at timestamptz not null default now()
 );
@@ -208,3 +209,26 @@ $$;
 grant execute on function create_class(text, text, date, int) to anon, authenticated;
 grant execute on function teacher_login(text, text) to anon, authenticated;
 grant execute on function student_login(text, text, text) to anon, authenticated;
+
+-- ── 오늘 참여율 / 30일 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
+
+create or replace function get_class_progress(p_class_id uuid)
+returns table(joined_today int, total_students int, class_pct numeric)
+language sql security definer set search_path = public, extensions as $$
+  select
+    (select count(distinct l.student_id)::int from logs l
+       join students s on s.id = l.student_id
+       where s.class_id = p_class_id and l.log_date = current_date),
+    (select count(*)::int from students where class_id = p_class_id),
+    coalesce((
+      select round(avg(least(days, 30)) / 30 * 100)
+      from (
+        select student_id, count(*) as days
+        from logs l join students s on s.id = l.student_id
+        where s.class_id = p_class_id
+        group by student_id
+      ) t
+    ), 0)
+$$;
+
+grant execute on function get_class_progress(uuid) to anon, authenticated;
