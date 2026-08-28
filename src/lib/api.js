@@ -145,11 +145,12 @@ export async function getClassRoster(classId) {
   return data;
 }
 
-export async function getClassCurrentBooks(classId) {
+export async function getClassCurrentBooks(studentIds) {
+  if (!studentIds.length) return {};
   const { data, error } = await supabase
     .from('books')
-    .select('student_id, title, started_at, students!inner(class_id)')
-    .eq('students.class_id', classId)
+    .select('student_id, title, started_at')
+    .in('student_id', studentIds)
     .eq('is_completed', false)
     .order('started_at', { ascending: false });
   if (error) throw error;
@@ -160,11 +161,12 @@ export async function getClassCurrentBooks(classId) {
   return byStudent;
 }
 
-export async function getClassReadingSessions(classId) {
+export async function getClassReadingSessions(studentIds) {
+  if (!studentIds.length) return {};
   const { data, error } = await supabase
     .from('reading_sessions')
-    .select('student_id, is_reading, students!inner(class_id)')
-    .eq('students.class_id', classId)
+    .select('student_id, is_reading')
+    .in('student_id', studentIds)
     .eq('is_reading', true);
   if (error) throw error;
   const byStudent = {};

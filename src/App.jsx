@@ -293,6 +293,7 @@ export default function App() {
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
   const myStage = stageFromDays(myLog.length);
   const timerRef = useRef(null);
+  const classmatesErrorShownRef = useRef(false);
 
   const refreshClassProgress = async (classId) => {
     try {
@@ -319,24 +320,29 @@ export default function App() {
 
   const refreshClassmates = async (classId, myStudentId) => {
     try {
-      const [roster, books, sessions] = await Promise.all([
-        getClassRoster(classId),
-        getClassCurrentBooks(classId),
-        getClassReadingSessions(classId),
+      const roster = await getClassRoster(classId);
+      const others = roster.filter((s) => s.id !== myStudentId);
+      const ids = others.map((s) => s.id);
+      const [books, sessions] = await Promise.all([
+        getClassCurrentBooks(ids),
+        getClassReadingSessions(ids),
       ]);
       setClassmates(
-        roster
-          .filter((s) => s.id !== myStudentId)
-          .map((s) => ({
-            id: s.id,
-            nick: s.nickname,
-            book: books[s.id] || "아직 책을 안 골랐어요",
-            stage: stageFromDays(s.total_days),
-            totalDays: s.total_days,
-            reading: !!sessions[s.id],
-          }))
+        others.map((s) => ({
+          id: s.id,
+          nick: s.nickname,
+          book: books[s.id] || "아직 책을 안 골랐어요",
+          stage: stageFromDays(s.total_days),
+          totalDays: s.total_days,
+          reading: !!sessions[s.id],
+        }))
       );
-    } catch { /* 학급원 정보는 실패해도 화면은 계속 사용 가능 */ }
+    } catch (e) {
+      if (!classmatesErrorShownRef.current) {
+        classmatesErrorShownRef.current = true;
+        showToast(`학급원 정보를 못 불러왔어요: ${e.message || e}`);
+      }
+    }
   };
 
   useEffect(() => {
