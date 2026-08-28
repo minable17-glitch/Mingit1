@@ -649,7 +649,8 @@ export default function App() {
   const positioned = allTrees.map((t, i) => {
     const deg = 90 + i * (360 / n); const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
-    return { ...t, left: 50 + 38 * cos, top: 45 + 30 * sin, scale: 0.68 + 0.34 * ((sin + 1) / 2), z: Math.round(2 + (sin + 1) * 12) };
+    // 공동 나무(가운데 아래쪽, top 60%대)와 겹치지 않도록 세로 범위를 위쪽으로 제한
+    return { ...t, left: 50 + 38 * cos, top: 34 + 18 * sin, scale: 0.68 + 0.28 * ((sin + 1) / 2), z: Math.min(14, Math.round(2 + (sin + 1) * 10)) };
   });
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
