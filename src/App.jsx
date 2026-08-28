@@ -842,7 +842,7 @@ export default function App() {
 
         {screen === "main" && (
           <>
-            <div style={{ minHeight: "100vh", paddingBottom: 78 }}>
+            <div style={{ minHeight: "100vh", paddingBottom: 68 }}>
 
               {/* ── 숲 탭 ── */}
               {tab === "forest" && (
@@ -1106,23 +1106,23 @@ export default function App() {
             {/* 하단 탭바 */}
             <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: Z.tabbar, display: "flex", justifyContent: "center" }}>
               <div style={{ width: "100%", maxWidth: 440, background: "#fff", borderTop: "1px solid #ececdf",
-                display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "8px 6px 12px", boxShadow: "0 -2px 12px #0000000a" }}>
+                display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "6px 6px 8px", boxShadow: "0 -2px 12px #0000000a" }}>
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   if (t.center) return (
                     <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "transparent", cursor: "pointer",
-                      display: "flex", flexDirection: "column", alignItems: "center", transform: "translateY(-10px)" }}>
-                      <div style={{ width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(${C.green}, ${C.greenDk})`,
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: "0 5px 12px #3f7e4e55",
+                      display: "flex", flexDirection: "column", alignItems: "center", transform: "translateY(-8px)" }}>
+                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(${C.green}, ${C.greenDk})`,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 5px 12px #3f7e4e55",
                         border: "3px solid #fff" }}>{t.icon}</div>
-                      <span className="cs-jua" style={{ fontSize: 11, color: C.greenDk, marginTop: 2 }}>{t.label}</span>
+                      <span className="cs-jua" style={{ fontSize: 10.5, color: C.greenDk, marginTop: 1 }}>{t.label}</span>
                     </button>
                   );
                   return (
                     <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "transparent", cursor: "pointer",
-                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: 1, opacity: active ? 1 : 0.5 }}>
-                      <span style={{ fontSize: 21 }}>{t.icon}</span>
-                      <span style={{ fontSize: 11, color: active ? C.greenDk : C.inkSoft, fontWeight: active ? 700 : 400 }}>{t.label}</span>
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flex: 1, opacity: active ? 1 : 0.5 }}>
+                      <span style={{ fontSize: 19 }}>{t.icon}</span>
+                      <span style={{ fontSize: 10.5, color: active ? C.greenDk : C.inkSoft, fontWeight: active ? 700 : 400 }}>{t.label}</span>
                     </button>
                   );
                 })}
