@@ -28,6 +28,7 @@ create table if not exists students (
   pin_hash text not null,
   auth_user_id uuid,
   total_days int not null default 0,
+  communal_minutes int not null default 0,
   created_at timestamptz not null default now(),
   unique (class_id, nickname)
 );
@@ -51,6 +52,7 @@ create table if not exists logs (
   minutes int not null default 10,
   note text not null,
   ocr_excerpt text,
+  overflow_minutes int not null default 0,
   created_at timestamptz not null default now(),
   unique (student_id, log_date)
 );
@@ -59,7 +61,10 @@ create or replace function bump_student_days()
 returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  update students set total_days = total_days + 1 where id = new.student_id;
+  update students
+    set total_days = total_days + 1,
+        communal_minutes = communal_minutes + coalesce(new.overflow_minutes, 0)
+    where id = new.student_id;
   return new;
 end;
 $$;
@@ -227,8 +232,9 @@ grant execute on function student_login(text, text, text) to anon, authenticated
 
 -- ── 오늘 참여율 / 30일 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
-create or replace function get_class_progress(p_class_id uuid)
-returns table(joined_today int, total_students int, class_pct numeric)
+drop function if exists get_class_progress(uuid);
+create function get_class_progress(p_class_id uuid)
+returns table(joined_today int, total_students int, class_pct numeric, communal_minutes int)
 language sql security definer set search_path = public, extensions as $$
   select
     (select count(distinct l.student_id)::int from logs l
@@ -243,7 +249,8 @@ language sql security definer set search_path = public, extensions as $$
         where s.class_id = p_class_id
         group by student_id
       ) t
-    ), 0)
+    ), 0),
+    coalesce((select sum(communal_minutes)::int from students where class_id = p_class_id), 0)
 $$;
 
 grant execute on function get_class_progress(uuid) to anon, authenticated;
