@@ -4,6 +4,9 @@
 --
 -- 사전 준비: Supabase 대시보드 → Authentication → Sign In / Providers 에서
 -- "Anonymous Sign-Ins"를 켜주세요 (학생 PIN 로그인에 필요).
+-- 선생님 계정(아이디+비밀번호) 로그인을 쓰려면 Email provider가 켜져 있어야 하고,
+-- "Confirm email"은 꺼두세요 (아이디를 가짜 이메일로 변환해서 쓰기 때문에 실제 메일이 안 감).
+-- 카카오 로그인을 쓰려면 Authentication → Providers → Kakao를 켜고 Client ID/Secret을 등록하세요.
 
 create extension if not exists pgcrypto;
 
@@ -13,7 +16,7 @@ create table if not exists classes (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   code text not null unique,
-  admin_password_hash text not null,
+  admin_password_hash text, -- 선생님 계정(아이디+비밀번호/카카오)으로 만든 학급은 null
   start_date date not null default current_date,
   goal_pct int not null default 80,
   daily_target_minutes int not null default 10,
@@ -192,7 +195,12 @@ begin
   end loop;
 
   insert into classes (name, code, admin_password_hash, start_date, goal_pct, teacher_auth_user_id)
-  values (p_name, v_code, crypt(p_admin_password, gen_salt('bf')), p_start_date, p_goal_pct, auth.uid())
+  values (
+    p_name, v_code,
+    case when p_admin_password is null or p_admin_password = '' then null
+         else crypt(p_admin_password, gen_salt('bf')) end,
+    p_start_date, p_goal_pct, auth.uid()
+  )
   returning classes.id into v_id;
 
   return query select classes.id, classes.name, classes.code, classes.start_date, classes.goal_pct
@@ -210,6 +218,9 @@ begin
   select * into v_class from classes where classes.code = p_class_code;
   if not found then
     raise exception '학급 코드를 찾을 수 없어요';
+  end if;
+  if v_class.admin_password_hash is null then
+    raise exception '이 학급은 선생님 계정으로 만들어졌어요. 코드/비밀번호가 아니라 선생님 계정으로 로그인해주세요.';
   end if;
   if v_class.admin_password_hash <> crypt(p_admin_password, v_class.admin_password_hash) then
     raise exception '비밀번호가 올바르지 않아요';

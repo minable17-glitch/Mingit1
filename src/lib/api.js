@@ -7,6 +7,63 @@ async function ensureFreshAnonSession() {
   return data.session;
 }
 
+// 아이디를 실제로 메일을 보내지 않는 가짜 이메일로 바꿔서 Supabase 기본 이메일 로그인을 그대로 씀
+function usernameToEmail(username) {
+  return `${username.trim().toLowerCase()}@saesak-teacher.local`;
+}
+
+export async function teacherSignUp({ username, password }) {
+  const { data, error } = await supabase.auth.signUp({ email: usernameToEmail(username), password });
+  if (error) {
+    if (/registered/i.test(error.message)) throw new Error('이미 사용 중인 아이디예요.');
+    throw error;
+  }
+  return data;
+}
+
+export async function teacherSignIn({ username, password }) {
+  await supabase.auth.signOut();
+  const { data, error } = await supabase.auth.signInWithPassword({ email: usernameToEmail(username), password });
+  if (error) {
+    if (/invalid/i.test(error.message)) throw new Error('아이디 또는 비밀번호가 올바르지 않아요.');
+    throw error;
+  }
+  return data;
+}
+
+export async function teacherKakaoLogin() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'kakao',
+    options: { redirectTo: window.location.href.split('#')[0].split('?')[0] },
+  });
+  if (error) throw error;
+}
+
+export async function getAuthSession() {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+export async function createClassForAccount({ name, startDate, goalPct }) {
+  const { data, error } = await supabase.rpc('create_class', {
+    p_name: name,
+    p_admin_password: null,
+    p_start_date: startDate,
+    p_goal_pct: goalPct,
+  });
+  if (error) throw error;
+  return data[0];
+}
+
+export async function getMyClasses() {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function createClass({ name, adminPassword, startDate, goalPct }) {
   await ensureFreshAnonSession();
   const { data, error } = await supabase.rpc('create_class', {

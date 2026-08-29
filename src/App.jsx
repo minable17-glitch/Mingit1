@@ -7,6 +7,7 @@ import {
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
+  teacherSignUp, teacherSignIn, teacherKakaoLogin, getAuthSession, createClassForAccount, getMyClasses,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -281,6 +282,10 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
   const [teacherLoginForm, setTeacherLoginForm] = useState({ code: "", password: "" });
+  const [teacherAccountForm, setTeacherAccountForm] = useState({ username: "", password: "" });
+  const [teacherAccountMode, setTeacherAccountMode] = useState("login"); // 'login' | 'signup'
+  const [myClasses, setMyClasses] = useState([]);
+  const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
   const [createdClass, setCreatedClass] = useState(null);
   const [currentBook, setCurrentBook] = useState(null); // { id, title, author } | null
@@ -452,32 +457,94 @@ export default function App() {
       setClassInfo(saved.classInfo);
       setScreen("main");
       getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
-    } else if (saved && saved.role === "student" && saved.classInfo && saved.studentInfo) {
+      return;
+    }
+    if (saved && saved.role === "student" && saved.classInfo && saved.studentInfo) {
       setRole("student");
       setClassInfo(saved.classInfo);
       setStudentInfo(saved.studentInfo);
       setScreen("main");
       getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
-    } else {
-      setScreen("role");
+      return;
     }
+    // 카카오 로그인 등으로 돌아온 선생님 계정 세션인지 확인 (새로고침으로 화면 상태가 날아간 경우)
+    try {
+      const authSession = await getAuthSession();
+      if (authSession?.user && !authSession.user.is_anonymous) {
+        await routeAfterAccountLogin();
+        return;
+      }
+    } catch { /* 계정 세션이 없으면 그냥 역할 선택으로 */ }
+    setScreen("role");
+  };
+
+  const routeAfterAccountLogin = async () => {
+    const classes = await getMyClasses();
+    setMyClasses(classes);
+    setRole("teacher");
+    if (classes.length === 0) {
+      setAccountCreateMode(true);
+      setScreen("teacher-create");
+    } else {
+      setScreen("teacher-classes");
+    }
+  };
+
+  const handleTeacherAccountSubmit = async () => {
+    setAuthError("");
+    if (!teacherAccountForm.username.trim() || teacherAccountForm.password.length < 4) {
+      setAuthError("아이디와 4자리 이상 비밀번호를 입력해주세요.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      if (teacherAccountMode === "signup") {
+        await teacherSignUp({ username: teacherAccountForm.username, password: teacherAccountForm.password });
+      } else {
+        await teacherSignIn({ username: teacherAccountForm.username, password: teacherAccountForm.password });
+      }
+      await routeAfterAccountLogin();
+    } catch (e) {
+      setAuthError(e.message || "처리에 실패했어요.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleKakaoLogin = async () => {
+    setAuthError("");
+    setAuthBusy(true);
+    try {
+      await teacherKakaoLogin();
+    } catch (e) {
+      setAuthError(e.message || "카카오 로그인에 실패했어요.");
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSelectMyClass = (cls) => {
+    setClassInfo(cls);
+    setSession({ role: "teacher", classInfo: cls });
+    setScreen("main");
   };
 
   const handleCreateClass = async () => {
     setAuthError("");
-    if (!teacherForm.name.trim() || teacherForm.password.length < 4) {
-      setAuthError("학급 이름과 4자리 이상 비밀번호를 입력해주세요.");
+    if (!teacherForm.name.trim() || (!accountCreateMode && teacherForm.password.length < 4)) {
+      setAuthError(accountCreateMode ? "학급 이름을 입력해주세요." : "학급 이름과 4자리 이상 비밀번호를 입력해주세요.");
       return;
     }
     setAuthBusy(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const created = await createClass({
-        name: teacherForm.name.trim(),
-        adminPassword: teacherForm.password,
-        startDate: today,
-        goalPct: teacherForm.goalPct,
-      });
+      const created = accountCreateMode
+        ? await createClassForAccount({ name: teacherForm.name.trim(), startDate: today, goalPct: teacherForm.goalPct })
+        : await createClass({
+            name: teacherForm.name.trim(),
+            adminPassword: teacherForm.password,
+            startDate: today,
+            goalPct: teacherForm.goalPct,
+          });
       const cls = await getClassById(created.id);
       setCreatedClass(cls);
       setRole("teacher");
@@ -866,14 +933,66 @@ export default function App() {
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
             <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 6 }}>👩‍🏫 선생님</div>
-            <button onClick={() => { setAuthError(""); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode("signup"); setScreen("teacher-account"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
               padding: "16px 20px", borderRadius: 16, border: "none", fontSize: 16, color: "#fff", cursor: "pointer",
-              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>새 학급 만들기</button>
+              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>👤 선생님 계정으로 시작 (추천)</button>
+            <button onClick={() => { setAuthError(""); setAccountCreateMode(false); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+              padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
+              background: "#fff" }}>학급 코드+비밀번호로 새 학급 만들기</button>
             <button onClick={() => { setAuthError(""); setScreen("teacher-login"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-              padding: "16px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 16, color: C.greenDk, cursor: "pointer",
-              background: "#fff" }}>이미 만든 학급 관리하기</button>
+              padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
+              background: "#fff" }}>학급 코드+비밀번호로 로그인</button>
             <button onClick={() => setScreen("role")} style={{ marginTop: 6, border: "none", background: "transparent",
               color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 계정으로 로그인/가입 */}
+        {screen === "teacher-account" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>
+              {teacherAccountMode === "signup" ? "선생님 계정 만들기" : "선생님 계정 로그인"}</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>아이디</label>
+            <input value={teacherAccountForm.username} onChange={(e) => setTeacherAccountForm((f) => ({ ...f, username: e.target.value }))}
+              placeholder="아이디 (영문/숫자)" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            <label style={{ fontSize: 13, color: C.inkSoft }}>비밀번호 (4자리 이상)</label>
+            <input type="password" value={teacherAccountForm.password} onChange={(e) => setTeacherAccountForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
+            <button onClick={handleTeacherAccountSubmit} disabled={authBusy} className="cs-jua" style={{ marginTop: 6, padding: 15, borderRadius: 16,
+              border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
+              background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {authBusy ? "처리 중..." : (teacherAccountMode === "signup" ? "계정 만들기" : "로그인")}</button>
+            <button onClick={handleKakaoLogin} disabled={authBusy} className="cs-jua" style={{ padding: 14, borderRadius: 16,
+              border: "none", fontSize: 15.5, color: "#3c1e1e", cursor: authBusy ? "default" : "pointer", background: "#FEE500" }}>
+              💬 카카오로 로그인</button>
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode((m) => m === "signup" ? "login" : "signup"); }}
+              style={{ border: "none", background: "transparent", color: C.greenDk, fontSize: 13, cursor: "pointer" }}>
+              {teacherAccountMode === "signup" ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 계정 만들기"}</button>
+            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 내 학급 목록 (계정 로그인) */}
+        {screen === "teacher-classes" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 10, overflowY: "auto" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>내 학급</div>
+            {myClasses.map((cls) => (
+              <button key={cls.id} onClick={() => handleSelectMyClass(cls)} className="cs-jua" style={{ width: "100%",
+                textAlign: "left", padding: "16px 18px", borderRadius: 16, border: "1px solid #eee5d3", background: "#fff",
+                fontSize: 16, color: C.ink, cursor: "pointer" }}>
+                {cls.name} <span style={{ fontSize: 12, color: C.inkSoft }}>· {cls.code}</span>
+              </button>
+            ))}
+            <button onClick={() => { setTeacherForm({ name: "", password: "", goalPct: 80 }); setAccountCreateMode(true); setAuthError(""); setScreen("teacher-create"); }}
+              className="cs-jua" style={{ width: "100%", marginTop: 10, padding: 15, borderRadius: 16, border: "none",
+                fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              + 새 학급 만들기</button>
           </div>
         )}
 
@@ -886,10 +1005,14 @@ export default function App() {
             <input value={teacherForm.name} onChange={(e) => setTeacherForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="예: 3학년 2반" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
                 fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
-            <label style={{ fontSize: 13, color: C.inkSoft }}>관리자 비밀번호 (4자리 이상)</label>
-            <input type="password" value={teacherForm.password} onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
-                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            {!accountCreateMode && (
+              <>
+                <label style={{ fontSize: 13, color: C.inkSoft }}>관리자 비밀번호 (4자리 이상)</label>
+                <input type="password" value={teacherForm.password} onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                    fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+              </>
+            )}
             <label style={{ fontSize: 13, color: C.inkSoft }}>오늘의 반 목표 참여율</label>
             <div style={{ display: "flex", gap: 8 }}>
               {[70, 80, 90, 100].map((g) => (
@@ -904,8 +1027,8 @@ export default function App() {
               border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
               background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
               {authBusy ? "만드는 중..." : "학급 만들기"}</button>
-            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
-              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+            <button onClick={() => setScreen(accountCreateMode ? (myClasses.length > 0 ? "teacher-classes" : "teacher-entry") : "teacher-entry")}
+              style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
 
@@ -1333,7 +1456,12 @@ export default function App() {
               padding: "20px 20px 30px", animation: "cs-up .28s ease", maxHeight: "88vh", overflowY: "auto" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
               <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>👩‍🏫 선생님용 · 반 관리</div>
-              <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "2px 0 14px" }}>총 {TOTAL}명 · 오늘 {joinedToday}명 참여 ({todayRate}%)</div>
+              <div style={{ fontSize: 12.5, color: C.inkSoft, margin: "2px 0 8px" }}>총 {TOTAL}명 · 오늘 {joinedToday}명 참여 ({todayRate}%)</div>
+              {myClasses.length > 1 && (
+                <button onClick={async () => { setShowTeacher(false); await routeAfterAccountLogin(); }} style={{ border: "none",
+                  background: "transparent", color: C.green, fontSize: 12.5, cursor: "pointer", marginBottom: 10, padding: 0 }}>
+                  🔁 다른 학급으로 전환 ({myClasses.length}개)</button>
+              )}
 
               {/* 목표 설정 */}
               <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
