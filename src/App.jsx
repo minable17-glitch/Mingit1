@@ -1099,14 +1099,6 @@ export default function App() {
                           fontSize: 15, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                           ⏱ 자유롭게 읽기</button>
                       </div>
-                      {progressKey && (() => {
-                        const saved = getReadingProgress(progressKey);
-                        return (
-                          <div style={{ fontSize: 10.5, color: "#b9b0a0", marginTop: 12, textAlign: "center" }}>
-                            [진단] {saved ? `저장된 진행 있음 · 모드=${saved.mode} · 남은/누적=${saved.secs}초` : "저장된 진행 없음"}
-                          </div>
-                        );
-                      })()}
                     </>
                   )}
                 </div>
