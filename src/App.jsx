@@ -1374,9 +1374,12 @@ export default function App() {
                 clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
                 if (readMode === "target") showToast(`잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`);
               }} style={{ padding: "11px 20px", borderRadius: 14,
-                border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>그만두기</button>
+                border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>⏸ 잠깐 멈추기</button>
               <button onClick={finishManual} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
-                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "지금 마치기 ✓"}</button>
+                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "오늘은 여기까지 ✓"}</button>
+            </div>
+            <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 10, textAlign: "center", maxWidth: 260 }}>
+              ⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.{readMode === "free" ? "" : <><br />오늘은 여기까지: 오늘 읽기를 끝내고 느낀점을 남겨요.</>}
             </div>
           </div>
         )}
