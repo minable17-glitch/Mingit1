@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import {
-  createClass, teacherLogin, studentLogin, logout as apiLogout,
+  createClass, studentLogin, logout as apiLogout,
   getClassById, updateClassSettings, getClassProgress,
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
@@ -288,12 +288,10 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
-  const [teacherLoginForm, setTeacherLoginForm] = useState({ code: "", password: "" });
   const [teacherAccountForm, setTeacherAccountForm] = useState({ username: "", password: "" });
   const [teacherAccountMode, setTeacherAccountMode] = useState("login"); // 'login' | 'signup'
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
-  const [showLegacyTeacherOptions, setShowLegacyTeacherOptions] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
   const [createdClass, setCreatedClass] = useState(null);
   const [currentBook, setCurrentBook] = useState(null); // { id, title, author } | null
@@ -565,30 +563,6 @@ export default function App() {
       setScreen("teacher-code");
     } catch (e) {
       setAuthError(e.message || "학급을 만들지 못했어요. 다시 시도해주세요.");
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const handleTeacherLogin = async () => {
-    setAuthError("");
-    if (!teacherLoginForm.code.trim() || !teacherLoginForm.password) {
-      setAuthError("학급 코드와 비밀번호를 입력해주세요.");
-      return;
-    }
-    setAuthBusy(true);
-    try {
-      const loggedIn = await teacherLogin({
-        classCode: teacherLoginForm.code.trim(),
-        adminPassword: teacherLoginForm.password,
-      });
-      const cls = await getClassById(loggedIn.id);
-      setRole("teacher");
-      setClassInfo(cls);
-      setSession({ role: "teacher", classInfo: cls });
-      setScreen("main");
-    } catch (e) {
-      setAuthError(e.message || "로그인에 실패했어요.");
     } finally {
       setAuthBusy(false);
     }
@@ -954,40 +928,12 @@ export default function App() {
             alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
             <Tree stage={2} size={100} />
             <div className="cs-jua" style={{ fontSize: 26, color: C.greenDk, marginBottom: 6 }}>새싹책방</div>
-            <button onClick={() => { setAuthError(""); setScreen("teacher-entry"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
               padding: "18px 20px", borderRadius: 18, border: "none", fontSize: 17, color: "#fff", cursor: "pointer",
               background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e44" }}>👩‍🏫 선생님으로 시작</button>
             <button onClick={() => { setAuthError(""); setScreen("student-join"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
               padding: "18px 20px", borderRadius: 18, border: `1.5px solid ${C.green}`, fontSize: 17, color: C.greenDk, cursor: "pointer",
               background: "#fff" }}>🧒 학생으로 참여</button>
-          </div>
-        )}
-
-        {/* 선생님: 새 학급 만들기 / 기존 학급 로그인 선택 */}
-        {screen === "teacher-entry" && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
-            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 6 }}>👩‍🏫 선생님</div>
-            <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", maxWidth: 280, marginBottom: -2 }}>
-              먼저 로그인하면, 그 뒤에 학급을 새로 만들거나 이미 만든 학급 중에서 고를 수 있어요.</div>
-            <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-              padding: "16px 20px", borderRadius: 16, border: "none", fontSize: 16, color: "#fff", cursor: "pointer",
-              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>👤 로그인 / 계정 만들기</button>
-            {!showLegacyTeacherOptions ? (
-              <button onClick={() => setShowLegacyTeacherOptions(true)} style={{ border: "none", background: "transparent",
-                color: C.inkSoft, fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>계정 없이 학급 코드로 이용하기 (예전 방식)</button>
-            ) : (
-              <>
-                <button onClick={() => { setAuthError(""); setAccountCreateMode(false); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-                  padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
-                  background: "#fff" }}>학급 코드+비밀번호로 새 학급 만들기</button>
-                <button onClick={() => { setAuthError(""); setScreen("teacher-login"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-                  padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
-                  background: "#fff" }}>학급 코드+비밀번호로 로그인</button>
-              </>
-            )}
-            <button onClick={() => setScreen("role")} style={{ marginTop: 6, border: "none", background: "transparent",
-              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
 
@@ -1016,7 +962,7 @@ export default function App() {
             <button onClick={() => { setAuthError(""); setTeacherAccountMode((m) => m === "signup" ? "login" : "signup"); }}
               style={{ border: "none", background: "transparent", color: C.greenDk, fontSize: 13, cursor: "pointer" }}>
               {teacherAccountMode === "signup" ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 계정 만들기"}</button>
-            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
+            <button onClick={() => setScreen("role")} style={{ border: "none", background: "transparent",
               color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
@@ -1071,7 +1017,7 @@ export default function App() {
               border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
               background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
               {authBusy ? "만드는 중..." : "학급 만들기"}</button>
-            <button onClick={() => setScreen(accountCreateMode ? (myClasses.length > 0 ? "teacher-classes" : "teacher-entry") : "teacher-entry")}
+            <button onClick={() => setScreen(myClasses.length > 0 ? "teacher-classes" : "role")}
               style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
@@ -1088,29 +1034,6 @@ export default function App() {
             <button onClick={() => setScreen("main")} className="cs-jua" style={{ marginTop: 10, padding: "14px 36px", borderRadius: 16,
               border: "none", fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
               시작하기</button>
-          </div>
-        )}
-
-        {/* 선생님: 기존 학급 로그인 */}
-        {screen === "teacher-login" && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
-            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>학급 관리자 로그인</div>
-            <label style={{ fontSize: 13, color: C.inkSoft }}>학급 코드</label>
-            <input value={teacherLoginForm.code} onChange={(e) => setTeacherLoginForm((f) => ({ ...f, code: e.target.value }))}
-              placeholder="예: 숲7423" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
-                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
-            <label style={{ fontSize: 13, color: C.inkSoft }}>관리자 비밀번호</label>
-            <input type="password" value={teacherLoginForm.password} onChange={(e) => setTeacherLoginForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
-                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
-            {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
-            <button onClick={handleTeacherLogin} disabled={authBusy} className="cs-jua" style={{ marginTop: 10, padding: 15, borderRadius: 16,
-              border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
-              background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
-              {authBusy ? "확인 중..." : "로그인"}</button>
-            <button onClick={() => setScreen("teacher-entry")} style={{ border: "none", background: "transparent",
-              color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
 

@@ -215,7 +215,7 @@ begin
     case when p_admin_password is null or p_admin_password = '' then null
          else crypt(p_admin_password, gen_salt('bf')) end,
     p_start_date, p_goal_pct, auth.uid(),
-    (select id from teachers where auth_user_id = auth.uid() limit 1)
+    (select teachers.id from teachers where teachers.auth_user_id = auth.uid() limit 1)
   )
   returning classes.id into v_id;
 
