@@ -98,8 +98,23 @@ alter table logs enable row level security;
 alter table cheers enable row level security;
 alter table reading_sessions enable row level security;
 
+-- 로그인한 사람이 (학생이든 교사든) 속한 학급 id들. 다른 반 데이터가
+-- 서로 안 보이게 select 정책들에서 이 함수로 "내 반"만 걸러냄.
+create or replace function my_class_ids()
+returns setof uuid
+language sql security definer stable set search_path = public as $$
+  select class_id from students where auth_user_id = auth.uid()
+  union
+  select id from classes where teacher_auth_user_id = auth.uid()
+$$;
+
+grant execute on function my_class_ids() to anon, authenticated;
+
 drop policy if exists "classes_select_all" on classes;
-create policy "classes_select_all" on classes for select using (true);
+drop policy if exists "classes_select_own" on classes;
+create policy "classes_select_own" on classes for select using (
+  id in (select my_class_ids())
+);
 drop policy if exists "classes_update_teacher" on classes;
 create policy "classes_update_teacher" on classes for update
   using (teacher_auth_user_id = auth.uid())
@@ -108,12 +123,18 @@ revoke insert, delete on classes from anon, authenticated;
 revoke select (admin_password_hash) on classes from anon, authenticated;
 
 drop policy if exists "students_select_all" on students;
-create policy "students_select_all" on students for select using (true);
+drop policy if exists "students_select_same_class" on students;
+create policy "students_select_same_class" on students for select using (
+  class_id in (select my_class_ids())
+);
 revoke insert, update, delete on students from anon, authenticated;
 revoke select (pin_hash) on students from anon, authenticated;
 
 drop policy if exists "books_select_all" on books;
-create policy "books_select_all" on books for select using (true);
+drop policy if exists "books_select_same_class" on books;
+create policy "books_select_same_class" on books for select using (
+  student_id in (select id from students where class_id in (select my_class_ids()))
+);
 drop policy if exists "books_insert_own" on books;
 create policy "books_insert_own" on books for insert
   with check (student_id in (select id from students where auth_user_id = auth.uid()));
@@ -134,13 +155,19 @@ create policy "logs_insert_own" on logs for insert
   with check (student_id in (select id from students where auth_user_id = auth.uid()));
 
 drop policy if exists "cheers_select_all" on cheers;
-create policy "cheers_select_all" on cheers for select using (true);
+drop policy if exists "cheers_select_same_class" on cheers;
+create policy "cheers_select_same_class" on cheers for select using (
+  from_student_id in (select id from students where class_id in (select my_class_ids()))
+);
 drop policy if exists "cheers_insert_own" on cheers;
 create policy "cheers_insert_own" on cheers for insert
   with check (from_student_id in (select id from students where auth_user_id = auth.uid()));
 
 drop policy if exists "reading_sessions_select_all" on reading_sessions;
-create policy "reading_sessions_select_all" on reading_sessions for select using (true);
+drop policy if exists "reading_sessions_select_same_class" on reading_sessions;
+create policy "reading_sessions_select_same_class" on reading_sessions for select using (
+  student_id in (select id from students where class_id in (select my_class_ids()))
+);
 drop policy if exists "reading_sessions_insert_own" on reading_sessions;
 create policy "reading_sessions_insert_own" on reading_sessions for insert
   with check (student_id in (select id from students where auth_user_id = auth.uid()));
