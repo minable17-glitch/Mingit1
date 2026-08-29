@@ -1399,6 +1399,10 @@ export default function App() {
           <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", background: "#2e3d2fee", color: "#fff",
             padding: "11px 18px", borderRadius: 30, fontSize: 13.5, zIndex: Z.toast, maxWidth: "88%", textAlign: "center" }}>{toast}</div>
         )}
+
+        <div style={{ position: "fixed", bottom: 2, right: 4, fontSize: 8, color: "#00000033", zIndex: 9999, pointerEvents: "none" }}>
+          v{typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__.slice(5, 16).replace("T", " ") : "?"}
+        </div>
       </div>
     </div>
   );
