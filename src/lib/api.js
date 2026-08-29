@@ -7,31 +7,26 @@ async function ensureFreshAnonSession() {
   return data.session;
 }
 
-// 아이디를 실제로 메일을 보내지 않는 가짜 이메일로 바꿔서 Supabase 기본 이메일 로그인을 그대로 씀
-// (영문/숫자만 남기고, .local 같은 특수 예약 TLD는 Supabase가 막아서 .com을 씀)
-function usernameToEmail(username) {
-  const cleaned = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!cleaned) throw new Error('아이디는 영문 또는 숫자로 입력해주세요.');
-  return `${cleaned}@saesak-teacher.com`;
-}
-
+// 선생님 계정: Supabase 이메일 인증 대신 학생 로그인과 같은 방식(해시된 비밀번호 + RPC)을 씀.
+// 이메일 형식 검증/전송 횟수 제한 등을 아예 거치지 않아서 훨씬 안정적임.
 export async function teacherSignUp({ username, password }) {
-  const { data, error } = await supabase.auth.signUp({ email: usernameToEmail(username), password });
-  if (error) {
-    if (/registered/i.test(error.message)) throw new Error('이미 사용 중인 아이디예요.');
-    throw error;
-  }
-  return data;
+  await ensureFreshAnonSession();
+  const { data, error } = await supabase.rpc('teacher_account_signup', {
+    p_username: username.trim(),
+    p_password: password,
+  });
+  if (error) throw error;
+  return data[0];
 }
 
 export async function teacherSignIn({ username, password }) {
-  await supabase.auth.signOut();
-  const { data, error } = await supabase.auth.signInWithPassword({ email: usernameToEmail(username), password });
-  if (error) {
-    if (/invalid/i.test(error.message)) throw new Error('아이디 또는 비밀번호가 올바르지 않아요.');
-    throw error;
-  }
-  return data;
+  await ensureFreshAnonSession();
+  const { data, error } = await supabase.rpc('teacher_account_login', {
+    p_username: username.trim(),
+    p_password: password,
+  });
+  if (error) throw error;
+  return data[0];
 }
 
 export async function teacherKakaoLogin() {
@@ -40,6 +35,12 @@ export async function teacherKakaoLogin() {
     options: { redirectTo: window.location.href.split('#')[0].split('?')[0] },
   });
   if (error) throw error;
+}
+
+export async function teacherKakaoBootstrap() {
+  const { data, error } = await supabase.rpc('teacher_kakao_bootstrap');
+  if (error) throw error;
+  return data[0];
 }
 
 export async function getAuthSession() {

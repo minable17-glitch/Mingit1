@@ -7,7 +7,7 @@ import {
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
-  teacherSignUp, teacherSignIn, teacherKakaoLogin, getAuthSession, createClassForAccount, getMyClasses,
+  teacherSignUp, teacherSignIn, teacherKakaoLogin, teacherKakaoBootstrap, getAuthSession, createClassForAccount, getMyClasses,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -293,6 +293,7 @@ export default function App() {
   const [teacherAccountMode, setTeacherAccountMode] = useState("login"); // 'login' | 'signup'
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
+  const [showLegacyTeacherOptions, setShowLegacyTeacherOptions] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
   const [createdClass, setCreatedClass] = useState(null);
   const [currentBook, setCurrentBook] = useState(null); // { id, title, author } | null
@@ -477,10 +478,11 @@ export default function App() {
       getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
       return;
     }
-    // 카카오 로그인 등으로 돌아온 선생님 계정 세션인지 확인 (새로고침으로 화면 상태가 날아간 경우)
+    // 카카오 로그인으로 돌아온 경우인지 확인 (새로고침으로 화면 상태가 날아간 경우)
     try {
       const authSession = await getAuthSession();
       if (authSession?.user && !authSession.user.is_anonymous) {
+        await teacherKakaoBootstrap();
         await routeAfterAccountLogin();
         return;
       }
@@ -966,15 +968,24 @@ export default function App() {
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", padding: 28, gap: 14 }}>
             <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 6 }}>👩‍🏫 선생님</div>
-            <button onClick={() => { setAuthError(""); setTeacherAccountMode("signup"); setScreen("teacher-account"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+            <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", maxWidth: 280, marginBottom: -2 }}>
+              먼저 로그인하면, 그 뒤에 학급을 새로 만들거나 이미 만든 학급 중에서 고를 수 있어요.</div>
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
               padding: "16px 20px", borderRadius: 16, border: "none", fontSize: 16, color: "#fff", cursor: "pointer",
-              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>👤 선생님 계정으로 시작 (추천)</button>
-            <button onClick={() => { setAuthError(""); setAccountCreateMode(false); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-              padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
-              background: "#fff" }}>학급 코드+비밀번호로 새 학급 만들기</button>
-            <button onClick={() => { setAuthError(""); setScreen("teacher-login"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
-              padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
-              background: "#fff" }}>학급 코드+비밀번호로 로그인</button>
+              background: `linear-gradient(${C.green}, ${C.greenDk})` }}>👤 로그인 / 계정 만들기</button>
+            {!showLegacyTeacherOptions ? (
+              <button onClick={() => setShowLegacyTeacherOptions(true)} style={{ border: "none", background: "transparent",
+                color: C.inkSoft, fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>계정 없이 학급 코드로 이용하기 (예전 방식)</button>
+            ) : (
+              <>
+                <button onClick={() => { setAuthError(""); setAccountCreateMode(false); setScreen("teacher-create"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+                  padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
+                  background: "#fff" }}>학급 코드+비밀번호로 새 학급 만들기</button>
+                <button onClick={() => { setAuthError(""); setScreen("teacher-login"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
+                  padding: "14px 20px", borderRadius: 16, border: `1.5px solid ${C.green}`, fontSize: 15, color: C.greenDk, cursor: "pointer",
+                  background: "#fff" }}>학급 코드+비밀번호로 로그인</button>
+              </>
+            )}
             <button onClick={() => setScreen("role")} style={{ marginTop: 6, border: "none", background: "transparent",
               color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>

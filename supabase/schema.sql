@@ -3,14 +3,22 @@
 -- (실제 프로젝트에는 이 파일 내용이 여러 번의 SQL Editor 실행으로 나뉘어 이미 적용되어 있습니다.)
 --
 -- 사전 준비: Supabase 대시보드 → Authentication → Sign In / Providers 에서
--- "Anonymous Sign-Ins"를 켜주세요 (학생 PIN 로그인에 필요).
--- 선생님 계정(아이디+비밀번호) 로그인을 쓰려면 Email provider가 켜져 있어야 하고,
--- "Confirm email"은 꺼두세요 (아이디를 가짜 이메일로 변환해서 쓰기 때문에 실제 메일이 안 감).
+-- "Anonymous Sign-Ins"를 켜주세요 (학생 PIN 로그인 + 선생님 계정 로그인 모두에 필요).
+-- 선생님 계정(아이디+비밀번호)은 Supabase 이메일 인증을 쓰지 않고 학생 로그인과 같은
+-- 방식(해시된 비밀번호 + RPC)으로 동작해서 별도 이메일 설정이 필요 없습니다.
 -- 카카오 로그인을 쓰려면 Authentication → Providers → Kakao를 켜고 Client ID/Secret을 등록하세요.
 
 create extension if not exists pgcrypto;
 
 -- ── 테이블 ──────────────────────────────────────────────
+
+create table if not exists teachers (
+  id uuid primary key default gen_random_uuid(),
+  username text not null unique,
+  password_hash text not null,
+  auth_user_id uuid, -- 현재 이 계정으로 로그인 중인 세션의 auth uid (로그인할 때마다 갱신됨)
+  created_at timestamptz not null default now()
+);
 
 create table if not exists classes (
   id uuid primary key default gen_random_uuid(),
@@ -21,7 +29,8 @@ create table if not exists classes (
   goal_pct int not null default 80,
   daily_target_minutes int not null default 10,
   challenge_days int not null default 30,
-  teacher_auth_user_id uuid,
+  teacher_auth_user_id uuid, -- 학급 코드+비밀번호(예전) 방식으로 로그인 중인 세션
+  teacher_id uuid references teachers(id), -- 선생님 계정(아이디+비밀번호/카카오)으로 만든 경우
   created_at timestamptz not null default now()
 );
 
@@ -95,12 +104,15 @@ create table if not exists reading_sessions (
 
 -- ── Row Level Security ──────────────────────────────────
 
+alter table teachers enable row level security;
 alter table classes enable row level security;
 alter table students enable row level security;
 alter table books enable row level security;
 alter table logs enable row level security;
 alter table cheers enable row level security;
 alter table reading_sessions enable row level security;
+
+revoke insert, update, delete, select on teachers from anon, authenticated;
 
 -- 로그인한 사람이 (학생이든 교사든) 속한 학급 id들. 다른 반 데이터가
 -- 서로 안 보이게 select 정책들에서 이 함수로 "내 반"만 걸러냄.
@@ -110,6 +122,8 @@ language sql security definer stable set search_path = public as $$
   select class_id from students where auth_user_id = auth.uid()
   union
   select id from classes where teacher_auth_user_id = auth.uid()
+  union
+  select id from classes where teacher_id in (select id from teachers where auth_user_id = auth.uid())
 $$;
 
 grant execute on function my_class_ids() to anon, authenticated;
@@ -195,12 +209,13 @@ begin
     exit when not exists (select 1 from classes where classes.code = v_code);
   end loop;
 
-  insert into classes (name, code, admin_password_hash, start_date, goal_pct, teacher_auth_user_id)
+  insert into classes (name, code, admin_password_hash, start_date, goal_pct, teacher_auth_user_id, teacher_id)
   values (
     p_name, v_code,
     case when p_admin_password is null or p_admin_password = '' then null
          else crypt(p_admin_password, gen_salt('bf')) end,
-    p_start_date, p_goal_pct, auth.uid()
+    p_start_date, p_goal_pct, auth.uid(),
+    (select id from teachers where auth_user_id = auth.uid() limit 1)
   )
   returning classes.id into v_id;
 
@@ -268,6 +283,69 @@ $$;
 grant execute on function create_class(text, text, date, int) to anon, authenticated;
 grant execute on function teacher_login(text, text) to anon, authenticated;
 grant execute on function student_login(text, text, text) to anon, authenticated;
+
+-- ── 선생님 계정(아이디+비밀번호) / 카카오 로그인 ──
+
+create or replace function teacher_account_signup(p_username text, p_password text)
+returns table(id uuid, username text)
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id uuid;
+begin
+  if p_username is null or length(trim(p_username)) = 0 then
+    raise exception '아이디를 입력해주세요';
+  end if;
+  if exists (select 1 from teachers where teachers.username = p_username) then
+    raise exception '이미 사용 중인 아이디예요';
+  end if;
+  insert into teachers (username, password_hash, auth_user_id)
+  values (p_username, crypt(p_password, gen_salt('bf')), auth.uid())
+  returning teachers.id into v_id;
+  return query select teachers.id, teachers.username from teachers where teachers.id = v_id;
+end;
+$$;
+
+create or replace function teacher_account_login(p_username text, p_password text)
+returns table(id uuid, username text)
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_teacher teachers%rowtype;
+begin
+  select * into v_teacher from teachers where teachers.username = p_username;
+  if not found then
+    raise exception '아이디 또는 비밀번호가 올바르지 않아요';
+  end if;
+  if v_teacher.password_hash <> crypt(p_password, v_teacher.password_hash) then
+    raise exception '아이디 또는 비밀번호가 올바르지 않아요';
+  end if;
+
+  update teachers set auth_user_id = auth.uid() where teachers.id = v_teacher.id;
+
+  return query select teachers.id, teachers.username from teachers where teachers.id = v_teacher.id;
+end;
+$$;
+
+-- 카카오 로그인으로 처음 들어오면 teachers 행을 자동으로 하나 만들어 연결하고,
+-- 다음부터는 그 행을 찾아서 재사용함 (비밀번호는 못 알아내는 무작위 값으로 채움)
+create or replace function teacher_kakao_bootstrap()
+returns table(id uuid, username text)
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_teacher teachers%rowtype;
+begin
+  select * into v_teacher from teachers where auth_user_id = auth.uid();
+  if not found then
+    insert into teachers (username, password_hash, auth_user_id)
+    values ('kakao_' || substr(auth.uid()::text, 1, 8), crypt(gen_random_uuid()::text, gen_salt('bf')), auth.uid())
+    returning * into v_teacher;
+  end if;
+  return query select v_teacher.id, v_teacher.username;
+end;
+$$;
+
+grant execute on function teacher_account_signup(text, text) to anon, authenticated;
+grant execute on function teacher_account_login(text, text) to anon, authenticated;
+grant execute on function teacher_kakao_bootstrap() to anon, authenticated;
 
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
