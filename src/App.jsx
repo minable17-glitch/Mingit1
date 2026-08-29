@@ -244,23 +244,25 @@ function Cover({ title, cover, size = 46 }) {
   );
 }
 
-function BookCard({ book: b, selected, onChoose }) {
+function BookCard({ book: b, selected, onChoose, onDetail }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "#fff", borderRadius: 14,
       padding: 10, border: "1px solid #eee5d3" }}>
-      <Cover title={b.title} cover={b.cover} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
-        <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
-          {b.author}{b.publisher ? ` · ${b.publisher}` : ""}{b.price ? ` · ${b.price.toLocaleString()}원` : ""}
+      <div onClick={onDetail} style={{ display: "flex", flex: 1, minWidth: 0, gap: 12, cursor: onDetail ? "pointer" : "default" }}>
+        <Cover title={b.title} cover={b.cover} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
+          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
+            {b.author}{b.publisher ? ` · ${b.publisher}` : ""}{b.price ? ` · ${b.price.toLocaleString()}원` : ""}
+          </div>
+          {b.contents && (
+            <div style={{ fontSize: 11, color: "#a7a397", marginTop: 4, lineHeight: 1.4, display: "-webkit-box",
+              WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.contents}</div>
+          )}
+          <button onClick={(e) => { e.stopPropagation(); onChoose(); }} className="cs-jua" style={{ border: "none", background: selected ? "#cbd8c3" : C.green,
+            color: "#fff", borderRadius: 12, padding: "8px 13px", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+            {selected ? "선택됨" : "이 책 읽기"}</button>
         </div>
-        {b.contents && (
-          <div style={{ fontSize: 11, color: "#a7a397", marginTop: 4, lineHeight: 1.4, display: "-webkit-box",
-            WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.contents}</div>
-        )}
-        <button onClick={onChoose} className="cs-jua" style={{ border: "none", background: selected ? "#cbd8c3" : C.green, color: "#fff",
-          borderRadius: 12, padding: "8px 13px", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
-          {selected ? "선택됨" : "이 책 읽기"}</button>
       </div>
     </div>
   );
@@ -305,6 +307,7 @@ export default function App() {
   const [bestsellers, setBestsellers] = useState([]);
   const [bestsellersLoading, setBestsellersLoading] = useState(false);
   const [bestsellersError, setBestsellersError] = useState("");
+  const [bookDetail, setBookDetail] = useState(null);
   const [unlocked, setUnlocked] = useState(false);
   const [showTeacher, setShowTeacher] = useState(false);
   const [showFeelings, setShowFeelings] = useState(false);
@@ -1083,7 +1086,7 @@ export default function App() {
                       <div style={{ textAlign: "center", color: "#d15b5b", fontSize: 13, padding: 20 }}>{searchError}</div>
                     )}
                     {!searching && !searchError && query.trim() && results.map((b, i) => (
-                      <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} />
+                      <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} onDetail={() => setBookDetail(b)} />
                     ))}
                     {!searching && !searchError && query.trim() && results.length === 0 && (
                       <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>
@@ -1101,7 +1104,7 @@ export default function App() {
                           <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>베스트셀러 정보가 아직 연결되지 않았어요.</div>
                         )}
                         {bestsellers.map((b, i) => (
-                          <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} />
+                          <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} onDetail={() => setBookDetail(b)} />
                         ))}
                       </>
                     )}
@@ -1455,6 +1458,33 @@ export default function App() {
                 border: "none", fontSize: 17, color: "#fff", cursor: note.trim() && !submitBusy ? "pointer" : "not-allowed",
                 background: note.trim() && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe", boxShadow: note.trim() ? "0 5px 14px #3f7e4e44" : "none" }}>
                 {submitBusy ? "저장 중..." : "💧 물 주기"}</button>
+            </div>
+          </div>
+        )}
+
+        {/* 책 상세정보 */}
+        {bookDetail && (
+          <div onClick={() => setBookDetail(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 22px 30px", maxHeight: "82vh", overflowY: "auto", animation: "cs-up .28s ease" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
+              <div style={{ display: "flex", gap: 14 }}>
+                <Cover title={bookDetail.title} cover={bookDetail.cover} size={78} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="cs-jua" style={{ fontSize: 18, color: C.greenDk, lineHeight: 1.25 }}>{bookDetail.title}</div>
+                  <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 4 }}>{bookDetail.author}</div>
+                  {bookDetail.publisher && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{bookDetail.publisher}</div>}
+                  {bookDetail.price && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{bookDetail.price.toLocaleString()}원</div>}
+                </div>
+              </div>
+              <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.6, marginTop: 16, whiteSpace: "pre-wrap" }}>
+                {bookDetail.contents || "책 소개 정보가 없어요."}
+              </div>
+              <button onClick={() => { const b = bookDetail; setBookDetail(null); chooseBook(b); }} className="cs-jua"
+                style={{ width: "100%", marginTop: 20, padding: 14, borderRadius: 14, border: "none", fontSize: 15.5, color: "#fff",
+                  cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+                {myBook === bookDetail.title ? "선택됨" : "📖 이 책 읽기"}</button>
             </div>
           </div>
         )}
