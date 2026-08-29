@@ -6,7 +6,7 @@ import {
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
-  markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts,
+  markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -261,6 +261,7 @@ export default function App() {
   const [createdClass, setCreatedClass] = useState(null);
   const [currentBook, setCurrentBook] = useState(null); // { id, title, author } | null
   const [myBook, setMyBook] = useState(null);
+  const [myCompletedBooks, setMyCompletedBooks] = useState([]);
   const [doneToday, setDoneToday] = useState(false);
   const [reading, setReading] = useState(false);
   const [readMode, setReadMode] = useState("target"); // 'target' | 'free'
@@ -314,6 +315,7 @@ export default function App() {
         setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes })));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
+      getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
     } else if (role === "teacher" && classInfo?.id) {
       getClassLogsForTeacher(classInfo.id).then(setTeacherLogs).catch(() => {});
       getClassRoster(classInfo.id).then((roster) => {
@@ -579,6 +581,7 @@ export default function App() {
     try {
       await markBookCompleted(currentBook.id);
       const finishedTitle = currentBook.title;
+      setMyCompletedBooks((list) => [{ ...currentBook, completed_at: new Date().toISOString() }, ...list]);
       setCurrentBook(null);
       setMyBook(null);
       showToast(`'${finishedTitle}'을(를) 다 읽었어요! 열매가 열렸어요 🍎`);
@@ -1035,27 +1038,33 @@ export default function App() {
                       <div style={{ textAlign: "center", color: "#d15b5b", fontSize: 13, padding: 20 }}>{searchError}</div>
                     )}
                     {!searching && !searchError && results.map((b, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 14,
+                      <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "#fff", borderRadius: 14,
                         padding: 10, border: "1px solid #eee5d3" }}>
                         <Cover title={b.title} cover={b.cover} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
-                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{b.author}</div>
+                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
+                            {b.author}{b.publisher ? ` · ${b.publisher}` : ""}{b.price ? ` · ${b.price.toLocaleString()}원` : ""}
+                          </div>
+                          {b.contents && (
+                            <div style={{ fontSize: 11, color: "#a7a397", marginTop: 4, lineHeight: 1.4, display: "-webkit-box",
+                              WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.contents}</div>
+                          )}
+                          <button onClick={async () => {
+                            if (role === "student" && studentInfo?.id) {
+                              try {
+                                const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author, coverUrl: b.cover });
+                                setCurrentBook(book);
+                              } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
+                            }
+                            setMyBook(b.title);
+                            showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
+                            setTab("read");
+                          }}
+                            className="cs-jua" style={{ border: "none", background: myBook === b.title ? "#cbd8c3" : C.green, color: "#fff",
+                              borderRadius: 12, padding: "8px 13px", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+                            {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
                         </div>
-                        <button onClick={async () => {
-                          if (role === "student" && studentInfo?.id) {
-                            try {
-                              const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author });
-                              setCurrentBook(book);
-                            } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
-                          }
-                          setMyBook(b.title);
-                          showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
-                          setTab("read");
-                        }}
-                          className="cs-jua" style={{ border: "none", background: myBook === b.title ? "#cbd8c3" : C.green, color: "#fff",
-                            borderRadius: 12, padding: "9px 13px", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
-                          {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
                       </div>
                     ))}
                     {!searching && !searchError && query.trim() && results.length === 0 && (
@@ -1132,6 +1141,21 @@ export default function App() {
                     </div>
                   ) : (
                     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      {myCompletedBooks.length > 0 && (
+                        <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3" }}>
+                          <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 10 }}>
+                            🍎 완독한 책장 ({myCompletedBooks.length}권)</div>
+                          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+                            {myCompletedBooks.map((b) => (
+                              <div key={b.id} style={{ flexShrink: 0, width: 64, textAlign: "center" }}>
+                                <Cover title={b.title} cover={b.cover_url} size={56} />
+                                <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 5, lineHeight: 1.25,
+                                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.title}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div style={{ fontSize: 12.5, color: C.inkSoft }}>지금까지 {myLog.length}일 기록했어요 🌱</div>
                       {myLog.length === 0 && (
                         <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>

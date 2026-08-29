@@ -95,7 +95,7 @@ export async function getTodayLog(studentId) {
 export async function getCurrentBook(studentId) {
   const { data, error } = await supabase
     .from('books')
-    .select('id, title, author, is_completed')
+    .select('id, title, author, cover_url, is_completed')
     .eq('student_id', studentId)
     .eq('is_completed', false)
     .order('started_at', { ascending: false })
@@ -105,12 +105,23 @@ export async function getCurrentBook(studentId) {
   return data;
 }
 
-export async function startBook(studentId, { title, author }) {
+export async function startBook(studentId, { title, author, coverUrl }) {
   const { data, error } = await supabase
     .from('books')
-    .insert({ student_id: studentId, title, author })
-    .select('id, title, author, is_completed')
+    .insert({ student_id: studentId, title, author, cover_url: coverUrl || null })
+    .select('id, title, author, cover_url, is_completed')
     .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getCompletedBooks(studentId) {
+  const { data, error } = await supabase
+    .from('books')
+    .select('id, title, author, cover_url, completed_at')
+    .eq('student_id', studentId)
+    .eq('is_completed', true)
+    .order('completed_at', { ascending: false });
   if (error) throw error;
   return data;
 }
