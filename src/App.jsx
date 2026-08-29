@@ -294,6 +294,7 @@ export default function App() {
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
   const myStage = stageFromDays(myLog.length);
   const timerRef = useRef(null);
+  const pageVisibleRef = useRef(true);
 
   const refreshClassProgress = async (classId) => {
     try {
@@ -509,9 +510,24 @@ export default function App() {
     setReflecting(true);
   };
 
+  // 화면(탭)을 벗어나면 물주기가 멈추도록 하는 심리적 장치 (강제 차단은 아님)
+  useEffect(() => {
+    const handleVisibility = () => {
+      const wasHidden = !pageVisibleRef.current;
+      pageVisibleRef.current = document.visibilityState === "visible";
+      if (pageVisibleRef.current && wasHidden && reading) {
+        showToast("다시 돌아오셨네요! 화면을 벗어나 있는 동안엔 타이머가 멈춰있었어요 📖");
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading]);
+
   useEffect(() => {
     if (!reading) return;
     timerRef.current = setInterval(() => {
+      if (!pageVisibleRef.current) return; // 화면을 벗어난 동안엔 시간이 흐르지 않음
       setSecs((s) => {
         if (readMode === "target" && s <= 1) {
           clearInterval(timerRef.current);
