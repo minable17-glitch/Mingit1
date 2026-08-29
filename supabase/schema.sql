@@ -281,7 +281,7 @@ language sql security definer set search_path = public, extensions as $$
        where s.class_id = p_class_id and l.log_date = current_date),
     (select count(*)::int from students where class_id = p_class_id),
     coalesce((
-      select round(avg(least(days, c.challenge_days)) / c.challenge_days * 100)
+      select round(avg(least(days, c.challenge_days)) / max(c.challenge_days) * 100)
       from (
         select student_id, count(*) as days
         from logs l join students s on s.id = l.student_id
