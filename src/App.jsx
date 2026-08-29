@@ -10,7 +10,7 @@ import {
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
-import { getSession, setSession, clearSession } from "./lib/session";
+import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress } from "./lib/session";
 
 function stageFromDays(days) {
   if (days <= 0) return 0;
@@ -506,6 +506,7 @@ export default function App() {
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
+    if (studentInfo?.id) clearReadingProgress(studentInfo.id);
     setSessionMinutes(dailyTargetMinutes);
     setReflecting(true);
   };
@@ -534,7 +535,9 @@ export default function App() {
           finishAuto();
           return 0;
         }
-        return readMode === "free" ? s + 1 : s - 1;
+        const next = readMode === "free" ? s + 1 : s - 1;
+        if (studentInfo?.id) setReadingProgress(studentInfo.id, { mode: readMode, secs: next });
+        return next;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
@@ -544,16 +547,24 @@ export default function App() {
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   const startReading = (mode) => {
+    const saved = studentInfo?.id ? getReadingProgress(studentInfo.id) : null;
+    const resumable = saved && saved.mode === mode && !doneToday;
     setReadMode(mode);
-    setSecs(mode === "free" ? 0 : dailyTargetMinutes * 60);
+    setSecs(resumable ? saved.secs : (mode === "free" ? 0 : dailyTargetMinutes * 60));
     setReading(true);
     syncReadingSession(true);
+    if (resumable) {
+      showToast(`아까 멈춘 곳부터 이어서 읽어요 (남은 ${Math.ceil(saved.secs / 60)}분) ⏱️`);
+    } else if (studentInfo?.id) {
+      setReadingProgress(studentInfo.id, { mode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
+    }
   };
 
   const finishManual = () => {
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
+    if (studentInfo?.id) clearReadingProgress(studentInfo.id);
     const minutesRead = readMode === "free"
       ? Math.max(1, Math.round(secs / 60))
       : Math.max(1, Math.round((dailyTargetMinutes * 60 - secs) / 60));
@@ -1351,7 +1362,10 @@ export default function App() {
             <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{readMode === "free" ? "자유롭게 읽는 중" : `목표 ${dailyTargetMinutes}분`}</div>
             <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-              <button onClick={() => { clearInterval(timerRef.current); setReading(false); syncReadingSession(false); }} style={{ padding: "11px 20px", borderRadius: 14,
+              <button onClick={() => {
+                clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
+                if (readMode === "target") showToast(`잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`);
+              }} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>그만두기</button>
               <button onClick={finishManual} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
                 background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "지금 마치기 ✓"}</button>
