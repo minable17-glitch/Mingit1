@@ -13,12 +13,19 @@ import {
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress } from "./lib/session";
 
-function stageFromDays(days) {
+// 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
+// (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
+function stageFromDays(days, challengeDays = 30) {
   if (days <= 0) return 0;
-  if (days < 4) return 1;
-  if (days < 10) return 2;
-  if (days < 18) return 3;
-  if (days < 26) return 4;
+  const ratio = challengeDays / 30;
+  const t1 = Math.max(1, Math.round(4 * ratio));
+  const t2 = Math.max(t1 + 1, Math.round(10 * ratio));
+  const t3 = Math.max(t2 + 1, Math.round(18 * ratio));
+  const t4 = Math.max(t3 + 1, Math.round(26 * ratio));
+  if (days < t1) return 1;
+  if (days < t2) return 2;
+  if (days < t3) return 3;
+  if (days < t4) return 4;
   return 5;
 }
 
@@ -316,6 +323,8 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(false);
   const [showTeacher, setShowTeacher] = useState(false);
   const [showFeelings, setShowFeelings] = useState(false);
+  const [customChallengeDays, setCustomChallengeDays] = useState("");
+  const [customTargetMinutes, setCustomTargetMinutes] = useState("");
   const [pin, setPin] = useState("");
   const [myLog, setMyLog] = useState([]);
   const [teacherLogs, setTeacherLogs] = useState([]);
@@ -326,9 +335,10 @@ export default function App() {
   const [classmatesError, setClassmatesError] = useState("");
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
+  const challengeDays = classInfo?.challenge_days ?? 30;
   // 학생 로그인이면 학생 id로, 선생님 체험 모드면 학급 id로 저장해서 어느 쪽이든 이어읽기가 되게 함
   const progressKey = studentInfo?.id || classInfo?.id || null;
-  const myStage = stageFromDays(myLog.length);
+  const myStage = stageFromDays(myLog.length, challengeDays);
   const timerRef = useRef(null);
   const pageVisibleRef = useRef(true);
 
@@ -378,7 +388,7 @@ export default function App() {
           id: s.id,
           nick: s.nickname,
           book: books[s.id] || "아직 책을 안 골랐어요",
-          stage: stageFromDays(s.total_days),
+          stage: stageFromDays(s.total_days, challengeDays),
           totalDays: s.total_days,
           reading: !!sessions[s.id],
           completedBooks: completedCounts[s.id] || 0,
@@ -820,6 +830,20 @@ export default function App() {
     } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
   };
 
+  const handleApplyCustomChallengeDays = () => {
+    const d = parseInt(customChallengeDays, 10);
+    if (!d || d < 1 || d > 365) { showToast("1~365 사이의 숫자를 입력해주세요."); return; }
+    handleUpdateChallengeDays(d);
+    setCustomChallengeDays("");
+  };
+
+  const handleApplyCustomTargetMinutes = () => {
+    const m = parseInt(customTargetMinutes, 10);
+    if (!m || m < 1 || m > 180) { showToast("1~180 사이의 숫자를 입력해주세요."); return; }
+    handleUpdateTarget(m);
+    setCustomTargetMinutes("");
+  };
+
   const exportExcel = () => {
     try {
       const daily = teacherLogs.map((l) => ({
@@ -856,7 +880,6 @@ export default function App() {
     { icon: "💧", title: "물조리개 대장", holder: topByKey("communalMinutes"), detail: (s) => `우리 반 나무 +${s.communalMinutes}분` },
     { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
   ];
-  const challengeDays = classInfo?.challenge_days ?? 30;
   const daysSinceStart = classInfo?.start_date
     ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
@@ -1496,6 +1519,13 @@ export default function App() {
                       color: dailyTargetMinutes === m ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{m}분</button>
                   ))}
                 </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <input type="number" value={customTargetMinutes} onChange={(e) => setCustomTargetMinutes(e.target.value)}
+                    placeholder={`현재 ${dailyTargetMinutes}분 · 직접 입력`} style={{ flex: 1, padding: "9px 12px", borderRadius: 10,
+                      border: "1.5px solid #d9d2c2", fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                  <button onClick={handleApplyCustomTargetMinutes} className="cs-jua" style={{ border: "none", background: C.greenDk,
+                    color: "#fff", borderRadius: 10, padding: "9px 14px", fontSize: 13, cursor: "pointer" }}>적용</button>
+                </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>학생 읽기 화면의 기본 타이머 시간이 바뀌어요. "자유롭게 읽기"는 계속 선택할 수 있어요.</div>
               </div>
 
@@ -1509,8 +1539,15 @@ export default function App() {
                       color: challengeDays === d ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{d}일</button>
                   ))}
                 </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <input type="number" value={customChallengeDays} onChange={(e) => setCustomChallengeDays(e.target.value)}
+                    placeholder={`현재 ${challengeDays}일 · 직접 입력`} style={{ flex: 1, padding: "9px 12px", borderRadius: 10,
+                      border: "1.5px solid #d9d2c2", fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                  <button onClick={handleApplyCustomChallengeDays} className="cs-jua" style={{ border: "none", background: C.greenDk,
+                    color: "#fff", borderRadius: 10, padding: "9px 14px", fontSize: 13, cursor: "pointer" }}>적용</button>
+                </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>
-                  "우리 반 숲" 진행률과 D-day 표시가 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>
+                  "우리 반 숲" 진행률, D-day 표시, 나무가 자라는 속도가 모두 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>
               </div>
 
               {/* 학생 요약 미리보기 */}
