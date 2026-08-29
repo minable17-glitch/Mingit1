@@ -292,6 +292,8 @@ export default function App() {
   const [classmatesError, setClassmatesError] = useState("");
   const goalPct = classInfo?.goal_pct ?? 80;
   const dailyTargetMinutes = classInfo?.daily_target_minutes ?? 10;
+  // 학생 로그인이면 학생 id로, 선생님 체험 모드면 학급 id로 저장해서 어느 쪽이든 이어읽기가 되게 함
+  const progressKey = studentInfo?.id || classInfo?.id || null;
   const myStage = stageFromDays(myLog.length);
   const timerRef = useRef(null);
   const pageVisibleRef = useRef(true);
@@ -506,7 +508,7 @@ export default function App() {
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
-    if (studentInfo?.id) clearReadingProgress(studentInfo.id);
+    if (progressKey) clearReadingProgress(progressKey);
     setSessionMinutes(dailyTargetMinutes);
     setReflecting(true);
   };
@@ -536,7 +538,7 @@ export default function App() {
           return 0;
         }
         const next = readMode === "free" ? s + 1 : s - 1;
-        if (studentInfo?.id) setReadingProgress(studentInfo.id, { mode: readMode, secs: next });
+        if (progressKey) setReadingProgress(progressKey, { mode: readMode, secs: next });
         return next;
       });
     }, 1000);
@@ -547,7 +549,7 @@ export default function App() {
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   const startReading = (mode) => {
-    const saved = studentInfo?.id ? getReadingProgress(studentInfo.id) : null;
+    const saved = progressKey ? getReadingProgress(progressKey) : null;
     const resumable = saved && saved.mode === mode && !doneToday;
     setReadMode(mode);
     setSecs(resumable ? saved.secs : (mode === "free" ? 0 : dailyTargetMinutes * 60));
@@ -555,8 +557,8 @@ export default function App() {
     syncReadingSession(true);
     if (resumable) {
       showToast(`아까 멈춘 곳부터 이어서 읽어요 (남은 ${Math.ceil(saved.secs / 60)}분) ⏱️`);
-    } else if (studentInfo?.id) {
-      setReadingProgress(studentInfo.id, { mode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
+    } else if (progressKey) {
+      setReadingProgress(progressKey, { mode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
     }
   };
 
@@ -564,7 +566,7 @@ export default function App() {
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
-    if (studentInfo?.id) clearReadingProgress(studentInfo.id);
+    if (progressKey) clearReadingProgress(progressKey);
     const minutesRead = readMode === "free"
       ? Math.max(1, Math.round(secs / 60))
       : Math.max(1, Math.round((dailyTargetMinutes * 60 - secs) / 60));
@@ -1097,8 +1099,8 @@ export default function App() {
                           fontSize: 15, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                           ⏱ 자유롭게 읽기</button>
                       </div>
-                      {studentInfo?.id && (() => {
-                        const saved = getReadingProgress(studentInfo.id);
+                      {progressKey && (() => {
+                        const saved = getReadingProgress(progressKey);
                         return (
                           <div style={{ fontSize: 10.5, color: "#b9b0a0", marginTop: 12, textAlign: "center" }}>
                             [진단] {saved ? `저장된 진행 있음 · 모드=${saved.mode} · 남은/누적=${saved.secs}초` : "저장된 진행 없음"}
