@@ -8,8 +8,11 @@ async function ensureFreshAnonSession() {
 }
 
 // 아이디를 실제로 메일을 보내지 않는 가짜 이메일로 바꿔서 Supabase 기본 이메일 로그인을 그대로 씀
+// (영문/숫자만 남기고, .local 같은 특수 예약 TLD는 Supabase가 막아서 .com을 씀)
 function usernameToEmail(username) {
-  return `${username.trim().toLowerCase()}@saesak-teacher.local`;
+  const cleaned = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cleaned) throw new Error('아이디는 영문 또는 숫자로 입력해주세요.');
+  return `${cleaned}@saesak-teacher.com`;
 }
 
 export async function teacherSignUp({ username, password }) {
