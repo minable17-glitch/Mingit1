@@ -1481,6 +1481,10 @@ export default function App() {
               <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.6, marginTop: 16, whiteSpace: "pre-wrap" }}>
                 {bookDetail.contents || "책 소개 정보가 없어요."}
               </div>
+              {bookDetail.url && (
+                <a href={bookDetail.url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 8, fontSize: 12.5, color: C.green }}>
+                  전체 소개 더 보기 →</a>
+              )}
               <button onClick={() => { const b = bookDetail; setBookDetail(null); chooseBook(b); }} className="cs-jua"
                 style={{ width: "100%", marginTop: 20, padding: 14, borderRadius: 14, border: "none", fontSize: 15.5, color: "#fff",
                   cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>

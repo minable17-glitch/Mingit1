@@ -31,6 +31,7 @@ Deno.serve(async (req) => {
       publisher: d.publisher || "",
       price: typeof d.price === "number" && d.price > 0 ? d.price : null,
       contents: (d.contents || "").replace(/<[^>]+>/g, ""),
+      url: d.url || "",
     }));
     return new Response(JSON.stringify({ books }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
