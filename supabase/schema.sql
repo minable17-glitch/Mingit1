@@ -20,6 +20,7 @@ create table if not exists classes (
   start_date date not null default current_date,
   goal_pct int not null default 80,
   daily_target_minutes int not null default 10,
+  challenge_days int not null default 30,
   teacher_auth_user_id uuid,
   created_at timestamptz not null default now()
 );
@@ -268,7 +269,7 @@ grant execute on function create_class(text, text, date, int) to anon, authentic
 grant execute on function teacher_login(text, text) to anon, authenticated;
 grant execute on function student_login(text, text, text) to anon, authenticated;
 
--- ── 오늘 참여율 / 30일 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
+-- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
 drop function if exists get_class_progress(uuid);
 create function get_class_progress(p_class_id uuid)
@@ -280,13 +281,14 @@ language sql security definer set search_path = public, extensions as $$
        where s.class_id = p_class_id and l.log_date = current_date),
     (select count(*)::int from students where class_id = p_class_id),
     coalesce((
-      select round(avg(least(days, 30)) / 30 * 100)
+      select round(avg(least(days, c.challenge_days)) / c.challenge_days * 100)
       from (
         select student_id, count(*) as days
         from logs l join students s on s.id = l.student_id
         where s.class_id = p_class_id
         group by student_id
-      ) t
+      ) t, classes c
+      where c.id = p_class_id
     ), 0),
     coalesce((select sum(communal_minutes)::int from students where class_id = p_class_id), 0)
 $$;

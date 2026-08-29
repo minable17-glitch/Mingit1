@@ -58,7 +58,7 @@ export async function createClassForAccount({ name, startDate, goalPct }) {
 export async function getMyClasses() {
   const { data, error } = await supabase
     .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -100,22 +100,23 @@ export async function studentLogin({ classCode, nickname, pin }) {
 export async function getClassById(classId) {
   const { data, error } = await supabase
     .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
     .eq('id', classId)
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function updateClassSettings(classId, { goalPct, dailyTargetMinutes }) {
+export async function updateClassSettings(classId, { goalPct, dailyTargetMinutes, challengeDays }) {
   const patch = {};
   if (goalPct !== undefined) patch.goal_pct = goalPct;
   if (dailyTargetMinutes !== undefined) patch.daily_target_minutes = dailyTargetMinutes;
+  if (challengeDays !== undefined) patch.challenge_days = challengeDays;
   const { data, error } = await supabase
     .from('classes')
     .update(patch)
     .eq('id', classId)
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
     .single();
   if (error) throw error;
   return data;

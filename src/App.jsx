@@ -811,6 +811,15 @@ export default function App() {
     } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
   };
 
+  const handleUpdateChallengeDays = async (d) => {
+    if (!classInfo?.id) return;
+    try {
+      const updated = await updateClassSettings(classInfo.id, { challengeDays: d });
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+    } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
+  };
+
   const exportExcel = () => {
     try {
       const daily = teacherLogs.map((l) => ({
@@ -847,8 +856,9 @@ export default function App() {
     { icon: "💧", title: "물조리개 대장", holder: topByKey("communalMinutes"), detail: (s) => `우리 반 나무 +${s.communalMinutes}분` },
     { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
   ];
+  const challengeDays = classInfo?.challenge_days ?? 30;
   const daysSinceStart = classInfo?.start_date
-    ? Math.min(30, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
+    ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
   const n = allTrees.length;
   // 공동 나무는 화면 가운데(left 28%~72%)를 넓게 차지하므로, 개인 나무는
@@ -1119,7 +1129,7 @@ export default function App() {
                         <button onClick={() => setShowTeacher(true)} style={{ border: "none", background: "#ffffffcc",
                           borderRadius: 20, padding: "5px 12px", fontSize: 12, color: C.greenDk, cursor: "pointer" }}>👩‍🏫 반 관리</button>
                       )}
-                      <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ {daysSinceStart} / 30</div>
+                      <div style={{ background: "#ffffffcc", borderRadius: 20, padding: "5px 13px", fontSize: 13 }}>🗓️ {daysSinceStart} / {challengeDays}</div>
                     </div>
                   </div>
                   {classmatesError && (
@@ -1152,7 +1162,7 @@ export default function App() {
                   </div>
                   <div style={{ padding: "0 18px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft, marginBottom: 4 }}>
-                      <span>우리 반 숲 (30일 누적)</span><span>{classPct}%</span></div>
+                      <span>우리 반 숲 ({challengeDays}일 누적)</span><span>{classPct}%</span></div>
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
@@ -1487,6 +1497,20 @@ export default function App() {
                   ))}
                 </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>학생 읽기 화면의 기본 타이머 시간이 바뀌어요. "자유롭게 읽기"는 계속 선택할 수 있어요.</div>
+              </div>
+
+              {/* 챌린지 기간 */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>📅 챌린지 기간</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[14, 30, 60, 90].map((d) => (
+                    <button key={d} onClick={() => handleUpdateChallengeDays(d)} style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                      border: challengeDays === d ? "none" : "1px solid #e2dac9", background: challengeDays === d ? C.green : "#fff",
+                      color: challengeDays === d ? "#fff" : C.ink, fontSize: 14, cursor: "pointer" }} className="cs-jua">{d}일</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>
+                  "우리 반 숲" 진행률과 D-day 표시가 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>
               </div>
 
               {/* 학생 요약 미리보기 */}
