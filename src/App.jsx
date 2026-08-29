@@ -6,7 +6,7 @@ import {
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
-  markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks,
+  markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -244,6 +244,28 @@ function Cover({ title, cover, size = 46 }) {
   );
 }
 
+function BookCard({ book: b, selected, onChoose }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "#fff", borderRadius: 14,
+      padding: 10, border: "1px solid #eee5d3" }}>
+      <Cover title={b.title} cover={b.cover} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
+        <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
+          {b.author}{b.publisher ? ` · ${b.publisher}` : ""}{b.price ? ` · ${b.price.toLocaleString()}원` : ""}
+        </div>
+        {b.contents && (
+          <div style={{ fontSize: 11, color: "#a7a397", marginTop: 4, lineHeight: 1.4, display: "-webkit-box",
+            WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.contents}</div>
+        )}
+        <button onClick={onChoose} className="cs-jua" style={{ border: "none", background: selected ? "#cbd8c3" : C.green, color: "#fff",
+          borderRadius: 12, padding: "8px 13px", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+          {selected ? "선택됨" : "이 책 읽기"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState("splash");
   const [enter, setEnter] = useState(false);
@@ -280,6 +302,9 @@ export default function App() {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [bestsellers, setBestsellers] = useState([]);
+  const [bestsellersLoading, setBestsellersLoading] = useState(false);
+  const [bestsellersError, setBestsellersError] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [showTeacher, setShowTeacher] = useState(false);
   const [showFeelings, setShowFeelings] = useState(false);
@@ -387,6 +412,29 @@ export default function App() {
     }, 400);
     return () => clearTimeout(t);
   }, [query, tab]);
+
+  useEffect(() => {
+    if (tab !== "search" || bestsellers.length > 0 || bestsellersLoading) return;
+    setBestsellersLoading(true);
+    setBestsellersError("");
+    getBestsellers()
+      .then(setBestsellers)
+      .catch(() => setBestsellersError("베스트셀러를 불러오지 못했어요."))
+      .finally(() => setBestsellersLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const chooseBook = async (b) => {
+    if (role === "student" && studentInfo?.id) {
+      try {
+        const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author, coverUrl: b.cover });
+        setCurrentBook(book);
+      } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
+    }
+    setMyBook(b.title);
+    showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
+    setTab("read");
+  };
 
   useEffect(() => {
     if (screen !== "splash") return;
@@ -1028,47 +1076,34 @@ export default function App() {
                     style={{ width: "100%", padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2", fontSize: 15,
                       fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, marginBottom: 12 }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    {!query.trim() && (
-                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>책 제목이나 작가 이름을 검색해보세요 🔎</div>
-                    )}
                     {searching && (
                       <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 중...</div>
                     )}
                     {searchError && (
                       <div style={{ textAlign: "center", color: "#d15b5b", fontSize: 13, padding: 20 }}>{searchError}</div>
                     )}
-                    {!searching && !searchError && results.map((b, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "#fff", borderRadius: 14,
-                        padding: 10, border: "1px solid #eee5d3" }}>
-                        <Cover title={b.title} cover={b.cover} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="cs-jua" style={{ fontSize: 15.5, color: C.ink, lineHeight: 1.2 }}>{b.title}</div>
-                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
-                            {b.author}{b.publisher ? ` · ${b.publisher}` : ""}{b.price ? ` · ${b.price.toLocaleString()}원` : ""}
-                          </div>
-                          {b.contents && (
-                            <div style={{ fontSize: 11, color: "#a7a397", marginTop: 4, lineHeight: 1.4, display: "-webkit-box",
-                              WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{b.contents}</div>
-                          )}
-                          <button onClick={async () => {
-                            if (role === "student" && studentInfo?.id) {
-                              try {
-                                const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author, coverUrl: b.cover });
-                                setCurrentBook(book);
-                              } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
-                            }
-                            setMyBook(b.title);
-                            showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
-                            setTab("read");
-                          }}
-                            className="cs-jua" style={{ border: "none", background: myBook === b.title ? "#cbd8c3" : C.green, color: "#fff",
-                              borderRadius: 12, padding: "8px 13px", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
-                            {myBook === b.title ? "선택됨" : "이 책 읽기"}</button>
-                        </div>
-                      </div>
+                    {!searching && !searchError && query.trim() && results.map((b, i) => (
+                      <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} />
                     ))}
                     {!searching && !searchError && query.trim() && results.length === 0 && (
                       <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>
+                    )}
+                    {!query.trim() && (
+                      <>
+                        <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, margin: "6px 0 2px" }}>🔥 요즘 인기있는 책</div>
+                        {bestsellersLoading && (
+                          <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>불러오는 중...</div>
+                        )}
+                        {bestsellersError && (
+                          <div style={{ textAlign: "center", color: "#d15b5b", fontSize: 13, padding: 20 }}>{bestsellersError}</div>
+                        )}
+                        {!bestsellersLoading && !bestsellersError && bestsellers.length === 0 && (
+                          <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>베스트셀러 정보가 아직 연결되지 않았어요.</div>
+                        )}
+                        {bestsellers.map((b, i) => (
+                          <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} />
+                        ))}
+                      </>
                     )}
                   </div>
                 </div>

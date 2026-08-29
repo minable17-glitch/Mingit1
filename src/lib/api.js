@@ -241,3 +241,9 @@ export async function searchBooks(query) {
   if (error) throw error;
   return data?.books || [];
 }
+
+export async function getBestsellers() {
+  const { data, error } = await supabase.functions.invoke('bestsellers');
+  if (error) throw error;
+  return data?.books || [];
+}
