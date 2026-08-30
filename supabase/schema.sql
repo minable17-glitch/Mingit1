@@ -17,6 +17,9 @@ create table if not exists teachers (
   username text not null unique,
   password_hash text not null,
   auth_user_id uuid, -- 현재 이 계정으로 로그인 중인 세션의 auth uid (로그인할 때마다 갱신됨)
+  email text, -- 비밀번호 재설정용 (선택 입력)
+  reset_code text, -- 비밀번호 재설정 인증코드 (사용 후 초기화)
+  reset_code_expires_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -286,7 +289,7 @@ grant execute on function student_login(text, text, text) to anon, authenticated
 
 -- ── 선생님 계정(아이디+비밀번호) / 카카오 로그인 ──
 
-create or replace function teacher_account_signup(p_username text, p_password text)
+create or replace function teacher_account_signup(p_username text, p_password text, p_email text default null)
 returns table(id uuid, username text)
 language plpgsql security definer set search_path = public, extensions as $$
 declare
@@ -298,8 +301,8 @@ begin
   if exists (select 1 from teachers where teachers.username = p_username) then
     raise exception '이미 사용 중인 아이디예요';
   end if;
-  insert into teachers (username, password_hash, auth_user_id)
-  values (p_username, crypt(p_password, gen_salt('bf')), auth.uid())
+  insert into teachers (username, password_hash, auth_user_id, email)
+  values (p_username, crypt(p_password, gen_salt('bf')), auth.uid(), nullif(trim(p_email), ''))
   returning teachers.id into v_id;
   return query select teachers.id, teachers.username from teachers where teachers.id = v_id;
 end;
