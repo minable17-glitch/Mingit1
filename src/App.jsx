@@ -8,7 +8,7 @@ import {
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, teacherKakaoLogin, teacherKakaoBootstrap, getAuthSession, createClassForAccount, getMyClasses,
-  requestPasswordReset, resetTeacherPassword, resetStudentPin,
+  requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -295,6 +295,9 @@ export default function App() {
   const [forgotStep, setForgotStep] = useState("request"); // 'request' | 'confirm'
   const [forgotBusy, setForgotBusy] = useState(false);
   const [forgotMessage, setForgotMessage] = useState("");
+  const [findIdEmail, setFindIdEmail] = useState("");
+  const [findIdBusy, setFindIdBusy] = useState(false);
+  const [findIdMessage, setFindIdMessage] = useState("");
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -523,6 +526,20 @@ export default function App() {
       setAuthError(e.message || "처리에 실패했어요.");
     } finally {
       setAuthBusy(false);
+    }
+  };
+
+  const handleRequestFindId = async () => {
+    setFindIdMessage("");
+    if (!findIdEmail.trim()) { setFindIdMessage("이메일을 입력해주세요."); return; }
+    setFindIdBusy(true);
+    try {
+      await requestUsernameReminder(findIdEmail.trim());
+      setFindIdMessage("가입할 때 등록한 이메일이면, 그 이메일로 가입된 아이디를 보내드렸어요. 메일함(스팸함도)을 확인해주세요.");
+    } catch (e) {
+      setFindIdMessage(e.message || "요청에 실패했어요.");
+    } finally {
+      setFindIdBusy(false);
     }
   };
 
@@ -1024,9 +1041,14 @@ export default function App() {
               style={{ border: "none", background: "transparent", color: C.greenDk, fontSize: 13, cursor: "pointer" }}>
               {teacherAccountMode === "signup" ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 계정 만들기"}</button>
             {teacherAccountMode === "login" && (
-              <button onClick={() => { setForgotMessage(""); setForgotStep("request"); setForgotForm({ username: "", code: "", newPassword: "" }); setScreen("teacher-forgot"); }}
-                style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer" }}>
-                비밀번호를 잊으셨나요?</button>
+              <div style={{ display: "flex", justifyContent: "center", gap: 14 }}>
+                <button onClick={() => { setFindIdMessage(""); setFindIdEmail(""); setScreen("teacher-find-id"); }}
+                  style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer" }}>
+                  아이디를 잊으셨나요?</button>
+                <button onClick={() => { setForgotMessage(""); setForgotStep("request"); setForgotForm({ username: "", code: "", newPassword: "" }); setScreen("teacher-forgot"); }}
+                  style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer" }}>
+                  비밀번호를 잊으셨나요?</button>
+              </div>
             )}
             <button onClick={() => setScreen("role")} style={{ border: "none", background: "transparent",
               color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
@@ -1059,6 +1081,25 @@ export default function App() {
               style={{ marginTop: 6, padding: 15, borderRadius: 16, border: "none", fontSize: 17, color: "#fff",
                 cursor: forgotBusy ? "default" : "pointer", background: forgotBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
               {forgotBusy ? "처리 중..." : (forgotStep === "request" ? "인증코드 받기" : "비밀번호 바꾸기")}</button>
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }}
+              style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 아이디 찾기 */}
+        {screen === "teacher-find-id" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>아이디 찾기</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>가입할 때 등록한 이메일</label>
+            <input type="email" value={findIdEmail} onChange={(e) => setFindIdEmail(e.target.value)}
+              placeholder="you@example.com" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            {findIdMessage && <div style={{ color: C.greenDk, fontSize: 13 }}>{findIdMessage}</div>}
+            <button onClick={handleRequestFindId} disabled={findIdBusy} className="cs-jua"
+              style={{ marginTop: 6, padding: 15, borderRadius: 16, border: "none", fontSize: 17, color: "#fff",
+                cursor: findIdBusy ? "default" : "pointer", background: findIdBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {findIdBusy ? "처리 중..." : "아이디 찾기"}</button>
             <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }}
               style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
