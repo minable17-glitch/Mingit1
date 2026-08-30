@@ -9,11 +9,12 @@ async function ensureFreshAnonSession() {
 
 // 선생님 계정: Supabase 이메일 인증 대신 학생 로그인과 같은 방식(해시된 비밀번호 + RPC)을 씀.
 // 이메일 형식 검증/전송 횟수 제한 등을 아예 거치지 않아서 훨씬 안정적임.
-export async function teacherSignUp({ username, password }) {
+export async function teacherSignUp({ username, password, email }) {
   await ensureFreshAnonSession();
   const { data, error } = await supabase.rpc('teacher_account_signup', {
     p_username: username.trim(),
     p_password: password,
+    p_email: email?.trim() || null,
   });
   if (error) throw error;
   return data[0];
@@ -41,6 +42,20 @@ export async function teacherKakaoBootstrap() {
   const { data, error } = await supabase.rpc('teacher_kakao_bootstrap');
   if (error) throw error;
   return data[0];
+}
+
+export async function requestPasswordReset(username) {
+  const { error } = await supabase.functions.invoke('send-password-reset', { body: { username } });
+  if (error) throw error;
+}
+
+export async function resetTeacherPassword({ username, code, newPassword }) {
+  const { error } = await supabase.rpc('teacher_reset_password', {
+    p_username: username.trim(),
+    p_code: code.trim(),
+    p_new_password: newPassword,
+  });
+  if (error) throw error;
 }
 
 export async function getAuthSession() {

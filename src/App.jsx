@@ -8,6 +8,7 @@ import {
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, teacherKakaoLogin, teacherKakaoBootstrap, getAuthSession, createClassForAccount, getMyClasses,
+  requestPasswordReset, resetTeacherPassword,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -288,8 +289,12 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
-  const [teacherAccountForm, setTeacherAccountForm] = useState({ username: "", password: "" });
+  const [teacherAccountForm, setTeacherAccountForm] = useState({ username: "", password: "", email: "" });
   const [teacherAccountMode, setTeacherAccountMode] = useState("login"); // 'login' | 'signup'
+  const [forgotForm, setForgotForm] = useState({ username: "", code: "", newPassword: "" });
+  const [forgotStep, setForgotStep] = useState("request"); // 'request' | 'confirm'
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState("");
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -509,7 +514,7 @@ export default function App() {
     setAuthBusy(true);
     try {
       if (teacherAccountMode === "signup") {
-        await teacherSignUp({ username: teacherAccountForm.username, password: teacherAccountForm.password });
+        await teacherSignUp({ username: teacherAccountForm.username, password: teacherAccountForm.password, email: teacherAccountForm.email });
       } else {
         await teacherSignIn({ username: teacherAccountForm.username, password: teacherAccountForm.password });
       }
@@ -518,6 +523,43 @@ export default function App() {
       setAuthError(e.message || "처리에 실패했어요.");
     } finally {
       setAuthBusy(false);
+    }
+  };
+
+  const handleRequestReset = async () => {
+    setForgotMessage("");
+    if (!forgotForm.username.trim()) { setForgotMessage("아이디를 입력해주세요."); return; }
+    setForgotBusy(true);
+    try {
+      await requestPasswordReset(forgotForm.username.trim());
+      setForgotStep("confirm");
+      setForgotMessage("가입할 때 등록한 이메일이 있다면, 인증코드를 보냈어요. 메일함(스팸함도)을 확인해주세요.");
+    } catch (e) {
+      setForgotMessage(e.message || "요청에 실패했어요.");
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    setForgotMessage("");
+    if (!forgotForm.code.trim() || forgotForm.newPassword.length < 4) {
+      setForgotMessage("인증코드와 4자리 이상 새 비밀번호를 입력해주세요.");
+      return;
+    }
+    setForgotBusy(true);
+    try {
+      await resetTeacherPassword({ username: forgotForm.username, code: forgotForm.code, newPassword: forgotForm.newPassword });
+      setForgotStep("request");
+      setForgotForm({ username: "", code: "", newPassword: "" });
+      setTeacherAccountMode("login");
+      setAuthError("");
+      setScreen("teacher-account");
+      showToast("비밀번호가 바뀌었어요! 새 비밀번호로 로그인해주세요 🔑");
+    } catch (e) {
+      setForgotMessage(e.message || "재설정에 실패했어요.");
+    } finally {
+      setForgotBusy(false);
     }
   };
 
@@ -951,6 +993,14 @@ export default function App() {
             <input type="password" value={teacherAccountForm.password} onChange={(e) => setTeacherAccountForm((f) => ({ ...f, password: e.target.value }))}
               placeholder="비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
                 fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+            {teacherAccountMode === "signup" && (
+              <>
+                <label style={{ fontSize: 13, color: C.inkSoft }}>이메일 (선택 · 비밀번호를 잊었을 때 필요해요)</label>
+                <input type="email" value={teacherAccountForm.email} onChange={(e) => setTeacherAccountForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="you@example.com" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                    fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+              </>
+            )}
             {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
             <button onClick={handleTeacherAccountSubmit} disabled={authBusy} className="cs-jua" style={{ marginTop: 6, padding: 15, borderRadius: 16,
               border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
@@ -962,8 +1012,44 @@ export default function App() {
             <button onClick={() => { setAuthError(""); setTeacherAccountMode((m) => m === "signup" ? "login" : "signup"); }}
               style={{ border: "none", background: "transparent", color: C.greenDk, fontSize: 13, cursor: "pointer" }}>
               {teacherAccountMode === "signup" ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 계정 만들기"}</button>
+            {teacherAccountMode === "login" && (
+              <button onClick={() => { setForgotMessage(""); setForgotStep("request"); setForgotForm({ username: "", code: "", newPassword: "" }); setScreen("teacher-forgot"); }}
+                style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer" }}>
+                비밀번호를 잊으셨나요?</button>
+            )}
             <button onClick={() => setScreen("role")} style={{ border: "none", background: "transparent",
               color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
+          </div>
+        )}
+
+        {/* 선생님: 비밀번호 찾기 */}
+        {screen === "teacher-forgot" && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+            padding: "40px 24px", gap: 12, justifyContent: "center" }}>
+            <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>비밀번호 찾기</div>
+            <label style={{ fontSize: 13, color: C.inkSoft }}>아이디</label>
+            <input value={forgotForm.username} onChange={(e) => setForgotForm((f) => ({ ...f, username: e.target.value }))}
+              disabled={forgotStep === "confirm"} placeholder="아이디" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                fontSize: 15, fontFamily: "inherit", outline: "none", background: forgotStep === "confirm" ? "#f2ede0" : "#fff", color: C.ink }} />
+            {forgotStep === "confirm" && (
+              <>
+                <label style={{ fontSize: 13, color: C.inkSoft }}>이메일로 받은 인증코드</label>
+                <input value={forgotForm.code} onChange={(e) => setForgotForm((f) => ({ ...f, code: e.target.value }))}
+                  placeholder="6자리 숫자" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                    fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                <label style={{ fontSize: 13, color: C.inkSoft }}>새 비밀번호 (4자리 이상)</label>
+                <input type="password" value={forgotForm.newPassword} onChange={(e) => setForgotForm((f) => ({ ...f, newPassword: e.target.value }))}
+                  placeholder="새 비밀번호" style={{ padding: "13px 15px", borderRadius: 14, border: "1.5px solid #d9d2c2",
+                    fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+              </>
+            )}
+            {forgotMessage && <div style={{ color: forgotStep === "confirm" ? C.greenDk : "#d15b5b", fontSize: 13 }}>{forgotMessage}</div>}
+            <button onClick={forgotStep === "request" ? handleRequestReset : handleConfirmReset} disabled={forgotBusy} className="cs-jua"
+              style={{ marginTop: 6, padding: 15, borderRadius: 16, border: "none", fontSize: 17, color: "#fff",
+                cursor: forgotBusy ? "default" : "pointer", background: forgotBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {forgotBusy ? "처리 중..." : (forgotStep === "request" ? "인증코드 받기" : "비밀번호 바꾸기")}</button>
+            <button onClick={() => { setAuthError(""); setTeacherAccountMode("login"); setScreen("teacher-account"); }}
+              style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 13, cursor: "pointer" }}>← 뒤로</button>
           </div>
         )}
 

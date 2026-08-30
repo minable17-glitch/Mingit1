@@ -346,9 +346,32 @@ begin
 end;
 $$;
 
-grant execute on function teacher_account_signup(text, text) to anon, authenticated;
+-- 비밀번호 재설정: 이메일로 받은 인증코드를 확인하고 비밀번호를 바꿈
+-- (인증코드 생성·이메일 발송은 send-password-reset Edge Function이 서비스 롤 키로 처리함)
+create or replace function teacher_reset_password(p_username text, p_code text, p_new_password text)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_teacher teachers%rowtype;
+begin
+  select * into v_teacher from teachers where teachers.username = p_username;
+  if not found or v_teacher.reset_code is null or v_teacher.reset_code <> p_code
+     or v_teacher.reset_code_expires_at < now() then
+    raise exception '인증코드가 올바르지 않거나 만료됐어요';
+  end if;
+
+  update teachers set
+    password_hash = crypt(p_new_password, gen_salt('bf')),
+    reset_code = null,
+    reset_code_expires_at = null
+  where teachers.id = v_teacher.id;
+end;
+$$;
+
+grant execute on function teacher_account_signup(text, text, text) to anon, authenticated;
 grant execute on function teacher_account_login(text, text) to anon, authenticated;
 grant execute on function teacher_kakao_bootstrap() to anon, authenticated;
+grant execute on function teacher_reset_password(text, text, text) to anon, authenticated;
 
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
