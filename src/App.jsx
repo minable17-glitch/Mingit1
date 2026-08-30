@@ -9,7 +9,7 @@ import {
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
-  changeTeacherPassword, deleteStudent, deleteClass,
+  changeTeacherPassword, deleteStudent, deleteClass, verifyStudentPin, changeStudentPin,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -304,6 +304,11 @@ export default function App() {
   const [changePwMessage, setChangePwMessage] = useState("");
   const [deleteClassConfirmName, setDeleteClassConfirmName] = useState("");
   const [deleteClassBusy, setDeleteClassBusy] = useState(false);
+  const [pinUnlockBusy, setPinUnlockBusy] = useState(false);
+  const [pinUnlockError, setPinUnlockError] = useState("");
+  const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "" });
+  const [changePinBusy, setChangePinBusy] = useState(false);
+  const [changePinMessage, setChangePinMessage] = useState("");
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -882,6 +887,41 @@ export default function App() {
     }
   };
 
+  const handleUnlockPin = () => {
+    if (pin.length !== 4) return;
+    if (role !== "student" || !studentInfo?.id) {
+      // 선생님 체험 모드는 실제 PIN이 없어서 그냥 통과
+      setUnlocked(true); setPin(""); setPinUnlockError("");
+      return;
+    }
+    setPinUnlockBusy(true);
+    verifyStudentPin(pin).then((ok) => {
+      if (ok) { setUnlocked(true); setPin(""); setPinUnlockError(""); }
+      else { setPinUnlockError("PIN이 올바르지 않아요."); setPin(""); }
+    }).catch((e) => {
+      setPinUnlockError(e.message || "확인에 실패했어요.");
+      setPin("");
+    }).finally(() => setPinUnlockBusy(false));
+  };
+
+  const handleChangeStudentPin = async () => {
+    setChangePinMessage("");
+    if (!/^\d{4}$/.test(changePinForm.oldPin) || !/^\d{4}$/.test(changePinForm.newPin)) {
+      setChangePinMessage("현재 PIN과 새 PIN을 각각 숫자 4자리로 입력해주세요.");
+      return;
+    }
+    setChangePinBusy(true);
+    try {
+      await changeStudentPin({ oldPin: changePinForm.oldPin, newPin: changePinForm.newPin });
+      setChangePinForm({ oldPin: "", newPin: "" });
+      setChangePinMessage("PIN이 바뀌었어요!");
+    } catch (e) {
+      setChangePinMessage(e.message || "변경에 실패했어요.");
+    } finally {
+      setChangePinBusy(false);
+    }
+  };
+
   const handleUpdateGoal = async (g) => {
     if (!classInfo?.id) return;
     try {
@@ -1425,15 +1465,16 @@ export default function App() {
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 64px)", gap: 10 }}>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, "←", 0, "✓"].map((k, i) => (
-                          <button key={i} onClick={() => {
+                          <button key={i} disabled={pinUnlockBusy} onClick={() => {
+                            setPinUnlockError("");
                             if (k === "←") setPin((p) => p.slice(0, -1));
-                            else if (k === "✓") { if (pin.length === 4) { setUnlocked(true); setPin(""); } }
+                            else if (k === "✓") handleUnlockPin();
                             else setPin((p) => (p.length < 4 ? p + k : p));
                           }} className="cs-jua" style={{ height: 56, borderRadius: 14, border: "none", fontSize: 20,
                             background: k === "✓" ? C.green : "#fff", color: k === "✓" ? "#fff" : C.ink, cursor: "pointer", boxShadow: "0 2px 5px #0000000d" }}>{k}</button>
                         ))}
                       </div>
-                      <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 14 }}>※ 체험용: 아무 숫자 4자리나 넣고 ✓</div>
+                      {pinUnlockError && <div style={{ color: "#d15b5b", fontSize: 12.5, marginTop: 14 }}>{pinUnlockError}</div>}
                     </div>
                   ) : (
                     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1466,6 +1507,31 @@ export default function App() {
                           <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{e.note}”</div>
                         </div>
                       ))}
+                      {role === "student" && studentInfo?.id && (
+                        <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginTop: 4 }}>
+                          <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🔑 비밀번호(PIN) 바꾸기</div>
+                          <input
+                            type="password" inputMode="numeric" maxLength={4}
+                            value={changePinForm.oldPin}
+                            onChange={(e) => setChangePinForm((f) => ({ ...f, oldPin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                            placeholder="현재 PIN 4자리"
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd6c3", fontSize: 14, marginBottom: 8, boxSizing: "border-box" }}
+                          />
+                          <input
+                            type="password" inputMode="numeric" maxLength={4}
+                            value={changePinForm.newPin}
+                            onChange={(e) => setChangePinForm((f) => ({ ...f, newPin: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                            placeholder="새 PIN 4자리"
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd6c3", fontSize: 14, marginBottom: 8, boxSizing: "border-box" }}
+                          />
+                          {changePinMessage && <div style={{ fontSize: 12.5, color: changePinMessage === "PIN이 바뀌었어요!" ? C.greenDk : "#d15b5b", marginBottom: 8 }}>{changePinMessage}</div>}
+                          <button
+                            onClick={handleChangeStudentPin} disabled={changePinBusy}
+                            style={{ width: "100%", padding: 11, borderRadius: 10, border: "none", background: C.green, color: "#fff",
+                              fontSize: 14, cursor: "pointer", opacity: changePinBusy ? 0.6 : 1 }}
+                          >{changePinBusy ? "처리 중..." : "PIN 바꾸기"}</button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

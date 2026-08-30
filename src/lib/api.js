@@ -66,6 +66,17 @@ export async function deleteClass(classId) {
   if (error) throw error;
 }
 
+export async function verifyStudentPin(pin) {
+  const { data, error } = await supabase.rpc('student_verify_pin', { p_pin: pin });
+  if (error) throw error;
+  return !!data;
+}
+
+export async function changeStudentPin({ oldPin, newPin }) {
+  const { error } = await supabase.rpc('student_change_pin', { p_old_pin: oldPin, p_new_pin: newPin });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),

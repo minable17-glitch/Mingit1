@@ -482,6 +482,46 @@ $$;
 
 grant execute on function teacher_delete_class(uuid) to anon, authenticated;
 
+-- 학생이 "내 기록" 잠금을 풀 때 실제 PIN을 확인함 (지금까지는 아무 4자리나 통과되던 체험용이었음)
+create or replace function student_verify_pin(p_pin text)
+returns boolean
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_student students%rowtype;
+begin
+  select * into v_student from students where students.auth_user_id = auth.uid();
+  if not found then
+    return false;
+  end if;
+  return v_student.pin_hash = crypt(p_pin, v_student.pin_hash);
+end;
+$$;
+
+grant execute on function student_verify_pin(text) to anon, authenticated;
+
+-- 학생이 로그인한 상태에서 직접 PIN 바꾸기 (현재 PIN 확인 필요)
+create or replace function student_change_pin(p_old_pin text, p_new_pin text)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_student students%rowtype;
+begin
+  select * into v_student from students where students.auth_user_id = auth.uid();
+  if not found then
+    raise exception '로그인 정보를 찾을 수 없어요';
+  end if;
+  if v_student.pin_hash <> crypt(p_old_pin, v_student.pin_hash) then
+    raise exception '현재 PIN이 올바르지 않아요';
+  end if;
+  if p_new_pin !~ '^[0-9]{4}$' then
+    raise exception 'PIN은 숫자 4자리로 입력해주세요';
+  end if;
+  update students set pin_hash = crypt(p_new_pin, gen_salt('bf')) where students.id = v_student.id;
+end;
+$$;
+
+grant execute on function student_change_pin(text, text) to anon, authenticated;
+
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
 drop function if exists get_class_progress(uuid);
