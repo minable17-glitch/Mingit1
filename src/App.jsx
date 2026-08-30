@@ -71,6 +71,7 @@ const C = {
 const STAGE_NAME = ["씨앗", "새싹", "줄기", "잎", "꽃봉오리", "활짝 핀 꽃"];
 const COVERS = ["#F6C6C6", "#F7DEA6", "#BFE3C0", "#C6D8F6", "#E3C6F6", "#F6D9BF"];
 // 자유롭게 읽기로 목표 시간을 넘겨 읽으면 10분마다 하나씩 받는 나무 꾸미기 악세서리
+// (schema.sql의 v_catalog 배열과 반드시 항목이 같아야 함)
 const ACCESSORY_CATALOG = {
   apple: { emoji: "🍎", name: "사과" },
   ribbon: { emoji: "🎀", name: "리본" },
@@ -78,6 +79,15 @@ const ACCESSORY_CATALOG = {
   butterfly: { emoji: "🦋", name: "나비" },
   maple: { emoji: "🍁", name: "단풍잎" },
   crown: { emoji: "👑", name: "왕관" },
+  balloon: { emoji: "🎈", name: "풍선" },
+  rainbow: { emoji: "🌈", name: "무지개" },
+  bell: { emoji: "🔔", name: "방울" },
+  heart: { emoji: "💗", name: "하트" },
+  sun: { emoji: "🌞", name: "햇님" },
+  moon: { emoji: "🌙", name: "달님" },
+  snowflake: { emoji: "❄️", name: "눈꽃" },
+  blossom: { emoji: "🌸", name: "벚꽃" },
+  ladybug: { emoji: "🐞", name: "무당벌레" },
 };
 const MAX_EQUIPPED_ACCESSORIES = 4;
 const ACCESSORY_SLOTS = [[-0.55, -0.15], [0.55, -0.15], [-0.35, 0.6], [0.35, 0.6]];

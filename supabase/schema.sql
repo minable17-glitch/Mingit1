@@ -81,7 +81,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_overflow int := coalesce(new.overflow_minutes, 0);
   v_n int;
-  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown'];
+  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown', 'balloon', 'rainbow', 'bell', 'heart', 'sun', 'moon', 'snowflake', 'blossom', 'ladybug'];
   v_counts jsonb;
   v_pick text;
   i int;
@@ -565,7 +565,7 @@ returns void
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_student students%rowtype;
-  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown'];
+  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown', 'balloon', 'rainbow', 'bell', 'heart', 'sun', 'moon', 'snowflake', 'blossom', 'ladybug'];
   v_types text[] := coalesce(p_types, array[]::text[]);
   v_type text;
 begin
