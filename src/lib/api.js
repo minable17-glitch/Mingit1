@@ -48,6 +48,24 @@ export async function resetStudentPin(studentId, newPin = '0000') {
   if (error) throw error;
 }
 
+export async function changeTeacherPassword({ oldPassword, newPassword }) {
+  const { error } = await supabase.rpc('teacher_change_password', {
+    p_old_password: oldPassword,
+    p_new_password: newPassword,
+  });
+  if (error) throw error;
+}
+
+export async function deleteStudent(studentId) {
+  const { error } = await supabase.rpc('teacher_delete_student', { p_student_id: studentId });
+  if (error) throw error;
+}
+
+export async function deleteClass(classId) {
+  const { error } = await supabase.rpc('teacher_delete_class', { p_class_id: classId });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),

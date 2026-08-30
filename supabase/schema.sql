@@ -404,6 +404,84 @@ $$;
 
 grant execute on function teacher_reset_student_pin(uuid, text) to anon, authenticated;
 
+-- 로그인한 상태에서 직접 비밀번호 바꾸기 (현재 비밀번호 확인 필요)
+create or replace function teacher_change_password(p_old_password text, p_new_password text)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_teacher teachers%rowtype;
+begin
+  select * into v_teacher from teachers where teachers.auth_user_id = auth.uid();
+  if not found then
+    raise exception '로그인 정보를 찾을 수 없어요';
+  end if;
+  if v_teacher.password_hash <> crypt(p_old_password, v_teacher.password_hash) then
+    raise exception '현재 비밀번호가 올바르지 않아요';
+  end if;
+  update teachers set password_hash = crypt(p_new_password, gen_salt('bf')) where teachers.id = v_teacher.id;
+end;
+$$;
+
+grant execute on function teacher_change_password(text, text) to anon, authenticated;
+
+-- 학생 삭제 (그 학급 담당 선생님만) — 학생의 책/기록/응원 등도 함께 삭제됨(on delete cascade)
+create or replace function teacher_delete_student(p_student_id uuid)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_class_id uuid;
+  v_is_owner boolean;
+begin
+  select class_id into v_class_id from students where students.id = p_student_id;
+  if v_class_id is null then
+    raise exception '학생을 찾을 수 없어요';
+  end if;
+
+  select exists (
+    select 1 from classes c
+    where c.id = v_class_id
+      and (
+        c.teacher_auth_user_id = auth.uid()
+        or c.teacher_id in (select id from teachers where auth_user_id = auth.uid())
+      )
+  ) into v_is_owner;
+
+  if not v_is_owner then
+    raise exception '이 학급의 담당 선생님만 삭제할 수 있어요';
+  end if;
+
+  delete from students where students.id = p_student_id;
+end;
+$$;
+
+grant execute on function teacher_delete_student(uuid) to anon, authenticated;
+
+-- 학급 삭제 (그 학급 담당 선생님만) — 학급의 학생/기록도 모두 함께 삭제됨(on delete cascade)
+create or replace function teacher_delete_class(p_class_id uuid)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_is_owner boolean;
+begin
+  select exists (
+    select 1 from classes c
+    where c.id = p_class_id
+      and (
+        c.teacher_auth_user_id = auth.uid()
+        or c.teacher_id in (select id from teachers where auth_user_id = auth.uid())
+      )
+  ) into v_is_owner;
+
+  if not v_is_owner then
+    raise exception '이 학급의 담당 선생님만 삭제할 수 있어요';
+  end if;
+
+  delete from classes where classes.id = p_class_id;
+end;
+$$;
+
+grant execute on function teacher_delete_class(uuid) to anon, authenticated;
+
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
 drop function if exists get_class_progress(uuid);

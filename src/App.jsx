@@ -9,6 +9,7 @@ import {
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
+  changeTeacherPassword, deleteStudent, deleteClass,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -298,6 +299,11 @@ export default function App() {
   const [findIdEmail, setFindIdEmail] = useState("");
   const [findIdBusy, setFindIdBusy] = useState(false);
   const [findIdMessage, setFindIdMessage] = useState("");
+  const [changePwForm, setChangePwForm] = useState({ oldPassword: "", newPassword: "" });
+  const [changePwBusy, setChangePwBusy] = useState(false);
+  const [changePwMessage, setChangePwMessage] = useState("");
+  const [deleteClassConfirmName, setDeleteClassConfirmName] = useState("");
+  const [deleteClassBusy, setDeleteClassBusy] = useState(false);
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -826,6 +832,53 @@ export default function App() {
       showToast(`'${nickname}' 학생 PIN이 0000으로 초기화됐어요. 학생에게 알려주세요!`);
     } catch (e) {
       showToast(e.message || 'PIN 초기화에 실패했어요.');
+    }
+  };
+
+  const handleDeleteStudent = async (studentId, nickname) => {
+    if (!window.confirm(`정말 '${nickname}' 학생을 삭제할까요?\n이 학생의 읽기 기록·느낀점·완독 기록이 모두 함께 삭제되고, 되돌릴 수 없어요.`)) return;
+    try {
+      await deleteStudent(studentId);
+      setTeacherRoster((list) => list.filter((s) => s.id !== studentId));
+      showToast(`'${nickname}' 학생을 삭제했어요.`);
+    } catch (e) {
+      showToast(e.message || '삭제에 실패했어요.');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setChangePwMessage("");
+    if (!changePwForm.oldPassword || changePwForm.newPassword.length < 4) {
+      setChangePwMessage("현재 비밀번호와 4자리 이상 새 비밀번호를 입력해주세요.");
+      return;
+    }
+    setChangePwBusy(true);
+    try {
+      await changeTeacherPassword({ oldPassword: changePwForm.oldPassword, newPassword: changePwForm.newPassword });
+      setChangePwForm({ oldPassword: "", newPassword: "" });
+      setChangePwMessage("비밀번호가 바뀌었어요!");
+    } catch (e) {
+      setChangePwMessage(e.message || "변경에 실패했어요.");
+    } finally {
+      setChangePwBusy(false);
+    }
+  };
+
+  const handleDeleteClass = async () => {
+    if (!classInfo?.id || deleteClassConfirmName.trim() !== classInfo.name) return;
+    setDeleteClassBusy(true);
+    try {
+      await deleteClass(classInfo.id);
+      clearSession();
+      setRole(null);
+      setClassInfo(null);
+      setShowTeacher(false);
+      showToast("학급이 삭제됐어요.");
+      setScreen("role");
+    } catch (e) {
+      showToast(e.message || "삭제에 실패했어요.");
+    } finally {
+      setDeleteClassBusy(false);
     }
   };
 
@@ -1603,9 +1656,9 @@ export default function App() {
               <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
                 <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>📊 학생 요약</div>
                 <div style={{ display: "flex", fontSize: 11.5, color: C.inkSoft, padding: "0 0 6px", borderBottom: "1px solid #eee5d3" }}>
-                  <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 46, textAlign: "right" }}>완료일</span>
-                  <span style={{ width: 52, textAlign: "right" }}>총 분</span><span style={{ width: 40, textAlign: "right" }}>완독</span>
-                  <span style={{ width: 66, textAlign: "right" }}>PIN</span>
+                  <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 40, textAlign: "right" }}>완료일</span>
+                  <span style={{ width: 46, textAlign: "right" }}>총 분</span><span style={{ width: 36, textAlign: "right" }}>완독</span>
+                  <span style={{ width: 54, textAlign: "right" }}>PIN</span><span style={{ width: 40, textAlign: "right" }}>삭제</span>
                 </div>
                 {teacherStats.length === 0 && (
                   <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 12.5, padding: 14 }}>아직 참여한 학생이 없어요.</div>
@@ -1613,16 +1666,52 @@ export default function App() {
                 {teacherStats.map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < teacherStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
                     <span style={{ flex: 1 }} className="cs-hand">{s.nick}</span>
-                    <span style={{ width: 46, textAlign: "right" }}>{s.days}일</span>
-                    <span style={{ width: 52, textAlign: "right" }}>{s.min}분</span>
-                    <span style={{ width: 40, textAlign: "right" }}>{s.done}권</span>
-                    <span style={{ width: 66, textAlign: "right" }}>
+                    <span style={{ width: 40, textAlign: "right" }}>{s.days}일</span>
+                    <span style={{ width: 46, textAlign: "right" }}>{s.min}분</span>
+                    <span style={{ width: 36, textAlign: "right" }}>{s.done}권</span>
+                    <span style={{ width: 54, textAlign: "right" }}>
                       <button onClick={() => handleResetStudentPin(s.id, s.nick)} style={{ border: "none", background: "transparent",
                         color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0 }}>초기화</button>
                     </span>
+                    <span style={{ width: 40, textAlign: "right" }}>
+                      <button onClick={() => handleDeleteStudent(s.id, s.nick)} style={{ border: "none", background: "transparent",
+                        color: "#d15b5b", fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0 }}>삭제</button>
+                    </span>
                   </div>
                 ))}
-                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>PIN 초기화를 누르면 그 학생의 PIN이 0000으로 바뀌어요. 학생에게 새 PIN을 알려주세요.</div>
+                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>PIN 초기화를 누르면 그 학생의 PIN이 0000으로 바뀌어요. 삭제하면 그 학생의 모든 기록이 함께 지워지고 되돌릴 수 없어요.</div>
+              </div>
+
+              {/* 비밀번호 변경 */}
+              <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🔑 내 비밀번호 변경</div>
+                <input type="password" value={changePwForm.oldPassword} onChange={(e) => setChangePwForm((f) => ({ ...f, oldPassword: e.target.value }))}
+                  placeholder="현재 비밀번호" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2",
+                    fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, marginBottom: 8 }} />
+                <input type="password" value={changePwForm.newPassword} onChange={(e) => setChangePwForm((f) => ({ ...f, newPassword: e.target.value }))}
+                  placeholder="새 비밀번호 (4자리 이상)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2",
+                    fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                {changePwMessage && <div style={{ color: changePwMessage === "비밀번호가 바뀌었어요!" ? C.greenDk : "#d15b5b", fontSize: 12, marginTop: 6 }}>{changePwMessage}</div>}
+                <button onClick={handleChangePassword} disabled={changePwBusy} className="cs-jua" style={{ width: "100%", marginTop: 8, padding: 11, borderRadius: 10,
+                  border: "none", fontSize: 13.5, color: "#fff", cursor: changePwBusy ? "default" : "pointer",
+                  background: changePwBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+                  {changePwBusy ? "처리 중..." : "비밀번호 바꾸기"}</button>
+              </div>
+
+              {/* 학급 삭제 (위험 구역) */}
+              <div style={{ background: "#fff5f5", borderRadius: 16, padding: 14, border: "1px solid #f0c9c9", marginBottom: 12 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: "#c14d4d", marginBottom: 8 }}>⚠️ 학급 삭제</div>
+                <div style={{ fontSize: 11.5, color: "#a06060", marginBottom: 8 }}>
+                  학급을 삭제하면 학생, 읽기 기록, 느낀점이 모두 함께 삭제되고 되돌릴 수 없어요.
+                  삭제하려면 아래에 학급 이름 <b>"{classInfo?.name}"</b>을(를) 정확히 입력해주세요.</div>
+                <input value={deleteClassConfirmName} onChange={(e) => setDeleteClassConfirmName(e.target.value)}
+                  placeholder="학급 이름 입력" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e0b8b8",
+                    fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink, marginBottom: 8 }} />
+                <button onClick={handleDeleteClass} disabled={deleteClassBusy || deleteClassConfirmName.trim() !== classInfo?.name}
+                  className="cs-jua" style={{ width: "100%", padding: 11, borderRadius: 10, border: "none", fontSize: 13.5, color: "#fff",
+                    cursor: (deleteClassBusy || deleteClassConfirmName.trim() !== classInfo?.name) ? "default" : "pointer",
+                    background: (deleteClassBusy || deleteClassConfirmName.trim() !== classInfo?.name) ? "#e0b8b8" : "#c14d4d" }}>
+                  {deleteClassBusy ? "삭제 중..." : "학급 영구 삭제"}</button>
               </div>
 
               {/* 느낀점 모아보기 (교사만) */}
