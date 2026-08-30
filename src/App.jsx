@@ -49,6 +49,47 @@ function getStageInfo(days, challengeDays = 30) {
   return { stage, isMax, daysToNext };
 }
 
+// 사진 그대로 OCR에 넣으면 그림자·낮은 대비 때문에 글자를 잘못 읽는 경우가 많아서,
+// 흑백으로 바꾸고 대비를 최대한 끌어올려 글자가 또렷해지게 전처리함
+async function preprocessImageForOcr(file) {
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = URL.createObjectURL(file);
+    });
+    const maxSize = 1800;
+    const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(img.src);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imageData.data;
+    const gray = new Float32Array(d.length / 4);
+    let min = 255, max = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      gray[i / 4] = g;
+      if (g < min) min = g;
+      if (g > max) max = g;
+    }
+    const range = Math.max(1, max - min);
+    for (let i = 0; i < d.length; i += 4) {
+      const stretched = Math.min(255, Math.max(0, ((gray[i / 4] - min) / range) * 255));
+      d[i] = d[i + 1] = d[i + 2] = stretched;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return await new Promise((resolve) => canvas.toBlob((b) => resolve(b || file), "image/png"));
+  } catch {
+    return file; // 전처리에 실패해도 원본 사진으로 계속 진행
+  }
+}
+
 function formatLogDate(isoDate) {
   if (!isoDate) return "";
   const d = new Date(isoDate + "T00:00:00");
@@ -877,19 +918,25 @@ export default function App() {
     e.target.value = "";
     if (!file) return;
     setOcrBusy(true);
+    let worker;
     try {
       const { default: Tesseract } = await import("tesseract.js");
-      const { data } = await Tesseract.recognize(file, "kor+eng");
+      const processed = await preprocessImageForOcr(file);
+      worker = await Tesseract.createWorker("kor+eng");
+      // 사진 한 장 전체가 아니라 한 문단(구절)만 찍는 상황이라, 이 모드가 인식률이 더 좋음
+      await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK });
+      const { data } = await worker.recognize(processed);
       const text = (data?.text || "").trim();
       if (text) {
         setNote((n) => (n.trim() ? `${n.trim()}\n${text}` : text));
-        showToast("구절을 인식했어요. 필요하면 다듬어주세요 ✏️");
+        showToast("구절을 인식했어요. 잘못 읽은 글자는 직접 고쳐주세요 ✏️");
       } else {
-        showToast("글자를 잘 못 읽었어요. 더 밝은 곳에서 다시 찍어볼까요?");
+        showToast("글자를 잘 못 읽었어요. 그림자 없이 밝은 곳에서, 글자 부분만 크게 찍어볼까요?");
       }
     } catch {
       showToast("구절 스캔에 실패했어요.");
     } finally {
+      if (worker) { try { await worker.terminate(); } catch { /* 무시 */ } }
       setOcrBusy(false);
     }
   };
@@ -2116,8 +2163,10 @@ export default function App() {
               <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
               <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFile} />
               <button onClick={() => ocrInputRef.current?.click()} disabled={ocrBusy} style={{ width: "100%", padding: 12, borderRadius: 14,
-                marginBottom: 12, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
+                marginBottom: 6, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
                 {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기 (선택)"}</button>
+              <div style={{ fontSize: 10.5, color: C.inkSoft, marginBottom: 12, textAlign: "center" }}>
+                그림자 없이 밝은 곳에서, 글자 부분만 화면 가득 채워 찍으면 더 잘 읽혀요. 인식된 글자는 자유롭게 고쳐도 돼요.</div>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
