@@ -130,6 +130,23 @@ $$;
 
 grant execute on function my_class_ids() to anon, authenticated;
 
+-- teachers 테이블은 anon/authenticated가 직접 조회할 수 없어서, RLS 정책 안에서
+-- teachers를 참조하려면 이렇게 security definer 함수로 우회해야 함.
+create or replace function is_class_teacher(p_class_id uuid)
+returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from classes c
+    where c.id = p_class_id
+      and (
+        c.teacher_auth_user_id = auth.uid()
+        or c.teacher_id in (select id from teachers where auth_user_id = auth.uid())
+      )
+  )
+$$;
+
+grant execute on function is_class_teacher(uuid) to anon, authenticated;
+
 drop policy if exists "classes_select_all" on classes;
 drop policy if exists "classes_select_own" on classes;
 create policy "classes_select_own" on classes for select using (
@@ -137,14 +154,8 @@ create policy "classes_select_own" on classes for select using (
 );
 drop policy if exists "classes_update_teacher" on classes;
 create policy "classes_update_teacher" on classes for update
-  using (
-    teacher_auth_user_id = auth.uid()
-    or teacher_id in (select id from teachers where auth_user_id = auth.uid())
-  )
-  with check (
-    teacher_auth_user_id = auth.uid()
-    or teacher_id in (select id from teachers where auth_user_id = auth.uid())
-  );
+  using (is_class_teacher(id))
+  with check (is_class_teacher(id));
 revoke insert, delete on classes from anon, authenticated;
 revoke select (admin_password_hash) on classes from anon, authenticated;
 
