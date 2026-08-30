@@ -6,7 +6,6 @@
 -- "Anonymous Sign-Ins"를 켜주세요 (학생 PIN 로그인 + 선생님 계정 로그인 모두에 필요).
 -- 선생님 계정(아이디+비밀번호)은 Supabase 이메일 인증을 쓰지 않고 학생 로그인과 같은
 -- 방식(해시된 비밀번호 + RPC)으로 동작해서 별도 이메일 설정이 필요 없습니다.
--- 카카오 로그인을 쓰려면 Authentication → Providers → Kakao를 켜고 Client ID/Secret을 등록하세요.
 
 create extension if not exists pgcrypto;
 
