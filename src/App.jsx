@@ -10,7 +10,7 @@ import {
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
   changeTeacherPassword, deleteStudent, deleteClass, verifyStudentPin, changeStudentPin,
-  getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories,
+  getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -400,6 +400,7 @@ export default function App() {
   const [accessoryCounts, setAccessoryCounts] = useState({});
   const [equippedAccessories, setEquippedAccessories] = useState([]);
   const [equipBusy, setEquipBusy] = useState(false);
+  const [isBonusRead, setIsBonusRead] = useState(false);
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -802,8 +803,9 @@ export default function App() {
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
-  const startReading = (mode) => {
-    const saved = progressKey ? getReadingProgress(progressKey) : null;
+  const startReading = (mode, bonus = false) => {
+    setIsBonusRead(bonus);
+    const saved = !bonus && progressKey ? getReadingProgress(progressKey) : null;
     const resumable = saved && saved.mode === mode && !doneToday;
     setReadMode(mode);
     setSecs(resumable ? saved.secs : (mode === "free" ? 0 : dailyTargetMinutes * 60));
@@ -811,21 +813,49 @@ export default function App() {
     syncReadingSession(true);
     if (resumable) {
       showToast(`아까 멈춘 곳부터 이어서 읽어요 (남은 ${Math.ceil(saved.secs / 60)}분) ⏱️`);
-    } else if (progressKey) {
+    } else if (!bonus && progressKey) {
       setReadingProgress(progressKey, { mode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
     }
   };
 
+  const submitBonus = async (minutes) => {
+    if (role !== "student" || !studentInfo?.id) {
+      showToast("선생님 계정에서는 기록이 저장되지 않아요 (체험용)");
+      return;
+    }
+    try {
+      await addBonusReading(minutes);
+      const earned = Math.floor(minutes / 10);
+      showToast(`우리 반 나무에 ${minutes}분 더 기여했어요! 🌱💧${earned > 0 ? ` (악세서리 ${earned}개 획득 🎁)` : ""}`);
+      if (classInfo?.id) refreshClassProgress(classInfo.id);
+      getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
+        setAccessoryCounts(counts); setEquippedAccessories(equipped);
+      }).catch(() => {});
+      getMyLogs(studentInfo.id).then((logs) => {
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes })));
+      }).catch(() => {});
+    } catch (e) {
+      showToast(e.message || "저장에 실패했어요.");
+    }
+  };
+
   // 목표 시간을 다 채워야만 느낀점 화면으로 넘어갈 수 있어서, 이 버튼은
-  // "자유롭게 읽기"에서 목표 시간(dailyTargetMinutes) 이상 읽었을 때만 쓸 수 있음
+  // "자유롭게 읽기"에서 목표 시간(dailyTargetMinutes) 이상(보너스 읽기는 10분 이상) 읽었을 때만 쓸 수 있음
   const finishManual = () => {
-    if (readMode === "free" && secs < dailyTargetMinutes * 60) return;
+    const minRequired = isBonusRead ? 600 : dailyTargetMinutes * 60;
+    if (readMode === "free" && secs < minRequired) return;
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
-    if (progressKey) clearReadingProgress(progressKey);
-    setSessionMinutes(Math.max(1, Math.round(secs / 60)));
-    setReflecting(true);
+    if (!isBonusRead && progressKey) clearReadingProgress(progressKey);
+    const minutesRead = Math.max(1, Math.round(secs / 60));
+    if (isBonusRead) {
+      setIsBonusRead(false);
+      submitBonus(minutesRead);
+    } else {
+      setSessionMinutes(minutesRead);
+      setReflecting(true);
+    }
   };
 
   const handleCompleteBook = async () => {
@@ -1556,8 +1586,19 @@ export default function App() {
                       🍎 이 책 다 읽었어요 (완독하기)</button>
                   )}
                   {doneToday ? (
-                    <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
-                      borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}`, marginTop: 10 }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
+                    <>
+                      <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
+                        borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}`, marginTop: 10 }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
+                      {role === "student" && myBook && (
+                        <>
+                          <div style={{ fontSize: 12, color: C.inkSoft, textAlign: "center", margin: "14px 0 8px", maxWidth: 260 }}>
+                            더 읽고 싶으면 자유롭게 읽어서 우리 반 나무에 보너스로 기여하고 악세서리도 받아보세요!</div>
+                          <button onClick={() => startReading("free", true)} className="cs-jua" style={{ padding: "13px 22px", borderRadius: 18,
+                            fontSize: 14.5, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
+                            ⏱ 자유롭게 더 읽기 (보너스)</button>
+                        </>
+                      )}
+                    </>
                   ) : !myBook ? (
                     <>
                       <div style={{ fontSize: 13, color: C.inkSoft, textAlign: "center", marginBottom: 20, maxWidth: 260 }}>
@@ -2030,7 +2071,8 @@ export default function App() {
             <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
             <Tree stage={myStage} size={140} reading accessories={equippedAccessories} />
             <div className="cs-jua" style={{ fontSize: 58, color: C.ink, letterSpacing: 3, marginTop: 4 }}>{mm}:{ss}</div>
-            <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{readMode === "free" ? "자유롭게 읽는 중" : `목표 ${dailyTargetMinutes}분`}</div>
+            <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
+              {readMode === "free" ? (isBonusRead ? "보너스로 자유롭게 읽는 중" : "자유롭게 읽는 중") : `목표 ${dailyTargetMinutes}분`}</div>
             <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
               <button onClick={() => {
@@ -2040,18 +2082,27 @@ export default function App() {
                   : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
               }} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>⏸ 잠깐 멈추기</button>
-              {readMode === "free" && (
-                <button onClick={finishManual} disabled={secs < dailyTargetMinutes * 60} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
-                  background: secs < dailyTargetMinutes * 60 ? "#c3ccbe" : C.gold, color: "#fff", fontSize: 14,
-                  cursor: secs < dailyTargetMinutes * 60 ? "not-allowed" : "pointer" }}>다 읽었어요 ✓</button>
-              )}
+              {readMode === "free" && (() => {
+                const minRequired = isBonusRead ? 600 : dailyTargetMinutes * 60;
+                const ready = secs >= minRequired;
+                return (
+                  <button onClick={finishManual} disabled={!ready} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
+                    background: ready ? C.gold : "#c3ccbe", color: "#fff", fontSize: 14, cursor: ready ? "pointer" : "not-allowed" }}>다 읽었어요 ✓</button>
+                );
+              })()}
             </div>
             <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 10, textAlign: "center", maxWidth: 260 }}>
               {readMode === "target"
                 ? <>⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.<br />목표 시간을 다 채우면 자동으로 느낀점 화면으로 넘어가요.</>
-                : secs < dailyTargetMinutes * 60
-                  ? `최소 ${dailyTargetMinutes}분은 읽어야 오늘 물주기를 완료할 수 있어요. (지금 ${Math.floor(secs / 60)}분)`
-                  : "이제 완료할 수 있어요! 더 읽을수록 우리 반 나무에 더 많이 기여해요 🌱"}
+                : (() => {
+                    const minRequired = isBonusRead ? 600 : dailyTargetMinutes * 60;
+                    if (secs < minRequired) {
+                      return isBonusRead
+                        ? `최소 10분은 읽어야 보너스를 받을 수 있어요. (지금 ${Math.floor(secs / 60)}분)`
+                        : `최소 ${dailyTargetMinutes}분은 읽어야 오늘 물주기를 완료할 수 있어요. (지금 ${Math.floor(secs / 60)}분)`;
+                    }
+                    return "이제 완료할 수 있어요! 더 읽을수록 우리 반 나무에 더 많이 기여해요 🌱";
+                  })()}
             </div>
           </div>
         )}

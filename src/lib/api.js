@@ -92,6 +92,11 @@ export async function setEquippedAccessories(types) {
   if (error) throw error;
 }
 
+export async function addBonusReading(extraMinutes) {
+  const { error } = await supabase.rpc('add_bonus_reading', { p_extra_minutes: extraMinutes });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),

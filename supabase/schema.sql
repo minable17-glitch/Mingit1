@@ -74,32 +74,41 @@ create table if not exists logs (
   unique (student_id, log_date)
 );
 
+-- 학생에게 악세서리 p_n개를 무작위로 줌 (여러 곳에서 재사용)
+create or replace function grant_accessories(p_student_id uuid, p_n int)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown', 'balloon', 'rainbow', 'bell', 'heart', 'sun', 'moon', 'snowflake', 'blossom', 'ladybug'];
+  v_counts jsonb;
+  v_pick text;
+  i int;
+begin
+  if coalesce(p_n, 0) <= 0 then
+    return;
+  end if;
+  select accessory_counts into v_counts from students where students.id = p_student_id;
+  for i in 1..p_n loop
+    v_pick := v_catalog[1 + floor(random() * array_length(v_catalog, 1))::int];
+    v_counts := jsonb_set(v_counts, array[v_pick], to_jsonb(coalesce((v_counts ->> v_pick)::int, 0) + 1));
+  end loop;
+  update students set accessory_counts = v_counts where students.id = p_student_id;
+end;
+$$;
+
 -- 자유롭게 읽기로 목표 시간을 넘겨 읽으면(overflow_minutes) 10분마다 악세서리 1개를 무작위로 줌
 create or replace function bump_student_days()
 returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
   v_overflow int := coalesce(new.overflow_minutes, 0);
-  v_n int;
-  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown', 'balloon', 'rainbow', 'bell', 'heart', 'sun', 'moon', 'snowflake', 'blossom', 'ladybug'];
-  v_counts jsonb;
-  v_pick text;
-  i int;
 begin
   update students
     set total_days = total_days + 1,
         communal_minutes = communal_minutes + v_overflow
     where students.id = new.student_id;
 
-  v_n := floor(v_overflow / 10.0);
-  if v_n > 0 then
-    select accessory_counts into v_counts from students where students.id = new.student_id;
-    for i in 1..v_n loop
-      v_pick := v_catalog[1 + floor(random() * array_length(v_catalog, 1))::int];
-      v_counts := jsonb_set(v_counts, array[v_pick], to_jsonb(coalesce((v_counts ->> v_pick)::int, 0) + 1));
-    end loop;
-    update students set accessory_counts = v_counts where students.id = new.student_id;
-  end if;
+  perform grant_accessories(new.student_id, floor(v_overflow / 10.0)::int);
   return new;
 end;
 $$;
@@ -589,6 +598,41 @@ end;
 $$;
 
 grant execute on function student_set_equipped(text[]) to anon, authenticated;
+
+-- 오늘 이미 기록을 남긴 뒤에도, 자유롭게 더 읽으면 그 시간만큼 오늘 기록에 더해줌
+-- (하루 인정 상한 DAILY_CAP_MINUTES=40분까지만, 10분마다 악세서리도 함께 줌)
+create or replace function add_bonus_reading(p_extra_minutes int)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_student students%rowtype;
+  v_log logs%rowtype;
+  v_minutes int := greatest(0, coalesce(p_extra_minutes, 0));
+begin
+  select * into v_student from students where students.auth_user_id = auth.uid();
+  if not found then
+    raise exception '로그인 정보를 찾을 수 없어요';
+  end if;
+
+  select * into v_log from logs where logs.student_id = v_student.id and logs.log_date = current_date;
+  if not found then
+    raise exception '오늘 기록이 아직 없어요. 먼저 오늘의 읽기를 완료해주세요';
+  end if;
+
+  v_minutes := least(v_minutes, greatest(0, 40 - v_log.minutes));
+  if v_minutes <= 0 then
+    return;
+  end if;
+
+  update logs set minutes = minutes + v_minutes, overflow_minutes = overflow_minutes + v_minutes
+    where logs.id = v_log.id;
+  update students set communal_minutes = communal_minutes + v_minutes where students.id = v_student.id;
+
+  perform grant_accessories(v_student.id, floor(v_minutes / 10.0)::int);
+end;
+$$;
+
+grant execute on function add_bonus_reading(int) to anon, authenticated;
 
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
