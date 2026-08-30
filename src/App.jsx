@@ -14,7 +14,8 @@ import {
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 const MIN_NOTE_LENGTH = 10; // 느낀점 최소 글자 수
-import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress } from "./lib/session";
+import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress,
+  getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername } from "./lib/session";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
@@ -306,7 +307,8 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
-  const [teacherAccountForm, setTeacherAccountForm] = useState({ username: "", password: "", email: "" });
+  const [teacherAccountForm, setTeacherAccountForm] = useState({ username: getSavedTeacherUsername(), password: "", email: "" });
+  const [rememberTeacherId, setRememberTeacherId] = useState(!!getSavedTeacherUsername());
   const [teacherAccountMode, setTeacherAccountMode] = useState("login"); // 'login' | 'signup'
   const [forgotForm, setForgotForm] = useState({ username: "", code: "", newPassword: "" });
   const [forgotStep, setForgotStep] = useState("request"); // 'request' | 'confirm'
@@ -540,6 +542,8 @@ export default function App() {
       } else {
         await teacherSignIn({ username: teacherAccountForm.username, password: teacherAccountForm.password });
       }
+      if (rememberTeacherId) setSavedTeacherUsername(teacherAccountForm.username.trim());
+      else clearSavedTeacherUsername();
       await routeAfterAccountLogin();
     } catch (e) {
       setAuthError(e.message || "처리에 실패했어요.");
@@ -1122,6 +1126,11 @@ export default function App() {
                     fontSize: 15, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
               </>
             )}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+              <input type="checkbox" checked={rememberTeacherId} onChange={(e) => setRememberTeacherId(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: "pointer" }} />
+              아이디 저장
+            </label>
             {authError && <div style={{ color: "#d15b5b", fontSize: 13 }}>{authError}</div>}
             <button onClick={handleTeacherAccountSubmit} disabled={authBusy} className="cs-jua" style={{ marginTop: 6, padding: 15, borderRadius: 16,
               border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",

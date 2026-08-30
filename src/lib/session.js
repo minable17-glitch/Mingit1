@@ -43,3 +43,24 @@ export function setReadingProgress(studentId, { mode, secs }) {
 export function clearReadingProgress(studentId) {
   localStorage.removeItem(`${PROGRESS_KEY}_${studentId}`);
 }
+
+const TEACHER_ID_KEY = 'saesak_saved_teacher_id';
+
+// 선생님 로그인 화면의 "아이디 저장" — 비밀번호는 저장하지 않음
+export function getSavedTeacherUsername() {
+  try {
+    return localStorage.getItem(TEACHER_ID_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setSavedTeacherUsername(username) {
+  try {
+    localStorage.setItem(TEACHER_ID_KEY, username);
+  } catch { /* 저장 실패해도 로그인은 계속 가능 */ }
+}
+
+export function clearSavedTeacherUsername() {
+  localStorage.removeItem(TEACHER_ID_KEY);
+}
