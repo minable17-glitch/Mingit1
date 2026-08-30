@@ -49,6 +49,11 @@ export async function requestPasswordReset(username) {
   if (error) throw error;
 }
 
+export async function requestUsernameReminder(email) {
+  const { error } = await supabase.functions.invoke('send-username-reminder', { body: { email } });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),
