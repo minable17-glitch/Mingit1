@@ -212,8 +212,8 @@ drop policy if exists "logs_select_own_or_teacher" on logs;
 create policy "logs_select_own_or_teacher" on logs for select using (
   student_id in (select id from students where auth_user_id = auth.uid())
   or exists (
-    select 1 from students s join classes c on c.id = s.class_id
-    where s.id = logs.student_id and c.teacher_auth_user_id = auth.uid()
+    select 1 from students s
+    where s.id = logs.student_id and is_class_teacher(s.class_id)
   )
 );
 drop policy if exists "logs_insert_own" on logs;
