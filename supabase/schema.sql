@@ -44,6 +44,8 @@ create table if not exists students (
   auth_user_id uuid,
   total_days int not null default 0,
   communal_minutes int not null default 0,
+  accessory_counts jsonb not null default '{}'::jsonb, -- 자유롭게 읽기로 번 악세서리 보유 개수 {"apple": 2, ...}
+  equipped_accessories jsonb not null default '[]'::jsonb, -- 지금 내 나무에 달아놓은 악세서리 (최대 4개)
   created_at timestamptz not null default now(),
   unique (class_id, nickname)
 );
@@ -72,14 +74,32 @@ create table if not exists logs (
   unique (student_id, log_date)
 );
 
+-- 자유롭게 읽기로 목표 시간을 넘겨 읽으면(overflow_minutes) 10분마다 악세서리 1개를 무작위로 줌
 create or replace function bump_student_days()
 returns trigger
 language plpgsql security definer set search_path = public as $$
+declare
+  v_overflow int := coalesce(new.overflow_minutes, 0);
+  v_n int;
+  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown'];
+  v_counts jsonb;
+  v_pick text;
+  i int;
 begin
   update students
     set total_days = total_days + 1,
-        communal_minutes = communal_minutes + coalesce(new.overflow_minutes, 0)
-    where id = new.student_id;
+        communal_minutes = communal_minutes + v_overflow
+    where students.id = new.student_id;
+
+  v_n := floor(v_overflow / 10.0);
+  if v_n > 0 then
+    select accessory_counts into v_counts from students where students.id = new.student_id;
+    for i in 1..v_n loop
+      v_pick := v_catalog[1 + floor(random() * array_length(v_catalog, 1))::int];
+      v_counts := jsonb_set(v_counts, array[v_pick], to_jsonb(coalesce((v_counts ->> v_pick)::int, 0) + 1));
+    end loop;
+    update students set accessory_counts = v_counts where students.id = new.student_id;
+  end if;
   return new;
 end;
 $$;
@@ -538,6 +558,37 @@ end;
 $$;
 
 grant execute on function student_change_pin(text, text) to anon, authenticated;
+
+-- 학생이 가지고 있는 악세서리 중 나무에 달아놓을 것을 고름 (최대 4개, 가진 것만 가능)
+create or replace function student_set_equipped(p_types text[])
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_student students%rowtype;
+  v_catalog text[] := array['apple', 'ribbon', 'star', 'butterfly', 'maple', 'crown'];
+  v_types text[] := coalesce(p_types, array[]::text[]);
+  v_type text;
+begin
+  select * into v_student from students where students.auth_user_id = auth.uid();
+  if not found then
+    raise exception '로그인 정보를 찾을 수 없어요';
+  end if;
+  if array_length(v_types, 1) > 4 then
+    raise exception '악세서리는 최대 4개까지 달 수 있어요';
+  end if;
+  foreach v_type in array v_types loop
+    if not (v_type = any(v_catalog)) then
+      raise exception '알 수 없는 악세서리예요';
+    end if;
+    if coalesce((v_student.accessory_counts ->> v_type)::int, 0) < 1 then
+      raise exception '가지고 있지 않은 악세서리예요';
+    end if;
+  end loop;
+  update students set equipped_accessories = to_jsonb(v_types) where students.id = v_student.id;
+end;
+$$;
+
+grant execute on function student_set_equipped(text[]) to anon, authenticated;
 
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 

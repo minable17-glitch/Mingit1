@@ -77,6 +77,21 @@ export async function changeStudentPin({ oldPin, newPin }) {
   if (error) throw error;
 }
 
+export async function getMyAccessories(studentId) {
+  const { data, error } = await supabase
+    .from('students')
+    .select('accessory_counts, equipped_accessories')
+    .eq('id', studentId)
+    .single();
+  if (error) throw error;
+  return { counts: data.accessory_counts || {}, equipped: data.equipped_accessories || [] };
+}
+
+export async function setEquippedAccessories(types) {
+  const { error } = await supabase.rpc('student_set_equipped', { p_types: types });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),
@@ -263,7 +278,7 @@ export async function getClassLogsForTeacher(classId) {
 export async function getClassRoster(classId) {
   const { data, error } = await supabase
     .from('students')
-    .select('id, nickname, total_days, communal_minutes')
+    .select('id, nickname, total_days, communal_minutes, equipped_accessories')
     .eq('class_id', classId);
   if (error) throw error;
   return data;

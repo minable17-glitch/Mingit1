@@ -10,6 +10,7 @@ import {
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
   changeTeacherPassword, deleteStudent, deleteClass, verifyStudentPin, changeStudentPin,
+  getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -69,6 +70,17 @@ const C = {
 };
 const STAGE_NAME = ["씨앗", "새싹", "줄기", "잎", "꽃봉오리", "활짝 핀 꽃"];
 const COVERS = ["#F6C6C6", "#F7DEA6", "#BFE3C0", "#C6D8F6", "#E3C6F6", "#F6D9BF"];
+// 자유롭게 읽기로 목표 시간을 넘겨 읽으면 10분마다 하나씩 받는 나무 꾸미기 악세서리
+const ACCESSORY_CATALOG = {
+  apple: { emoji: "🍎", name: "사과" },
+  ribbon: { emoji: "🎀", name: "리본" },
+  star: { emoji: "⭐", name: "별" },
+  butterfly: { emoji: "🦋", name: "나비" },
+  maple: { emoji: "🍁", name: "단풍잎" },
+  crown: { emoji: "👑", name: "왕관" },
+};
+const MAX_EQUIPPED_ACCESSORIES = 4;
+const ACCESSORY_SLOTS = [[-0.55, -0.15], [0.55, -0.15], [-0.35, 0.6], [0.35, 0.6]];
 
 // 나무 표정 (개인 나무·공동 나무가 함께 씀)
 function treeFace(cx, cy, k) {
@@ -110,7 +122,7 @@ function drawFlowers(cy, R, open, n) {
   ) : <circle key={"f" + i} cx={s[0]} cy={s[1]} r={2.3} fill={C.bloom} opacity="0.9" />);
 }
 
-function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
+function Tree({ stage = 3, size = 120, communal = false, reading = false, accessories = [] }) {
   const w = size, h = size * 1.25;
   const canopyMap = { 2: [72, 16], 3: [60, 23], 4: [54, 28], 5: [50, 30] };
   const [cy, R] = canopyMap[stage] || canopyMap[3];
@@ -130,7 +142,13 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
         {treeFace(50, 96, 0.8)}</g>)}
       {stage >= 2 && (<>
         <rect x={50 - 4} y={trunkTop} width="8" height={112 - trunkTop} rx="4" fill={communal ? C.trunkDark : C.trunk} />
-        {fluffyCanopy(cy, R)}{stage >= 4 && drawFlowers(cy, R, stage === 5, stage === 5 ? (communal ? 6 : 5) : 3)}{treeFace(50, cy + 1, k)}</>)}
+        {fluffyCanopy(cy, R)}{stage >= 4 && drawFlowers(cy, R, stage === 5, stage === 5 ? (communal ? 6 : 5) : 3)}{treeFace(50, cy + 1, k)}
+        {accessories.slice(0, MAX_EQUIPPED_ACCESSORIES).map((type, i) => {
+          const info = ACCESSORY_CATALOG[type];
+          if (!info) return null;
+          const [dx, dy] = ACCESSORY_SLOTS[i];
+          return <text key={type} x={50 + dx * R} y={cy + dy * R} fontSize={Math.max(10, R * 0.55)} textAnchor="middle" dominantBaseline="middle">{info.emoji}</text>;
+        })}</>)}
       {reading && <g className="cs-drip"><path d="M50 20 q3.2 5 0 8.4 q-3.2 -3.4 0 -8.4 z" fill={C.water} /></g>}
     </svg>
   );
@@ -369,6 +387,9 @@ export default function App() {
   const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "" });
   const [changePinBusy, setChangePinBusy] = useState(false);
   const [changePinMessage, setChangePinMessage] = useState("");
+  const [accessoryCounts, setAccessoryCounts] = useState({});
+  const [equippedAccessories, setEquippedAccessories] = useState([]);
+  const [equipBusy, setEquipBusy] = useState(false);
   const [myClasses, setMyClasses] = useState([]);
   const [accountCreateMode, setAccountCreateMode] = useState(false);
   const [studentJoinForm, setStudentJoinForm] = useState({ code: "", nickname: "", pin: "" });
@@ -438,6 +459,9 @@ export default function App() {
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
+      getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
+        setAccessoryCounts(counts); setEquippedAccessories(equipped);
+      }).catch(() => {});
     } else if (role === "teacher" && classInfo?.id) {
       getClassLogsForTeacher(classInfo.id).then(setTeacherLogs).catch(() => {});
       getClassRoster(classInfo.id).then((roster) => {
@@ -471,6 +495,7 @@ export default function App() {
           totalDays: s.total_days,
           reading: !!sessions[s.id],
           completedBooks: completedCounts[s.id] || 0,
+          accessories: s.equipped_accessories || [],
         }))
       );
       setBadgeStats(
@@ -854,11 +879,17 @@ export default function App() {
       setDoneToday(true); setBloomPulse(true);
       setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes }, ...l]);
       setTab("forest");
+      const earnedAccessories = Math.floor(overflowMinutes / 10);
       showToast(overflowMinutes > 0
-        ? `물을 줬어요! 오늘 ${sessionMinutes}분 읽고 우리 반 나무에 ${overflowMinutes}분 더 기여했어요 🌱💧`
+        ? `물을 줬어요! 오늘 ${sessionMinutes}분 읽고 우리 반 나무에 ${overflowMinutes}분 더 기여했어요 🌱💧${earnedAccessories > 0 ? ` (악세서리 ${earnedAccessories}개 획득 🎁)` : ""}`
         : `물을 줬어요! 오늘 ${sessionMinutes}분 읽었어요 🌱`);
       setTimeout(() => setBloomPulse(false), 1400);
       if (classInfo?.id) refreshClassProgress(classInfo.id);
+      if (earnedAccessories > 0) {
+        getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
+          setAccessoryCounts(counts); setEquippedAccessories(equipped);
+        }).catch(() => {});
+      }
     } catch (e) {
       showToast(e.message?.includes("duplicate") ? "오늘은 이미 기록했어요." : (e.message || "저장에 실패했어요. 다시 시도해주세요."));
     } finally {
@@ -988,6 +1019,28 @@ export default function App() {
     }
   };
 
+  const handleToggleAccessory = async (type) => {
+    if (equipBusy) return;
+    const isEquipped = equippedAccessories.includes(type);
+    if (!isEquipped && (accessoryCounts[type] || 0) < 1) return;
+    if (!isEquipped && equippedAccessories.length >= MAX_EQUIPPED_ACCESSORIES) {
+      showToast(`악세서리는 최대 ${MAX_EQUIPPED_ACCESSORIES}개까지 달 수 있어요.`);
+      return;
+    }
+    const next = isEquipped ? equippedAccessories.filter((t) => t !== type) : [...equippedAccessories, type];
+    const prev = equippedAccessories;
+    setEquippedAccessories(next);
+    setEquipBusy(true);
+    try {
+      await apiSetEquippedAccessories(next);
+    } catch (e) {
+      setEquippedAccessories(prev);
+      showToast(e.message || "악세서리 적용에 실패했어요.");
+    } finally {
+      setEquipBusy(false);
+    }
+  };
+
   const handleUpdateGoal = async (g) => {
     if (!classInfo?.id) return;
     try {
@@ -1048,7 +1101,7 @@ export default function App() {
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
   const allTrees = role === "student"
-    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myLog.length }, ...classmates]
+    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myLog.length, accessories: equippedAccessories }, ...classmates]
     : classmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
@@ -1419,7 +1472,7 @@ export default function App() {
                       <div key={i} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${t.left}%`, top: `${t.top}%`,
                         transform: "translate(-50%,-100%)", zIndex: t.z, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
                         <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
-                          <Tree stage={t.stage} size={72 * t.scale} reading={t.reading} /></div>
+                          <Tree stage={t.stage} size={72 * t.scale} reading={t.reading} accessories={t.accessories} /></div>
                         <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
                           borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
                           <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
@@ -1484,7 +1537,7 @@ export default function App() {
               {/* ── 읽기 탭 ── */}
               {tab === "read" && (
                 <div style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", minHeight: "70vh", justifyContent: "center" }}>
-                  <Tree stage={myStage} size={150} />
+                  <Tree stage={myStage} size={150} accessories={equippedAccessories} />
                   <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook || "아직 없어요"}</div>
                   {myBook && role === "student" && (
@@ -1580,6 +1633,34 @@ export default function App() {
                       ))}
                       {role === "student" && studentInfo?.id && (
                         <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginTop: 4 }}>
+                          <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 4 }}>🎀 나무 꾸미기</div>
+                          <div style={{ fontSize: 11.5, color: C.inkSoft, marginBottom: 10 }}>
+                            자유롭게 읽기로 목표 시간을 10분 넘길 때마다 악세서리를 하나씩 받아요. 눌러서 내 나무에 달아보세요 (최대 {MAX_EQUIPPED_ACCESSORIES}개).</div>
+                          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+                            <Tree stage={myStage} size={92} accessories={equippedAccessories} />
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                            {Object.entries(ACCESSORY_CATALOG).map(([type, info]) => {
+                              const count = accessoryCounts[type] || 0;
+                              const isEquipped = equippedAccessories.includes(type);
+                              const owned = count > 0;
+                              return (
+                                <button key={type} onClick={() => handleToggleAccessory(type)} disabled={!owned || equipBusy}
+                                  style={{ position: "relative", padding: "10px 4px", borderRadius: 12, textAlign: "center",
+                                    border: isEquipped ? `2px solid ${C.green}` : "1px solid #e2dac9",
+                                    background: isEquipped ? "#eaf5ec" : owned ? "#fff" : "#f2efe8",
+                                    opacity: owned ? 1 : 0.5, cursor: owned ? "pointer" : "not-allowed" }}>
+                                  <div style={{ fontSize: 24 }}>{info.emoji}</div>
+                                  <div style={{ fontSize: 11, color: C.ink, marginTop: 2 }}>{info.name}</div>
+                                  <div style={{ fontSize: 10, color: C.inkSoft }}>{owned ? `${count}개 보유` : "아직 없어요"}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {role === "student" && studentInfo?.id && (
+                        <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3" }}>
                           <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🔑 비밀번호(PIN) 바꾸기</div>
                           <input
                             type="password" inputMode="numeric" maxLength={4}
@@ -1687,7 +1768,7 @@ export default function App() {
               padding: "20px 22px 30px", animation: "cs-up .28s ease" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Tree stage={selected.stage} size={64} />
+                <Tree stage={selected.stage} size={64} accessories={selected.accessories} />
                 <div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>{selected.nick}</div>
                   <div style={{ fontSize: 13.5, color: C.ink }}>📖 {selected.book}</div>
@@ -1937,7 +2018,7 @@ export default function App() {
             flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: Z.timer, padding: 24 }}>
             <div style={{ fontSize: 14, color: C.inkSoft }}>지금 읽는 책</div>
             <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk, marginBottom: 4 }}>{myBook}</div>
-            <Tree stage={myStage} size={140} reading />
+            <Tree stage={myStage} size={140} reading accessories={equippedAccessories} />
             <div className="cs-jua" style={{ fontSize: 58, color: C.ink, letterSpacing: 3, marginTop: 4 }}>{mm}:{ss}</div>
             <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{readMode === "free" ? "자유롭게 읽는 중" : `목표 ${dailyTargetMinutes}분`}</div>
             <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
