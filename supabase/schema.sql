@@ -137,8 +137,14 @@ create policy "classes_select_own" on classes for select using (
 );
 drop policy if exists "classes_update_teacher" on classes;
 create policy "classes_update_teacher" on classes for update
-  using (teacher_auth_user_id = auth.uid())
-  with check (teacher_auth_user_id = auth.uid());
+  using (
+    teacher_auth_user_id = auth.uid()
+    or teacher_id in (select id from teachers where auth_user_id = auth.uid())
+  )
+  with check (
+    teacher_auth_user_id = auth.uid()
+    or teacher_id in (select id from teachers where auth_user_id = auth.uid())
+  );
 revoke insert, delete on classes from anon, authenticated;
 revoke select (admin_password_hash) on classes from anon, authenticated;
 
