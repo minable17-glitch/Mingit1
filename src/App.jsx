@@ -8,7 +8,7 @@ import {
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, teacherKakaoLogin, teacherKakaoBootstrap, getAuthSession, createClassForAccount, getMyClasses,
-  requestPasswordReset, resetTeacherPassword,
+  requestPasswordReset, resetTeacherPassword, resetStudentPin,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -814,12 +814,23 @@ export default function App() {
   const teacherStats = teacherRoster.map((s) => {
     const rows = teacherLogs.filter((l) => l.student_id === s.id);
     return {
+      id: s.id,
       nick: s.nickname,
       days: rows.length,
       min: rows.reduce((sum, r) => sum + (r.minutes || 0), 0),
       done: teacherCompletedCounts[s.id] || 0,
     };
   });
+
+  const handleResetStudentPin = async (studentId, nickname) => {
+    if (!window.confirm(`'${nickname}' 학생의 PIN을 0000으로 초기화할까요?`)) return;
+    try {
+      await resetStudentPin(studentId, '0000');
+      showToast(`'${nickname}' 학생 PIN이 0000으로 초기화됐어요. 학생에게 알려주세요!`);
+    } catch (e) {
+      showToast(e.message || 'PIN 초기화에 실패했어요.');
+    }
+  };
 
   const handleUpdateGoal = async (g) => {
     if (!classInfo?.id) return;
@@ -1574,20 +1585,26 @@ export default function App() {
               <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
                 <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>📊 학생 요약</div>
                 <div style={{ display: "flex", fontSize: 11.5, color: C.inkSoft, padding: "0 0 6px", borderBottom: "1px solid #eee5d3" }}>
-                  <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 60, textAlign: "right" }}>완료일</span>
-                  <span style={{ width: 66, textAlign: "right" }}>총 분</span><span style={{ width: 54, textAlign: "right" }}>완독</span>
+                  <span style={{ flex: 1 }}>닉네임</span><span style={{ width: 46, textAlign: "right" }}>완료일</span>
+                  <span style={{ width: 52, textAlign: "right" }}>총 분</span><span style={{ width: 40, textAlign: "right" }}>완독</span>
+                  <span style={{ width: 66, textAlign: "right" }}>PIN</span>
                 </div>
                 {teacherStats.length === 0 && (
                   <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 12.5, padding: 14 }}>아직 참여한 학생이 없어요.</div>
                 )}
                 {teacherStats.map((s, i) => (
-                  <div key={i} style={{ display: "flex", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < teacherStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < teacherStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
                     <span style={{ flex: 1 }} className="cs-hand">{s.nick}</span>
-                    <span style={{ width: 60, textAlign: "right" }}>{s.days}일</span>
-                    <span style={{ width: 66, textAlign: "right" }}>{s.min}분</span>
-                    <span style={{ width: 54, textAlign: "right" }}>{s.done}권</span>
+                    <span style={{ width: 46, textAlign: "right" }}>{s.days}일</span>
+                    <span style={{ width: 52, textAlign: "right" }}>{s.min}분</span>
+                    <span style={{ width: 40, textAlign: "right" }}>{s.done}권</span>
+                    <span style={{ width: 66, textAlign: "right" }}>
+                      <button onClick={() => handleResetStudentPin(s.id, s.nick)} style={{ border: "none", background: "transparent",
+                        color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0 }}>초기화</button>
+                    </span>
                   </div>
                 ))}
+                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>PIN 초기화를 누르면 그 학생의 PIN이 0000으로 바뀌어요. 학생에게 새 PIN을 알려주세요.</div>
               </div>
 
               {/* 느낀점 모아보기 (교사만) */}

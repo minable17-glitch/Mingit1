@@ -54,6 +54,14 @@ export async function requestUsernameReminder(email) {
   if (error) throw error;
 }
 
+export async function resetStudentPin(studentId, newPin = '0000') {
+  const { error } = await supabase.rpc('teacher_reset_student_pin', {
+    p_student_id: studentId,
+    p_new_pin: newPin,
+  });
+  if (error) throw error;
+}
+
 export async function resetTeacherPassword({ username, code, newPassword }) {
   const { error } = await supabase.rpc('teacher_reset_password', {
     p_username: username.trim(),

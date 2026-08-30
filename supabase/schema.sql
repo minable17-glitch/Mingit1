@@ -373,6 +373,38 @@ grant execute on function teacher_account_login(text, text) to anon, authenticat
 grant execute on function teacher_kakao_bootstrap() to anon, authenticated;
 grant execute on function teacher_reset_password(text, text, text) to anon, authenticated;
 
+-- 학생이 PIN을 잊었을 때, 그 학급 담당 선생님만 PIN을 초기화할 수 있게 함
+create or replace function teacher_reset_student_pin(p_student_id uuid, p_new_pin text default '0000')
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_class_id uuid;
+  v_is_owner boolean;
+begin
+  select class_id into v_class_id from students where students.id = p_student_id;
+  if v_class_id is null then
+    raise exception '학생을 찾을 수 없어요';
+  end if;
+
+  select exists (
+    select 1 from classes c
+    where c.id = v_class_id
+      and (
+        c.teacher_auth_user_id = auth.uid()
+        or c.teacher_id in (select id from teachers where auth_user_id = auth.uid())
+      )
+  ) into v_is_owner;
+
+  if not v_is_owner then
+    raise exception '이 학급의 담당 선생님만 PIN을 초기화할 수 있어요';
+  end if;
+
+  update students set pin_hash = crypt(p_new_pin, gen_salt('bf')) where students.id = p_student_id;
+end;
+$$;
+
+grant execute on function teacher_reset_student_pin(uuid, text) to anon, authenticated;
+
 -- ── 오늘 참여율 / 챌린지 기간(반마다 다를 수 있음) 누적 진행도 (느낀점 내용 노출 없이 집계만) ──
 
 drop function if exists get_class_progress(uuid);
