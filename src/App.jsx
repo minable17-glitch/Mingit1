@@ -70,9 +70,9 @@ const C = {
 const STAGE_NAME = ["씨앗", "새싹", "줄기", "잎", "꽃봉오리", "활짝 핀 꽃"];
 const COVERS = ["#F6C6C6", "#F7DEA6", "#BFE3C0", "#C6D8F6", "#E3C6F6", "#F6D9BF"];
 
-function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
-  const w = size, h = size * 1.25;
-  const face = (cx, cy, k) => (
+// 나무 표정 (개인 나무·공동 나무가 함께 씀)
+function treeFace(cx, cy, k) {
+  return (
     <g>
       <circle cx={cx - 10 * k} cy={cy + 4 * k} r={2.4 * k} fill={C.bloom} opacity="0.5" />
       <circle cx={cx + 10 * k} cy={cy + 4 * k} r={2.4 * k} fill={C.bloom} opacity="0.5" />
@@ -82,31 +82,36 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
         stroke={C.face} strokeWidth={1.2 * k} fill="none" strokeLinecap="round" />
     </g>
   );
-  const fluffy = (cy, R) => {
-    const bumps = [[50, cy - R * 0.62, R * 0.52], [50 - R * 0.6, cy - R * 0.18, R * 0.5],
-      [50 + R * 0.6, cy - R * 0.18, R * 0.5], [50 - R * 0.34, cy - R * 0.55, R * 0.42], [50 + R * 0.34, cy - R * 0.55, R * 0.42]];
-    return (
-      <g>
-        {bumps.map((b, i) => <circle key={"b" + i} cx={b[0]} cy={b[1]} r={b[2]} fill={C.leafD} />)}
-        <ellipse cx="50" cy={cy} rx={R} ry={R * 0.94} fill={C.leafD} />
-        <ellipse cx={50 - R * 0.28} cy={cy + R * 0.12} rx={R * 0.66} ry={R * 0.62} fill={C.leafM} />
-        <ellipse cx={50 + R * 0.3} cy={cy + R * 0.08} rx={R * 0.58} ry={R * 0.55} fill={C.leafM} />
-        <ellipse cx="50" cy={cy - R * 0.28} rx={R * 0.6} ry={R * 0.5} fill={C.leafL} />
-      </g>
-    );
-  };
-  const flowers = (cy, R, open) => {
-    const spots = [[50, cy - R * 0.72], [50 - R * 0.72, cy - R * 0.1], [50 + R * 0.72, cy - R * 0.1],
-      [50 - R * 0.42, cy + R * 0.5], [50 + R * 0.42, cy + R * 0.5], [50, cy + R * 0.66]];
-    const n = open ? (communal ? 6 : 5) : 3;
-    return spots.slice(0, n).map((s, i) => open ? (
-      <g key={"f" + i}>
-        {[0, 72, 144, 216, 288].map((a) => { const rad = (a * Math.PI) / 180;
-          return <circle key={a} cx={s[0] + Math.cos(rad) * 2.6} cy={s[1] + Math.sin(rad) * 2.6} r={1.9} fill={C.bloom} />; })}
-        <circle cx={s[0]} cy={s[1]} r={1.7} fill={C.bloomC} />
-      </g>
-    ) : <circle key={"f" + i} cx={s[0]} cy={s[1]} r={2.3} fill={C.bloom} opacity="0.9" />);
-  };
+}
+// 동그란 잎사귀 뭉치 캐노피 (개인 나무·공동 나무의 초·중반 단계가 함께 씀)
+function fluffyCanopy(cy, R) {
+  const bumps = [[50, cy - R * 0.62, R * 0.52], [50 - R * 0.6, cy - R * 0.18, R * 0.5],
+    [50 + R * 0.6, cy - R * 0.18, R * 0.5], [50 - R * 0.34, cy - R * 0.55, R * 0.42], [50 + R * 0.34, cy - R * 0.55, R * 0.42]];
+  return (
+    <g>
+      {bumps.map((b, i) => <circle key={"b" + i} cx={b[0]} cy={b[1]} r={b[2]} fill={C.leafD} />)}
+      <ellipse cx="50" cy={cy} rx={R} ry={R * 0.94} fill={C.leafD} />
+      <ellipse cx={50 - R * 0.28} cy={cy + R * 0.12} rx={R * 0.66} ry={R * 0.62} fill={C.leafM} />
+      <ellipse cx={50 + R * 0.3} cy={cy + R * 0.08} rx={R * 0.58} ry={R * 0.55} fill={C.leafM} />
+      <ellipse cx="50" cy={cy - R * 0.28} rx={R * 0.6} ry={R * 0.5} fill={C.leafL} />
+    </g>
+  );
+}
+// 꽃봉오리(닫힘)·활짝 핀 꽃(열림) — n송이만큼 그림
+function drawFlowers(cy, R, open, n) {
+  const spots = [[50, cy - R * 0.72], [50 - R * 0.72, cy - R * 0.1], [50 + R * 0.72, cy - R * 0.1],
+    [50 - R * 0.42, cy + R * 0.5], [50 + R * 0.42, cy + R * 0.5], [50, cy + R * 0.66]];
+  return spots.slice(0, n).map((s, i) => open ? (
+    <g key={"f" + i}>
+      {[0, 72, 144, 216, 288].map((a) => { const rad = (a * Math.PI) / 180;
+        return <circle key={a} cx={s[0] + Math.cos(rad) * 2.6} cy={s[1] + Math.sin(rad) * 2.6} r={1.9} fill={C.bloom} />; })}
+      <circle cx={s[0]} cy={s[1]} r={1.7} fill={C.bloomC} />
+    </g>
+  ) : <circle key={"f" + i} cx={s[0]} cy={s[1]} r={2.3} fill={C.bloom} opacity="0.9" />);
+}
+
+function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
+  const w = size, h = size * 1.25;
   const canopyMap = { 2: [72, 16], 3: [60, 23], 4: [54, 28], 5: [50, 30] };
   const [cy, R] = canopyMap[stage] || canopyMap[3];
   const k = R / 23;
@@ -122,10 +127,10 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false }) {
         <rect x="48.3" y="90" width="3.4" height="22" rx="1.7" fill={C.leafD} />
         <ellipse cx="42" cy="88" rx="8" ry="5.5" fill={C.leafM} transform="rotate(-28 42 88)" />
         <ellipse cx="58" cy="88" rx="8" ry="5.5" fill={C.leafL} transform="rotate(28 58 88)" />
-        {face(50, 96, 0.8)}</g>)}
+        {treeFace(50, 96, 0.8)}</g>)}
       {stage >= 2 && (<>
         <rect x={50 - 4} y={trunkTop} width="8" height={112 - trunkTop} rx="4" fill={communal ? C.trunkDark : C.trunk} />
-        {fluffy(cy, R)}{stage >= 4 && flowers(cy, R, stage === 5)}{face(50, cy + 1, k)}</>)}
+        {fluffyCanopy(cy, R)}{stage >= 4 && drawFlowers(cy, R, stage === 5, stage === 5 ? (communal ? 6 : 5) : 3)}{treeFace(50, cy + 1, k)}</>)}
       {reading && <g className="cs-drip"><path d="M50 20 q3.2 5 0 8.4 q-3.2 -3.4 0 -8.4 z" fill={C.water} /></g>}
     </svg>
   );
@@ -198,11 +203,48 @@ function Scenery() {
   );
 }
 
-// 공용 나무 — 학생 나무와 다른, 크고 웅장한 3단 나무 (기여도 열매 + 표정)
-function CommunalTree({ size = 182, pct = 60 }) {
+// 공용 나무 — 0~4단계는 개인 나무처럼 줄기부터 자라다가, 반 전체가 함께
+// 목표를 채운 5단계("활짝 핀 꽃")에서만 특별히 크고 웅장한 3단 나무로 변신함
+function CommunalTree({ size = 182, pct = 60, stage = 5 }) {
   const w = size, h = size * 1.35;
+
+  if (stage <= 1) {
+    return (
+      <svg viewBox="0 0 100 132" width={w} height={h} style={{ overflow: "visible", display: "block" }}>
+        {stage <= 0 && (<g>
+          <ellipse cx="50" cy="122" rx="12" ry="6.5" fill={C.trunkDark} />
+          <path d="M50 114 q4.4 -7 1 -13.5" stroke={C.leafD} strokeWidth="2.8" fill="none" strokeLinecap="round" />
+          <circle cx="50" cy="99" r="3.8" fill={C.leafM} />
+        </g>)}
+        {stage === 1 && (<g>
+          <rect x="46.5" y="100" width="7" height="24" rx="3.5" fill={C.leafD} />
+          <ellipse cx="37" cy="98" rx="11" ry="7" fill={C.leafM} transform="rotate(-28 37 98)" />
+          <ellipse cx="63" cy="98" rx="11" ry="7" fill={C.leafL} transform="rotate(28 63 98)" />
+          {treeFace(50, 109, 1.1)}
+        </g>)}
+      </svg>
+    );
+  }
+
+  if (stage <= 4) {
+    // 개인 나무와 같은 방식(fluffyCanopy)으로, 단계가 오를수록 캐노피가 커짐
+    const canopyMap = { 2: [96, 15], 3: [86, 21], 4: [78, 27] };
+    const [cy, R] = canopyMap[stage];
+    const k = R / 16;
+    const trunkTop = cy + R * 0.75;
+    return (
+      <svg viewBox="0 0 100 132" width={w} height={h} style={{ overflow: "visible", display: "block" }}>
+        <rect x="46.5" y={trunkTop} width="7" height={122 - trunkTop} rx="3.5" fill={C.trunkDark} />
+        {fluffyCanopy(cy, R)}
+        {stage === 4 && drawFlowers(cy, R, false, 3)}
+        {treeFace(50, cy + 2, k)}
+      </svg>
+    );
+  }
+
+  // 5단계: 반 전체가 다 함께 완성한, 크고 웅장한 3단 캐노피 나무
   const nFruit = Math.min(7, Math.floor(pct / 13));
-  const bloom = pct >= 55, bigBloom = pct >= 90;
+  const bigBloom = pct >= 90;
   const fruitSpots = [[26, 86], [40, 92], [60, 92], [74, 86], [33, 79], [67, 79], [50, 96]];
   const fCol = ["#F2857E", "#F7B750", "#F79FB5"];
   const flowerSpots = [[30, 44], [50, 30], [70, 44], [38, 58], [62, 58], [50, 50], [22, 56], [78, 56]];
@@ -226,7 +268,7 @@ function CommunalTree({ size = 182, pct = 60 }) {
       <ellipse cx="50" cy="33" rx="16" ry="13" fill={C.leafL} />
       <circle cx="33" cy="25" r="8" fill={C.leafM} />
       <circle cx="67" cy="27" r="9" fill={C.leafM} />
-      {bloom && flowerSpots.slice(0, bigBloom ? 8 : 5).map((s, i) => (
+      {flowerSpots.slice(0, bigBloom ? 8 : 5).map((s, i) => (
         <g key={"fl" + i}>
           {[0, 72, 144, 216, 288].map((a) => { const r = (a * Math.PI) / 180;
             return <circle key={a} cx={s[0] + Math.cos(r) * 2.8} cy={s[1] + Math.sin(r) * 2.8} r={2} fill={C.bloom} />; })}
@@ -1369,7 +1411,7 @@ export default function App() {
                     <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
                       cursor: "pointer", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
                       <div style={{ transform: "translateY(-100%)", transformOrigin: "bottom center", animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite" }}>
-                        <CommunalTree size={188} pct={communalPct} /></div></div>
+                        <CommunalTree size={188} pct={communalPct} stage={communalStageInfo.stage} /></div></div>
                     <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
                       background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk, cursor: "pointer",
                       boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
@@ -1698,7 +1740,7 @@ export default function App() {
               padding: "20px 22px 30px", animation: "cs-up .28s ease" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CommunalTree size={72} pct={communalPct} />
+                <CommunalTree size={72} pct={communalPct} stage={communalStageInfo.stage} />
                 <div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🌳 우리 반 나무</div>
                   <div style={{ fontSize: 13.5, color: C.ink }}>우리 반 참여율 {classPct}%</div>
