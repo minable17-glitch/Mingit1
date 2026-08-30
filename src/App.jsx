@@ -13,22 +13,38 @@ import {
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
+const MIN_NOTE_LENGTH = 10; // 느낀점 최소 글자 수
 import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress } from "./lib/session";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
-function stageFromDays(days, challengeDays = 30) {
-  if (days <= 0) return 0;
+function stageThresholds(challengeDays = 30) {
   const ratio = challengeDays / 30;
   const t1 = Math.max(1, Math.round(4 * ratio));
   const t2 = Math.max(t1 + 1, Math.round(10 * ratio));
   const t3 = Math.max(t2 + 1, Math.round(18 * ratio));
   const t4 = Math.max(t3 + 1, Math.round(26 * ratio));
+  return [t1, t2, t3, t4];
+}
+function stageFromDays(days, challengeDays = 30) {
+  if (days <= 0) return 0;
+  const [t1, t2, t3, t4] = stageThresholds(challengeDays);
   if (days < t1) return 1;
   if (days < t2) return 2;
   if (days < t3) return 3;
   if (days < t4) return 4;
   return 5;
+}
+// 나무를 눌렀을 때 "다음 단계까지 며칠 남았는지" 레벨업 정보를 계산
+function getStageInfo(days, challengeDays = 30) {
+  const d = Math.max(0, days || 0);
+  const stage = stageFromDays(d, challengeDays);
+  const [t1, t2, t3, t4] = stageThresholds(challengeDays);
+  const thresholds = [1, t1, t2, t3, t4]; // 현재 단계를 벗어나는 데 필요한 누적 일수
+  const isMax = stage === 5;
+  const nextThreshold = isMax ? null : thresholds[stage];
+  const daysToNext = isMax ? 0 : Math.max(0, nextThreshold - d);
+  return { stage, isMax, daysToNext };
 }
 
 function formatLogDate(isoDate) {
@@ -330,6 +346,7 @@ export default function App() {
   const [classProgress, setClassProgress] = useState({ joined_today: 0, total_students: 1, class_pct: 0 });
   const [bloomPulse, setBloomPulse] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [showCommunalDetail, setShowCommunalDetail] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -718,15 +735,15 @@ export default function App() {
     }
   };
 
+  // 목표 시간을 다 채워야만 느낀점 화면으로 넘어갈 수 있어서, 이 버튼은
+  // "자유롭게 읽기"에서 목표 시간(dailyTargetMinutes) 이상 읽었을 때만 쓸 수 있음
   const finishManual = () => {
+    if (readMode === "free" && secs < dailyTargetMinutes * 60) return;
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
     if (progressKey) clearReadingProgress(progressKey);
-    const minutesRead = readMode === "free"
-      ? Math.max(1, Math.round(secs / 60))
-      : Math.max(1, Math.round((dailyTargetMinutes * 60 - secs) / 60));
-    setSessionMinutes(minutesRead);
+    setSessionMinutes(Math.max(1, Math.round(secs / 60)));
     setReflecting(true);
   };
 
@@ -767,7 +784,7 @@ export default function App() {
   };
 
   const submit = async () => {
-    if (!note.trim()) return;
+    if (note.trim().length < MIN_NOTE_LENGTH) return;
     const savedNote = note.trim();
     if (role !== "student" || !studentInfo?.id) {
       // 선생님 계정은 체험용으로만 동작 (실제 저장 없음)
@@ -814,6 +831,9 @@ export default function App() {
   // 학생들이 목표 시간을 초과해 기여한 분량만큼 추가로 더 활짝 피어난다.
   const communalBonus = TOTAL > 0 ? Math.min(25, Math.round(communalMinutesTotal / (TOTAL * 10))) : 0;
   const communalPct = Math.min(100, classPct + communalBonus);
+  // 우리 반 나무의 "레벨업" 정보는 classPct(평균 참여율)를 평균 참여일수로 환산해서 개인 나무와 같은 기준으로 계산
+  const communalAvgDays = Math.round((classPct / 100) * challengeDays);
+  const communalStageInfo = getStageInfo(communalAvgDays, challengeDays);
   const todayRate = TOTAL > 0 ? Math.round((joinedToday / TOTAL) * 100) : 0;
   const goalCount = Math.ceil((TOTAL * goalPct) / 100);
   const remain = Math.max(0, goalCount - joinedToday);
@@ -982,7 +1002,7 @@ export default function App() {
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
   const allTrees = role === "student"
-    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage }, ...classmates]
+    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myLog.length }, ...classmates]
     : classmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
@@ -1337,12 +1357,12 @@ export default function App() {
                     <Scenery />
                     <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
                     <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
-                    <div style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
-                      animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
+                    <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
+                      cursor: "pointer", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
                       <div style={{ transform: "translateY(-100%)", transformOrigin: "bottom center", animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite" }}>
                         <CommunalTree size={188} pct={communalPct} /></div></div>
-                    <div style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
-                      background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
+                    <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
+                      background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk, cursor: "pointer",
                       boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
                     {positioned.map((t, i) => (
                       <div key={i} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${t.left}%`, top: `${t.top}%`,
@@ -1620,7 +1640,19 @@ export default function App() {
                 <div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>{selected.nick}</div>
                   <div style={{ fontSize: 13.5, color: C.ink }}>📖 {selected.book}</div>
-                  <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>지금 {STAGE_NAME[selected.stage]} 단계</div>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>지금 {STAGE_NAME[selected.stage]} 단계 · 누적 {selected.totalDays ?? 0}일</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {STAGE_NAME.slice(1).map((name, i) => (
+                    <div key={i} style={{ flex: 1, height: 7, borderRadius: 4, background: i < selected.stage ? C.green : "#e2dac9" }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>
+                  {getStageInfo(selected.totalDays ?? 0, challengeDays).isMax
+                    ? "가장 높은 단계까지 다 자랐어요! 🎉"
+                    : `다음 단계 "${STAGE_NAME[selected.stage + 1]}"까지 ${getStageInfo(selected.totalDays ?? 0, challengeDays).daysToNext}일 남았어요 🌿`}
                 </div>
               </div>
               {selected.me ? (
@@ -1645,6 +1677,40 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 우리 반 나무(공동 나무) 상세 */}
+        {showCommunalDetail && (
+          <div onClick={() => setShowCommunalDetail(false)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 22px 30px", animation: "cs-up .28s ease" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <CommunalTree size={72} pct={communalPct} />
+                <div>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🌳 우리 반 나무</div>
+                  <div style={{ fontSize: 13.5, color: C.ink }}>우리 반 참여율 {classPct}%</div>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>지금 {STAGE_NAME[communalStageInfo.stage]} 단계</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {STAGE_NAME.slice(1).map((name, i) => (
+                    <div key={i} style={{ flex: 1, height: 7, borderRadius: 4, background: i < communalStageInfo.stage ? C.green : "#e2dac9" }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>
+                  {communalStageInfo.isMax
+                    ? "가장 높은 단계까지 다 자랐어요! 우리 반 최고예요 🎉"
+                    : `다음 단계 "${STAGE_NAME[communalStageInfo.stage + 1]}"까지 반 전체가 평균 ${communalStageInfo.daysToNext}일 더 참여하면 돼요 🌿`}
+                </div>
+              </div>
+              <div style={{ marginTop: 14, background: "#fff", borderRadius: 14, padding: "12px 14px", border: "1px solid #eee5d3", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.6 }}>
+                반 친구들 모두가 물을 줄수록 우리 반 나무가 자라요. 목표 시간을 넘겨서 읽으면 나무가 더 활짝 피어나요 💧
+              </div>
             </div>
           </div>
         )}
@@ -1827,14 +1893,23 @@ export default function App() {
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
               <button onClick={() => {
                 clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
-                if (readMode === "target") showToast(`잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`);
+                showToast(readMode === "target"
+                  ? `잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`
+                  : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
               }} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>⏸ 잠깐 멈추기</button>
-              <button onClick={finishManual} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
-                background: C.gold, color: "#fff", fontSize: 14, cursor: "pointer" }}>{readMode === "free" ? "다 읽었어요 ✓" : "오늘은 여기까지 ✓"}</button>
+              {readMode === "free" && (
+                <button onClick={finishManual} disabled={secs < dailyTargetMinutes * 60} className="cs-jua" style={{ padding: "11px 22px", borderRadius: 14, border: "none",
+                  background: secs < dailyTargetMinutes * 60 ? "#c3ccbe" : C.gold, color: "#fff", fontSize: 14,
+                  cursor: secs < dailyTargetMinutes * 60 ? "not-allowed" : "pointer" }}>다 읽었어요 ✓</button>
+              )}
             </div>
             <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 10, textAlign: "center", maxWidth: 260 }}>
-              ⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.{readMode === "free" ? "" : <><br />오늘은 여기까지: 오늘 읽기를 끝내고 느낀점을 남겨요.</>}
+              {readMode === "target"
+                ? <>⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.<br />목표 시간을 다 채우면 자동으로 느낀점 화면으로 넘어가요.</>
+                : secs < dailyTargetMinutes * 60
+                  ? `최소 ${dailyTargetMinutes}분은 읽어야 오늘 물주기를 완료할 수 있어요. (지금 ${Math.floor(secs / 60)}분)`
+                  : "이제 완료할 수 있어요! 더 읽을수록 우리 반 나무에 더 많이 기여해요 🌱"}
             </div>
           </div>
         )}
@@ -1845,7 +1920,7 @@ export default function App() {
             <div style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
               <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
-              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수)</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
               <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFile} />
               <button onClick={() => ocrInputRef.current?.click()} disabled={ocrBusy} style={{ width: "100%", padding: 12, borderRadius: 14,
                 marginBottom: 12, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
@@ -1853,9 +1928,12 @@ export default function App() {
               <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
-              <button onClick={submit} disabled={!note.trim() || submitBusy} className="cs-jua" style={{ width: "100%", marginTop: 14, padding: 15, borderRadius: 16,
-                border: "none", fontSize: 17, color: "#fff", cursor: note.trim() && !submitBusy ? "pointer" : "not-allowed",
-                background: note.trim() && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe", boxShadow: note.trim() ? "0 5px 14px #3f7e4e44" : "none" }}>
+              <div style={{ fontSize: 11, color: note.trim().length >= MIN_NOTE_LENGTH ? C.green : "#c98a8a", textAlign: "right", marginTop: 4 }}>
+                {note.trim().length}/{MIN_NOTE_LENGTH}자 이상</div>
+              <button onClick={submit} disabled={note.trim().length < MIN_NOTE_LENGTH || submitBusy} className="cs-jua" style={{ width: "100%", marginTop: 10, padding: 15, borderRadius: 16,
+                border: "none", fontSize: 17, color: "#fff", cursor: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? "pointer" : "not-allowed",
+                background: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe",
+                boxShadow: note.trim().length >= MIN_NOTE_LENGTH ? "0 5px 14px #3f7e4e44" : "none" }}>
                 {submitBusy ? "저장 중..." : "💧 물 주기"}</button>
             </div>
           </div>
