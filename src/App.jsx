@@ -7,7 +7,7 @@ import {
   getClassLogsForTeacher, getClassRoster, searchBooks,
   getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
-  teacherSignUp, teacherSignIn, teacherKakaoLogin, teacherKakaoBootstrap, getAuthSession, createClassForAccount, getMyClasses,
+  teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
 } from "./lib/api";
 
@@ -484,15 +484,6 @@ export default function App() {
       getClassById(saved.classInfo.id).then(setClassInfo).catch(() => {});
       return;
     }
-    // 카카오 로그인으로 돌아온 경우인지 확인 (새로고침으로 화면 상태가 날아간 경우)
-    try {
-      const authSession = await getAuthSession();
-      if (authSession?.user && !authSession.user.is_anonymous) {
-        await teacherKakaoBootstrap();
-        await routeAfterAccountLogin();
-        return;
-      }
-    } catch { /* 계정 세션이 없으면 그냥 역할 선택으로 */ }
     setScreen("role");
   };
 
@@ -577,17 +568,6 @@ export default function App() {
       setForgotMessage(e.message || "재설정에 실패했어요.");
     } finally {
       setForgotBusy(false);
-    }
-  };
-
-  const handleKakaoLogin = async () => {
-    setAuthError("");
-    setAuthBusy(true);
-    try {
-      await teacherKakaoLogin();
-    } catch (e) {
-      setAuthError(e.message || "카카오 로그인에 실패했어요.");
-      setAuthBusy(false);
     }
   };
 
@@ -1034,9 +1014,6 @@ export default function App() {
               border: "none", fontSize: 17, color: "#fff", cursor: authBusy ? "default" : "pointer",
               background: authBusy ? "#c3ccbe" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
               {authBusy ? "처리 중..." : (teacherAccountMode === "signup" ? "계정 만들기" : "로그인")}</button>
-            <button onClick={handleKakaoLogin} disabled={authBusy} className="cs-jua" style={{ padding: 14, borderRadius: 16,
-              border: "none", fontSize: 15.5, color: "#3c1e1e", cursor: authBusy ? "default" : "pointer", background: "#FEE500" }}>
-              💬 카카오로 로그인</button>
             <button onClick={() => { setAuthError(""); setTeacherAccountMode((m) => m === "signup" ? "login" : "signup"); }}
               style={{ border: "none", background: "transparent", color: C.greenDk, fontSize: 13, cursor: "pointer" }}>
               {teacherAccountMode === "signup" ? "이미 계정이 있으신가요? 로그인" : "계정이 없으신가요? 계정 만들기"}</button>

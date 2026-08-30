@@ -30,25 +30,6 @@ export async function teacherSignIn({ username, password }) {
   return data[0];
 }
 
-export async function teacherKakaoLogin() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'kakao',
-    options: {
-      redirectTo: window.location.href.split('#')[0].split('?')[0],
-      // 이메일 동의항목은 카카오 승인이 필요해서 못 받음. 우리는 이메일이 필요 없으니
-      // 닉네임만 요청해서(이메일 미요청) 승인 없이도 로그인이 되게 함.
-      scopes: 'profile_nickname',
-    },
-  });
-  if (error) throw error;
-}
-
-export async function teacherKakaoBootstrap() {
-  const { data, error } = await supabase.rpc('teacher_kakao_bootstrap');
-  if (error) throw error;
-  return data[0];
-}
-
 export async function requestPasswordReset(username) {
   const { error } = await supabase.functions.invoke('send-password-reset', { body: { username } });
   if (error) throw error;
