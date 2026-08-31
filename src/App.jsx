@@ -1142,32 +1142,26 @@ export default function App() {
   const daysSinceStart = classInfo?.start_date
     ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
-  // 산 능선처럼 위(꼭대기)는 좁고 아래(산기슭)로 갈수록 넓어지는 줄(행)에
-  // 나무를 나눠 담아서, 학생이 아무리 많아도 서로 겹치거나 화면 밖으로
-  // 잘리지 않게 한다. 우리 반 나무는 단독으로 전체 줄 중 중간쯤에 끼워 넣어
-  // 화면 가운데에 혼자 자리잡게 한다.
-  const FOREST_MAX_ROW = 5;
-  const forestRows = [];
+  // 배경 그림에 그려진 3개의 동심원 오솔길을 따라, 우리 반 나무는 정가운데,
+  // 학생들은 가까운 원부터 채워서 바깥 원으로 빙 둘러싸는 형태로 배치한다.
+  // (반지름은 배경 그림 속 오솔길 위치를 실제로 측정해서 정한 값)
+  const FOREST_CENTER_X = 50.5;
+  const FOREST_CENTER_Y = 52.1;
+  const FOREST_RING_BASE_R = 0.167; // 첫 번째(가장 안쪽) 원의 반지름 — 폭 대비 비율
+  const FOREST_RING_STEP_R = 0.137; // 원이 하나 늘어날 때마다 넓어지는 반지름
+  const FOREST_RING_ARC_UNIT = 0.131; // 나무 한 명이 원 둘레에서 차지하는 길이(비율)
+  const FOREST_IMAGE_ASPECT = 941 / 1672; // 가로 기준 비율을 세로 기준으로 바꿀 때 씀 (원이 타원이 되지 않도록)
+  const forestRings = [];
   {
-    const items = allTrees.map((t) => ({ kind: "student", ...t }));
-    let rowSize = 2;
+    const items = [...allTrees];
+    let ringIndex = 0;
     while (items.length) {
-      const size = Math.min(rowSize, FOREST_MAX_ROW, items.length);
-      forestRows.push(items.splice(0, size));
-      rowSize += 1;
+      const radius = FOREST_RING_BASE_R + ringIndex * FOREST_RING_STEP_R;
+      const capacity = Math.max(6, Math.round((2 * Math.PI * radius) / FOREST_RING_ARC_UNIT));
+      forestRings.push({ radius, members: items.splice(0, capacity) });
+      ringIndex += 1;
     }
-    const insertAt = Math.min(forestRows.length, Math.floor(forestRows.length / 2));
-    forestRows.splice(insertAt, 0, [{ kind: "communal" }]);
   }
-  // 배경 그림은 위쪽 GROUND_FRACTION 비율만큼이 하늘, 나머지가 땅이라 나무는
-  // 전부 땅 영역(퍼센트 기준)에만 놓이게 하고, 그 안에서 한 줄당 FOREST_ROW_PX만큼
-  // 자리를 줘서 학생이 많아져도 나무 크기가 일정하게 유지되게 한다.
-  const FOREST_ROW_PX = 128;
-  const FOREST_BOTTOM_PAD = 70;
-  const GROUND_FRACTION = 0.62;
-  const groundPx = forestRows.length * FOREST_ROW_PX + FOREST_BOTTOM_PAD;
-  const forestHeight = Math.round(groundPx / GROUND_FRACTION);
-  const forestSkyPx = forestHeight - groundPx;
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
   const TABS = [
@@ -1484,33 +1478,32 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
-                  <div style={{ position: "relative", height: forestHeight, marginTop: 4, overflow: "hidden",
+                  <div style={{ position: "relative", width: "100%", aspectRatio: "941 / 1672", marginTop: 4, overflow: "hidden",
                     backgroundImage: `url(${forestBg})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}>
                     <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
                     <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
-                    {forestRows.map((row, r) => {
-                      const rowScale = forestRows.length > 1 ? 0.65 + 0.35 * (r / (forestRows.length - 1)) : 1;
-                      const topPx = forestSkyPx + r * FOREST_ROW_PX;
-                      return row.map((item, slot) => {
-                        const leftPct = ((slot + 1) / (row.length + 1)) * 100;
-                        if (item.kind === "communal") {
-                          return (
-                            <div key="communal" onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: `${leftPct}%`, top: topPx,
-                              transform: "translate(-50%,-100%)", zIndex: Z.communal, cursor: "pointer",
-                              display: "flex", flexDirection: "column", alignItems: "center", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
-                              <div style={{ animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite", transformOrigin: "bottom center" }}>
-                                <CommunalTree size={104 * rowScale} pct={communalPct} stage={communalStageInfo.stage} /></div>
-                              <div style={{ marginTop: 1, background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
-                                boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
-                            </div>
-                          );
-                        }
-                        const t = item;
+                    <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: `${FOREST_CENTER_X}%`, top: `${FOREST_CENTER_Y}%`,
+                      transform: "translate(-50%,-100%)", zIndex: Z.communal, cursor: "pointer",
+                      display: "flex", flexDirection: "column", alignItems: "center", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
+                      <div style={{ animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite", transformOrigin: "bottom center" }}>
+                        <CommunalTree size={116} pct={communalPct} stage={communalStageInfo.stage} /></div>
+                      <div style={{ marginTop: 1, background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
+                        boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
+                    </div>
+                    {forestRings.map((ring, ringIndex) => {
+                      const scale = Math.max(0.7, 1 - ringIndex * 0.08);
+                      const n = ring.members.length;
+                      const angleOffset = (360 / (2 * Math.max(n, 1))) * (ringIndex % 2);
+                      return ring.members.map((t, i) => {
+                        const angleDeg = angleOffset + (360 / n) * i - 90;
+                        const rad = (angleDeg * Math.PI) / 180;
+                        const leftPct = FOREST_CENTER_X + ring.radius * 100 * Math.cos(rad);
+                        const topPct = FOREST_CENTER_Y + ring.radius * 100 * Math.sin(rad) * FOREST_IMAGE_ASPECT;
                         return (
-                          <div key={t.me ? "me" : t.id} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${leftPct}%`, top: topPx,
-                            transform: "translate(-50%,-100%)", zIndex: 10 + r, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div key={t.me ? "me" : t.id} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${leftPct}%`, top: `${topPct}%`,
+                            transform: "translate(-50%,-100%)", zIndex: 10 + ringIndex, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
                             <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
-                              <Tree stage={t.stage} size={72 * rowScale} reading={t.reading} accessories={t.accessories} /></div>
+                              <Tree stage={t.stage} size={72 * scale} reading={t.reading} accessories={t.accessories} /></div>
                             <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
                               borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
                               <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
