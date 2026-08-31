@@ -72,6 +72,37 @@ body {
   margin-bottom: 14px;
 }
 
+.zr-pace-label {
+  color: #9db3a6;
+  font-size: 12px;
+  text-align: left;
+  margin: 0 0 8px;
+}
+
+.zr-pace-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.zr-pace-btn {
+  border: 1px solid #34443b;
+  background: transparent;
+  color: #cfe0d6;
+  border-radius: 10px;
+  padding: 10px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.zr-pace-btn-on {
+  border-color: #ef5350;
+  background: rgba(239, 83, 80, 0.18);
+  color: #fff;
+}
+
 .zr-btn {
   display: block;
   width: 100%;
@@ -251,9 +282,39 @@ body {
   cursor: pointer;
 }
 
+.zr-pace-bar {
+  position: absolute;
+  top: calc(76px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(10, 14, 12, 0.82);
+  border: 1px solid #223028;
+  color: #cfe0d6;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.zr-pace-bar-behind {
+  border-color: #ef5350;
+  color: #ffcdd2;
+}
+
+.zr-pace-vs {
+  opacity: 0.6;
+  font-weight: 500;
+  margin: 0 2px;
+}
+
 .zr-frozen-banner {
   position: absolute;
-  top: 78px;
+  top: calc(118px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -267,7 +328,7 @@ body {
 }
 
 .zr-error-banner {
-  top: 118px;
+  top: calc(158px + env(safe-area-inset-top));
   background: rgba(183, 28, 28, 0.3);
   border-color: #ef5350;
   color: #ffcdd2;

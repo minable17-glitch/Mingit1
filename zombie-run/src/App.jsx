@@ -12,6 +12,19 @@ const START_AMMO = 3
 const MAX_AMMO = 12
 const START_HEALTH = 6
 
+// 좀비 속도 = 선택한 목표 페이스(분:초/km)를 그대로 m/s로 환산한 값 (개체별로 살짝 편차를 줌)
+// 목표보다 느리게 뛰면 좀비가 따라잡고, 유지/추월하면 거리가 벌어지는 방식
+const PACE_PRESETS = [
+  { label: "5'30\"/km", secPerKm: 5 * 60 + 30 },
+  { label: "6'00\"/km", secPerKm: 6 * 60 },
+  { label: "6'30\"/km", secPerKm: 6 * 60 + 30 },
+  { label: "7'00\"/km", secPerKm: 7 * 60 },
+].map((p) => ({ ...p, mps: 1000 / p.secPerKm }))
+const DEFAULT_PACE_IDX = 1
+
+const LIVE_PACE_WINDOW_MS = 30000 // 실시간 페이스 계산에 쓰는 최근 구간(30초)
+const LIVE_PACE_MIN_WINDOW_SEC = 6 // 이보다 짧은 구간에서는 페이스가 안 흔들리게 표시 안 함
+
 function formatTime(totalSec) {
   const m = Math.floor(totalSec / 60)
   const s = totalSec % 60
@@ -21,6 +34,14 @@ function formatTime(totalSec) {
 function formatDistance(meters) {
   if (meters < 1000) return `${Math.round(meters)}m`
   return `${(meters / 1000).toFixed(2)}km`
+}
+
+function formatPace(mps) {
+  if (!mps || mps <= 0) return '-'
+  const secPerKm = 1000 / mps
+  const m = Math.floor(secPerKm / 60)
+  const s = Math.round(secPerKm % 60)
+  return `${m}'${String(s).padStart(2, '0')}"`
 }
 
 function makeInitialGame() {
@@ -41,6 +62,8 @@ function makeInitialGame() {
     nextWaveSec: FIRST_WAVE_SEC,
     ultimateCooldownUntil: 0,
     gameOverReason: null,
+    targetPaceMps: PACE_PRESETS[DEFAULT_PACE_IDX].mps,
+    paceSamples: [], // 실시간 페이스 계산용 { t, d } 샘플 (최근 LIVE_PACE_WINDOW_MS만 유지)
   }
 }
 
@@ -51,6 +74,7 @@ export default function App() {
 
   const [geoError, setGeoError] = useState('')
   const [follow, setFollow] = useState(true)
+  const [paceIdx, setPaceIdx] = useState(DEFAULT_PACE_IDX)
   const [toastMsg, setToastMsg] = useState('')
   const toastTimerRef = useRef(null)
   const watchIdRef = useRef(null)
@@ -72,7 +96,7 @@ export default function App() {
         id: `z${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
         lat: p.lat,
         lon: p.lon,
-        speed: 1.5 + Math.random() * 0.9, // m/s (도보~조깅 속도, 1틱=1초라 그대로 스텝 거리로 씀)
+        speed: game.targetPaceMps * (0.9 + Math.random() * 0.2), // 목표 페이스 ±10% 편차 (1틱=1초라 그대로 스텝 거리로 씀)
       })
     }
     game.zombies = [...game.zombies, ...spawned]
@@ -182,6 +206,12 @@ export default function App() {
       }
       game.lastPos = newPos
       game.playerPos = newPos
+      if (game.status === 'playing') {
+        const now = Date.now()
+        game.paceSamples = [...game.paceSamples, { t: now, d: game.distance }].filter(
+          (s) => now - s.t <= LIVE_PACE_WINDOW_MS
+        )
+      }
       setGeoError('')
       rerender()
     },
@@ -216,13 +246,14 @@ export default function App() {
         game.status = 'playing'
         game.playerPos = startPos
         game.lastPos = startPos
+        game.targetPaceMps = PACE_PRESETS[paceIdx].mps
         tickIntervalRef.current = setInterval(tick, 1000)
         rerender()
       },
       (err) => setGeoError(err.message || '위치 권한이 필요해요.'),
       { enableHighAccuracy: true, timeout: 20000 }
     )
-  }, [game, handlePosition, tick, rerender])
+  }, [game, handlePosition, tick, rerender, paceIdx])
 
   const shootZombie = useCallback(
     (id) => {
@@ -275,9 +306,10 @@ export default function App() {
     game.playerPos = keepPos
     game.lastPos = keepPos
     game.status = 'playing'
+    game.targetPaceMps = PACE_PRESETS[paceIdx].mps
     tickIntervalRef.current = setInterval(tick, 1000)
     rerender()
-  }, [game, tick, rerender])
+  }, [game, tick, rerender, paceIdx])
 
   const backToStart = useCallback(() => {
     const keepPos = game.playerPos
@@ -301,6 +333,18 @@ export default function App() {
             <li>모래시계(⏳) 아이템으로 좀비 10초간 정지</li>
             <li>달릴수록 게이지가 차서 궁극기 발동</li>
           </ul>
+          <p className="zr-pace-label">목표 페이스 (좀비가 이 속도로 쫓아와요)</p>
+          <div className="zr-pace-picker">
+            {PACE_PRESETS.map((p, i) => (
+              <button
+                key={p.label}
+                className={i === paceIdx ? 'zr-pace-btn zr-pace-btn-on' : 'zr-pace-btn'}
+                onClick={() => setPaceIdx(i)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
           {geoError && <p className="zr-error">{geoError}</p>}
           <button className="zr-btn zr-btn-primary" onClick={requestLocationAndStart}>
             도망치기 시작 🏃
@@ -349,6 +393,14 @@ export default function App() {
     : null
   const frozenActive = Date.now() < game.frozenUntil
   const ultimateReady = game.gauge >= 100 && Date.now() >= game.ultimateCooldownUntil
+  let livePaceMps = null
+  if (game.paceSamples.length >= 2) {
+    const first = game.paceSamples[0]
+    const last = game.paceSamples[game.paceSamples.length - 1]
+    const dtSec = (last.t - first.t) / 1000
+    if (dtSec >= LIVE_PACE_MIN_WINDOW_SEC) livePaceMps = (last.d - first.d) / dtSec
+  }
+  const behindPace = livePaceMps != null && livePaceMps < game.targetPaceMps * 0.97
 
   return (
     <div className="zr-screen">
@@ -365,6 +417,11 @@ export default function App() {
           <div className="zr-hud-value">{nearestZombieDist == null ? '-' : formatDistance(nearestZombieDist)}</div>
           <div className="zr-hud-label">가까운 좀비</div>
         </div>
+      </div>
+
+      <div className={behindPace ? 'zr-pace-bar zr-pace-bar-behind' : 'zr-pace-bar'}>
+        🏃 {livePaceMps == null ? '측정 중…' : `${formatPace(livePaceMps)}/km`}
+        <span className="zr-pace-vs">vs</span>🧟 {formatPace(game.targetPaceMps)}/km
       </div>
 
       <GameMap
