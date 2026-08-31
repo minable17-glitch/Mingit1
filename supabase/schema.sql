@@ -253,7 +253,7 @@ declare
   v_id uuid;
 begin
   loop
-    v_code := '숲' || lpad((floor(random()*10000))::int::text, 4, '0');
+    v_code := '숲' || lpad((floor(random()*1000000))::int::text, 6, '0');
     exit when not exists (select 1 from classes where classes.code = v_code);
   end loop;
 
