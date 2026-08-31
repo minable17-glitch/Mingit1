@@ -14,7 +14,11 @@ const SHOOT_RADIUS_M = 35 // 이 거리 안의 좀비만 탭해서 처치 가능
 const PICKUP_RADIUS_M = 15 // 이 거리 안으로 걸어가면 아이템 자동 획득
 const ULTIMATE_RADIUS_M = 200 // 궁극기가 미치는 범위
 const FIRST_WAVE_SEC = 60
-const NEXT_WAVE_SEC = 75
+const NEXT_WAVE_SEC = 90
+// 러닝을 재밌게 만드는 게 목적이라 좀비 무리 규모는 적당히만 (한 번에 최대 이 마리 수까지만 동시에 존재)
+const WAVE_SIZE_MIN = 1
+const WAVE_SIZE_MAX = 2
+const MAX_CONCURRENT_ZOMBIES = 4
 const START_AMMO = 3
 const MAX_AMMO = 12
 const START_HEALTH = 6
@@ -95,7 +99,9 @@ export default function App() {
 
   const spawnWave = useCallback(() => {
     if (!game.playerPos) return
-    const count = 3 + Math.floor(Math.random() * 3)
+    const room = MAX_CONCURRENT_ZOMBIES - game.zombies.length
+    if (room <= 0) return
+    const count = Math.min(room, WAVE_SIZE_MIN + Math.floor(Math.random() * (WAVE_SIZE_MAX - WAVE_SIZE_MIN + 1)))
     const spawned = []
     for (let i = 0; i < count; i++) {
       const p = randomPointNear(game.playerPos.lat, game.playerPos.lon, 70, 150)
