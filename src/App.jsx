@@ -1147,16 +1147,16 @@ export default function App() {
   // (반지름은 배경 그림 속 오솔길 위치를 실제로 측정해서 정한 값)
   const FOREST_CENTER_X = 50.5;
   const FOREST_CENTER_Y = 52.1;
-  const FOREST_RING_BASE_R = 0.167; // 첫 번째(가장 안쪽) 원의 반지름 — 폭 대비 비율
-  const FOREST_RING_STEP_R = 0.137; // 원이 하나 늘어날 때마다 넓어지는 반지름
-  const FOREST_RING_ARC_UNIT = 0.131; // 나무 한 명이 원 둘레에서 차지하는 길이(비율)
+  const FOREST_RING_RADII = [0.167, 0.304, 0.441]; // 배경 그림 속 오솔길 3개의 실제 반지름 — 폭 대비 비율
+  const FOREST_RING_MAX_R = 0.46; // 화면 좌우 밖으로 넘어가지 않게 잡아두는 한계 반지름 (학생이 아주 많을 때만 씀)
+  const FOREST_RING_ARC_UNIT = 0.19; // 나무 한 명이 원 둘레에서 차지하는 길이 — 클릭하기 편하도록 넉넉하게 잡음
   const FOREST_IMAGE_ASPECT = 941 / 1672; // 가로 기준 비율을 세로 기준으로 바꿀 때 씀 (원이 타원이 되지 않도록)
   const forestRings = [];
   {
     const items = [...allTrees];
     let ringIndex = 0;
     while (items.length) {
-      const radius = FOREST_RING_BASE_R + ringIndex * FOREST_RING_STEP_R;
+      const radius = ringIndex < FOREST_RING_RADII.length ? FOREST_RING_RADII[ringIndex] : FOREST_RING_MAX_R;
       const capacity = Math.max(6, Math.round((2 * Math.PI * radius) / FOREST_RING_ARC_UNIT));
       forestRings.push({ radius, members: items.splice(0, capacity) });
       ringIndex += 1;
@@ -1491,7 +1491,7 @@ export default function App() {
                         boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
                     </div>
                     {forestRings.map((ring, ringIndex) => {
-                      const scale = Math.max(0.7, 1 - ringIndex * 0.08);
+                      const scale = Math.max(0.62, 1 - ringIndex * 0.1);
                       const n = ring.members.length;
                       const angleOffset = (360 / (2 * Math.max(n, 1))) * (ringIndex % 2);
                       return ring.members.map((t, i) => {
@@ -1503,13 +1503,11 @@ export default function App() {
                           <div key={t.me ? "me" : t.id} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${leftPct}%`, top: `${topPct}%`,
                             transform: "translate(-50%,-100%)", zIndex: 10 + ringIndex, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
                             <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
-                              <Tree stage={t.stage} size={72 * scale} reading={t.reading} accessories={t.accessories} /></div>
+                              <Tree stage={t.stage} size={58 * scale} reading={t.reading} accessories={t.accessories} /></div>
                             <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
-                              borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
-                              <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
-                              <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {t.book}{t.completedBooks > 0 ? ` 🍎${t.completedBooks}` : ""}</div>
-                              {t.reading && <div style={{ fontSize: 8, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
+                              borderRadius: 9, padding: "1px 5px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
+                              <div className="cs-hand" style={{ fontSize: 12, lineHeight: 1.1, color: C.greenDk, maxWidth: 52, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nick}</div>
+                              {t.reading && <div style={{ fontSize: 7.5, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
                             </div>
                           </div>
                         );
@@ -1862,7 +1860,7 @@ export default function App() {
           <div onClick={() => setShowCommunalDetail(false)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
             display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
-              padding: "20px 22px 30px", animation: "cs-up .28s ease" }}>
+              padding: "20px 22px 30px", animation: "cs-up .28s ease", maxHeight: "85vh", overflowY: "auto" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CommunalTree size={72} pct={communalPct} stage={communalStageInfo.stage} />
@@ -1886,6 +1884,21 @@ export default function App() {
               </div>
               <div style={{ marginTop: 14, background: "#fff", borderRadius: 14, padding: "12px 14px", border: "1px solid #eee5d3", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.6 }}>
                 반 친구들 모두가 물을 줄수록 우리 반 나무가 자라요. 목표 시간을 넘겨서 읽으면 나무가 더 활짝 피어나요 💧
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 8 }}>🌱 참여 학생 목록 ({allTrees.length}명)</div>
+                <div style={{ fontSize: 11.5, color: C.inkSoft, marginBottom: 8 }}>숲에서 나무를 누르기 어려우면, 여기서 이름을 눌러도 그 친구 나무를 볼 수 있어요.</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {allTrees.map((t) => (
+                    <button key={t.me ? "me" : t.id} onClick={() => { setShowCommunalDetail(false); setSelected(t); }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left",
+                        padding: "9px 12px", borderRadius: 12, border: t.me ? `1.5px solid ${C.gold}` : "1px solid #eee5d3",
+                        background: "#fff", cursor: "pointer" }}>
+                      <span className="cs-hand" style={{ fontSize: 16, color: C.greenDk }}>{t.nick}{t.me ? " (나)" : ""}</span>
+                      <span style={{ fontSize: 11, color: C.inkSoft }}>{STAGE_NAME[t.stage]}{t.reading ? " · 독서중" : ""}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
