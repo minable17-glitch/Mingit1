@@ -1144,24 +1144,30 @@ export default function App() {
     : 1;
   // 산 능선처럼 위(꼭대기)는 좁고 아래(산기슭)로 갈수록 넓어지는 줄(행)에
   // 나무를 나눠 담아서, 학생이 아무리 많아도 서로 겹치거나 화면 밖으로
-  // 잘리지 않게 한다. 우리 반 나무는 전체 목록 중간쯤에 끼워 넣어 산 중턱에
-  // 자리잡은 것처럼 보이게 한다.
+  // 잘리지 않게 한다. 우리 반 나무는 단독으로 전체 줄 중 중간쯤에 끼워 넣어
+  // 화면 가운데에 혼자 자리잡게 한다.
   const FOREST_MAX_ROW = 5;
   const forestRows = [];
   {
     const items = allTrees.map((t) => ({ kind: "student", ...t }));
-    const insertAt = Math.min(items.length, Math.floor(items.length / 2));
-    items.splice(insertAt, 0, { kind: "communal" });
     let rowSize = 2;
     while (items.length) {
       const size = Math.min(rowSize, FOREST_MAX_ROW, items.length);
       forestRows.push(items.splice(0, size));
       rowSize += 1;
     }
+    const insertAt = Math.min(forestRows.length, Math.floor(forestRows.length / 2));
+    forestRows.splice(insertAt, 0, [{ kind: "communal" }]);
   }
-  const FOREST_TOP_PAD = 60;
-  const FOREST_ROW_GAP = 128;
-  const forestHeight = FOREST_TOP_PAD + Math.max(0, forestRows.length - 1) * FOREST_ROW_GAP + 150;
+  // 배경 그림은 위쪽 GROUND_FRACTION 비율만큼이 하늘, 나머지가 땅이라 나무는
+  // 전부 땅 영역(퍼센트 기준)에만 놓이게 하고, 그 안에서 한 줄당 FOREST_ROW_PX만큼
+  // 자리를 줘서 학생이 많아져도 나무 크기가 일정하게 유지되게 한다.
+  const FOREST_ROW_PX = 128;
+  const FOREST_BOTTOM_PAD = 70;
+  const GROUND_FRACTION = 0.62;
+  const groundPx = forestRows.length * FOREST_ROW_PX + FOREST_BOTTOM_PAD;
+  const forestHeight = Math.round(groundPx / GROUND_FRACTION);
+  const forestSkyPx = forestHeight - groundPx;
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
   const TABS = [
@@ -1484,7 +1490,7 @@ export default function App() {
                     <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
                     {forestRows.map((row, r) => {
                       const rowScale = forestRows.length > 1 ? 0.65 + 0.35 * (r / (forestRows.length - 1)) : 1;
-                      const topPx = FOREST_TOP_PAD + r * FOREST_ROW_GAP;
+                      const topPx = forestSkyPx + r * FOREST_ROW_PX;
                       return row.map((item, slot) => {
                         const leftPct = ((slot + 1) / (row.length + 1)) * 100;
                         if (item.kind === "communal") {
