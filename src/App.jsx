@@ -1210,21 +1210,36 @@ export default function App() {
     : 1;
   const n = allTrees.length;
   // 공동 나무는 화면 가운데(left 28%~72%)를 넓게 차지하므로, 개인 나무는
-  // 그 바깥 왼쪽/오른쪽 두 구역에만 배치해 나무 그림·이름표가 절대 겹치지 않게 한다.
+  // 그 바깥 왼쪽/오른쪽 두 구역에 배치한다. 학생이 많아지면 한 줄(링)에 최대
+  // RING_CAPACITY명까지만 놓고, 그 이상은 더 바깥의 새 링으로 넘겨서 서로 겹치지 않게 한다.
+  const RING_CAPACITY = 5;
   const rightN = Math.ceil(n / 2);
   const leftN = n - rightN;
+  const ringsNeeded = Math.max(1, Math.ceil(Math.max(rightN, leftN) / RING_CAPACITY));
   const positioned = allTrees.map((t, i) => {
-    let deg;
-    if (i < rightN) {
-      deg = rightN > 1 ? -54 + i * (108 / (rightN - 1)) : 0;
-    } else {
-      const k = i - rightN;
-      deg = leftN > 1 ? 126 + k * (108 / (leftN - 1)) : 180;
-    }
+    const isRight = i < rightN;
+    const idxInSide = isRight ? i : i - rightN;
+    const sideCount = isRight ? rightN : leftN;
+    const ring = Math.floor(idxInSide / RING_CAPACITY);
+    const ringStart = ring * RING_CAPACITY;
+    const countInRing = Math.min(RING_CAPACITY, sideCount - ringStart);
+    const posInRing = idxInSide - ringStart;
+    const baseDeg = isRight ? -54 : 126;
+    const deg = countInRing > 1 ? baseDeg + posInRing * (108 / (countInRing - 1)) : baseDeg + 54;
     const rad = (deg * Math.PI) / 180;
     const cos = Math.cos(rad), sin = Math.sin(rad);
-    return { ...t, left: 50 + 38 * cos, top: 42 + 26 * sin, scale: 0.68 + 0.3 * ((sin + 1) / 2), z: Math.min(14, Math.round(2 + (sin + 1) * 10)) };
+    const rx = 38 + ring * 11;
+    const ry = 26 + ring * 8;
+    const ringScale = Math.max(0.6, 1 - ring * 0.12);
+    return {
+      ...t,
+      left: 50 + rx * cos,
+      top: 42 + ry * sin,
+      scale: (0.68 + 0.3 * ((sin + 1) / 2)) * ringScale,
+      z: Math.min(14, Math.round(2 + (sin + 1) * 10)),
+    };
   });
+  const forestHeight = 412 + Math.max(0, ringsNeeded - 1) * 90;
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
   const TABS = [
@@ -1542,7 +1557,7 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
-                  <div style={{ position: "relative", height: 412, marginTop: 4, overflow: "hidden" }}>
+                  <div style={{ position: "relative", height: forestHeight, marginTop: 4, overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 6, right: 22, animation: "cs-sun 6s ease-in-out infinite" }}>
                       <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="27" fill={C.sun} opacity="0.24" /><circle cx="30" cy="30" r="17" fill={C.sun} /></svg></div>
                     <Scenery />
