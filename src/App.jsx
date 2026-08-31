@@ -1208,38 +1208,26 @@ export default function App() {
   const daysSinceStart = classInfo?.start_date
     ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
     : 1;
-  const n = allTrees.length;
-  // 공동 나무는 화면 가운데(left 28%~72%)를 넓게 차지하므로, 개인 나무는
-  // 그 바깥 왼쪽/오른쪽 두 구역에 배치한다. 학생이 많아지면 한 줄(링)에 최대
-  // RING_CAPACITY명까지만 놓고, 그 이상은 더 바깥의 새 링으로 넘겨서 서로 겹치지 않게 한다.
-  const RING_CAPACITY = 5;
-  const rightN = Math.ceil(n / 2);
-  const leftN = n - rightN;
-  const ringsNeeded = Math.max(1, Math.ceil(Math.max(rightN, leftN) / RING_CAPACITY));
-  const positioned = allTrees.map((t, i) => {
-    const isRight = i < rightN;
-    const idxInSide = isRight ? i : i - rightN;
-    const sideCount = isRight ? rightN : leftN;
-    const ring = Math.floor(idxInSide / RING_CAPACITY);
-    const ringStart = ring * RING_CAPACITY;
-    const countInRing = Math.min(RING_CAPACITY, sideCount - ringStart);
-    const posInRing = idxInSide - ringStart;
-    const baseDeg = isRight ? -54 : 126;
-    const deg = countInRing > 1 ? baseDeg + posInRing * (108 / (countInRing - 1)) : baseDeg + 54;
-    const rad = (deg * Math.PI) / 180;
-    const cos = Math.cos(rad), sin = Math.sin(rad);
-    const rx = 38 + ring * 11;
-    const ry = 26 + ring * 8;
-    const ringScale = Math.max(0.6, 1 - ring * 0.12);
-    return {
-      ...t,
-      left: 50 + rx * cos,
-      top: 42 + ry * sin,
-      scale: (0.68 + 0.3 * ((sin + 1) / 2)) * ringScale,
-      z: Math.min(14, Math.round(2 + (sin + 1) * 10)),
-    };
-  });
-  const forestHeight = 412 + Math.max(0, ringsNeeded - 1) * 90;
+  // 산 능선처럼 위(꼭대기)는 좁고 아래(산기슭)로 갈수록 넓어지는 줄(행)에
+  // 나무를 나눠 담아서, 학생이 아무리 많아도 서로 겹치거나 화면 밖으로
+  // 잘리지 않게 한다. 우리 반 나무는 전체 목록 중간쯤에 끼워 넣어 산 중턱에
+  // 자리잡은 것처럼 보이게 한다.
+  const FOREST_MAX_ROW = 5;
+  const forestRows = [];
+  {
+    const items = allTrees.map((t) => ({ kind: "student", ...t }));
+    const insertAt = Math.min(items.length, Math.floor(items.length / 2));
+    items.splice(insertAt, 0, { kind: "communal" });
+    let rowSize = 2;
+    while (items.length) {
+      const size = Math.min(rowSize, FOREST_MAX_ROW, items.length);
+      forestRows.push(items.splice(0, size));
+      rowSize += 1;
+    }
+  }
+  const FOREST_TOP_PAD = 60;
+  const FOREST_ROW_GAP = 128;
+  const forestHeight = FOREST_TOP_PAD + Math.max(0, forestRows.length - 1) * FOREST_ROW_GAP + 150;
   const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
 
   const TABS = [
@@ -1563,27 +1551,40 @@ export default function App() {
                     <Scenery />
                     <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
                     <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
-                    <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60%", transform: "translateX(-50%)", zIndex: Z.communal,
-                      cursor: "pointer", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
-                      <div style={{ transform: "translateY(-100%)", transformOrigin: "bottom center", animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite" }}>
-                        <CommunalTree size={188} pct={communalPct} stage={communalStageInfo.stage} /></div></div>
-                    <div onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: "50%", top: "60.5%", transform: "translateX(-50%)", zIndex: Z.communal + 1,
-                      background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk, cursor: "pointer",
-                      boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
-                    {positioned.map((t, i) => (
-                      <div key={i} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${t.left}%`, top: `${t.top}%`,
-                        transform: "translate(-50%,-100%)", zIndex: t.z, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
-                          <Tree stage={t.stage} size={72 * t.scale} reading={t.reading} accessories={t.accessories} /></div>
-                        <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
-                          borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
-                          <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
-                          <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {t.book}{t.completedBooks > 0 ? ` 🍎${t.completedBooks}` : ""}</div>
-                          {t.reading && <div style={{ fontSize: 8, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
-                        </div>
-                      </div>
-                    ))}
+                    {forestRows.map((row, r) => {
+                      const rowScale = forestRows.length > 1 ? 0.65 + 0.35 * (r / (forestRows.length - 1)) : 1;
+                      const topPx = FOREST_TOP_PAD + r * FOREST_ROW_GAP;
+                      return row.map((item, slot) => {
+                        const leftPct = ((slot + 1) / (row.length + 1)) * 100;
+                        if (item.kind === "communal") {
+                          return (
+                            <div key="communal" onClick={() => setShowCommunalDetail(true)} style={{ position: "absolute", left: `${leftPct}%`, top: topPx,
+                              transform: "translate(-50%,-100%)", zIndex: Z.communal, cursor: "pointer",
+                              display: "flex", flexDirection: "column", alignItems: "center", animation: bloomPulse ? "cs-pulse 1.2s ease" : "none" }}>
+                              <div style={{ animation: bloomPulse ? "none" : "cs-sway 8s ease-in-out infinite", transformOrigin: "bottom center" }}>
+                                <CommunalTree size={104 * rowScale} pct={communalPct} stage={communalStageInfo.stage} /></div>
+                              <div style={{ marginTop: 1, background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
+                                boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
+                            </div>
+                          );
+                        }
+                        const t = item;
+                        return (
+                          <div key={t.me ? "me" : t.id} onClick={() => setSelected(t)} style={{ position: "absolute", left: `${leftPct}%`, top: topPx,
+                            transform: "translate(-50%,-100%)", zIndex: 10 + r, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <div style={{ animation: t.reading ? "cs-sway 2.6s ease-in-out infinite" : "none", transformOrigin: "bottom center" }}>
+                              <Tree stage={t.stage} size={72 * rowScale} reading={t.reading} accessories={t.accessories} /></div>
+                            <div style={{ marginTop: 1, background: t.me ? "#fff" : "#ffffffcc", border: t.me ? `2px solid ${C.gold}` : "1px solid #fff",
+                              borderRadius: 10, padding: "1px 7px", textAlign: "center", boxShadow: "0 2px 4px #0000000f" }}>
+                              <div className="cs-hand" style={{ fontSize: 13.5, lineHeight: 1.15, color: C.greenDk }}>{t.nick}</div>
+                              <div style={{ fontSize: 8.5, color: C.inkSoft, lineHeight: 1.1, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {t.book}{t.completedBooks > 0 ? ` 🍎${t.completedBooks}` : ""}</div>
+                              {t.reading && <div style={{ fontSize: 8, color: C.green, animation: "cs-shimmer 1.4s infinite" }}>독서중…</div>}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })}
                   </div>
                   <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿</div>
                 </>
