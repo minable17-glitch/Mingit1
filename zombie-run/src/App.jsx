@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import GameMap from './GameMap.jsx'
-import { haversineDistance, moveToward, randomPointNear } from './lib/geo.js'
+import { advanceAlongPath, haversineDistance, moveToward, randomPointNear } from './lib/geo.js'
+import { fetchWalkingPath } from './lib/routing.js'
+
+// OpenRouteService 키가 있으면 좀비가 실제 도로/인도 경로를 따라 쫓아오고,
+// 없으면(또는 요청 실패 시) 자동으로 직선 이동으로 대체됨
+const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY
+const REROUTE_INTERVAL_MS = 15000 // 좀비 하나당 최소 이 간격마다만 경로 재요청
+const REROUTE_MIN_TARGET_SHIFT_M = 60 // 마지막으로 경로를 요청했을 때보다 플레이어가 이만큼 움직이면 재요청
 
 const CATCH_RADIUS_M = 12 // 이 거리 안으로 좀비가 들어오면 붙잡힘
 const SHOOT_RADIUS_M = 35 // 이 거리 안의 좀비만 탭해서 처치 가능
@@ -97,6 +104,10 @@ export default function App() {
         lat: p.lat,
         lon: p.lon,
         speed: game.targetPaceMps * (0.9 + Math.random() * 0.2), // 목표 페이스 ±10% 편차 (1틱=1초라 그대로 스텝 거리로 씀)
+        path: null, // 도로 경로 좌표 배열 (아직 없으면 직선 이동)
+        pathFetchedFor: null, // 이 경로를 요청했을 때의 플레이어 위치
+        lastRouteAt: 0,
+        routing: false,
       })
     }
     game.zombies = [...game.zombies, ...spawned]
@@ -143,9 +154,37 @@ export default function App() {
 
     if (!frozen && game.playerPos && game.zombies.length) {
       game.zombies = game.zombies.map((z) => {
+        if (z.path && z.path.length > 1) {
+          const { pos, path } = advanceAlongPath(z.path, z.speed)
+          return { ...z, lat: pos.lat, lon: pos.lon, path }
+        }
         const next = moveToward(z.lat, z.lon, game.playerPos.lat, game.playerPos.lon, z.speed)
         return { ...z, lat: next.lat, lon: next.lon }
       })
+
+      // 레이트리밋을 지키려고 틱마다 최대 한 마리씩만 경로 재요청 (안 되면 그동안 직선 이동으로 대체됨)
+      const needsRoute = game.zombies.find((z) => {
+        if (z.routing) return false
+        const stale = now - z.lastRouteAt > REROUTE_INTERVAL_MS
+        const shifted = !z.pathFetchedFor ||
+          haversineDistance(z.pathFetchedFor.lat, z.pathFetchedFor.lon, game.playerPos.lat, game.playerPos.lon) >
+            REROUTE_MIN_TARGET_SHIFT_M
+        return stale || shifted
+      })
+      if (needsRoute && ORS_API_KEY) {
+        const targetId = needsRoute.id
+        const targetPos = { lat: game.playerPos.lat, lon: game.playerPos.lon }
+        const fromPos = { lat: needsRoute.lat, lon: needsRoute.lon }
+        game.zombies = game.zombies.map((z) => (z.id === targetId ? { ...z, routing: true } : z))
+        fetchWalkingPath(ORS_API_KEY, fromPos, targetPos).then((path) => {
+          game.zombies = game.zombies.map((z) => {
+            if (z.id !== targetId) return z
+            if (path) return { ...z, path, pathFetchedFor: targetPos, lastRouteAt: Date.now(), routing: false }
+            return { ...z, routing: false, lastRouteAt: Date.now() }
+          })
+          rerender()
+        })
+      }
     }
 
     if (game.playerPos && game.zombies.length) {
@@ -156,7 +195,7 @@ export default function App() {
         if (d < CATCH_RADIUS_M) {
           caught = true
           const far = randomPointNear(game.playerPos.lat, game.playerPos.lon, 90, 160)
-          survivors.push({ ...z, lat: far.lat, lon: far.lon })
+          survivors.push({ ...z, lat: far.lat, lon: far.lon, path: null, pathFetchedFor: null, lastRouteAt: 0 })
         } else {
           survivors.push(z)
         }

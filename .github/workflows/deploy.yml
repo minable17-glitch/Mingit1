@@ -40,6 +40,9 @@ jobs:
         working-directory: zombie-run
         env:
           GH_PAGES: "1"
+          # 좀비 도로 경로 계산용 OpenRouteService 키 (Settings → Secrets and variables → Actions에 등록)
+          # 없어도 빌드는 되고, 좀비가 도로 대신 직선으로 쫓아오는 것으로만 자연스럽게 대체됨
+          VITE_ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
       - run: cp -r zombie-run/dist dist/zombie-run
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

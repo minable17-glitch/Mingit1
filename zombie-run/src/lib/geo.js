@@ -59,3 +59,22 @@ export function moveToward(fromLat, fromLon, toLat, toLon, stepMeters) {
   const brng = bearingTo(fromLat, fromLon, toLat, toLon)
   return destinationPoint(fromLat, fromLon, stepMeters, brng)
 }
+
+// {lat,lon} 배열로 된 경로를 distanceMeters만큼 따라 이동.
+// 새 위치와, 그 지점부터 남은 경로(먼저 지나온 구간은 잘라낸)를 반환 (도로 경로를 따라가는 좀비 이동용)
+export function advanceAlongPath(path, distanceMeters) {
+  let remaining = distanceMeters
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i]
+    const b = path[i + 1]
+    const segDist = haversineDistance(a.lat, a.lon, b.lat, b.lon)
+    if (segDist >= remaining) {
+      const t = segDist === 0 ? 0 : remaining / segDist
+      const pos = { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t }
+      return { pos, path: [pos, ...path.slice(i + 1)] }
+    }
+    remaining -= segDist
+  }
+  const last = path[path.length - 1]
+  return { pos: last, path: [last] }
+}
