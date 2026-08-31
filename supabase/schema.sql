@@ -44,6 +44,7 @@ create table if not exists students (
   auth_user_id uuid,
   total_days int not null default 0,
   communal_minutes int not null default 0,
+  total_pages int not null default 0, -- 지금까지 읽은 페이지 수 누적 (다독왕 집계용)
   accessory_counts jsonb not null default '{}'::jsonb, -- 자유롭게 읽기로 번 악세서리 보유 개수 {"apple": 2, ...}
   equipped_accessories jsonb not null default '[]'::jsonb, -- 지금 내 나무에 달아놓은 악세서리 (최대 4개)
   created_at timestamptz not null default now(),
@@ -67,6 +68,7 @@ create table if not exists logs (
   book_id uuid references books(id) on delete set null,
   log_date date not null default current_date,
   minutes int not null default 10,
+  pages int, -- 오늘 읽은 페이지 수 (선택 입력)
   note text not null,
   ocr_excerpt text,
   overflow_minutes int not null default 0,
@@ -105,7 +107,8 @@ declare
 begin
   update students
     set total_days = total_days + 1,
-        communal_minutes = communal_minutes + v_overflow
+        communal_minutes = communal_minutes + v_overflow,
+        total_pages = total_pages + coalesce(new.pages, 0)
     where students.id = new.student_id;
 
   perform grant_accessories(new.student_id, floor(v_overflow / 10.0)::int);
@@ -646,11 +649,13 @@ language sql security definer set search_path = public, extensions as $$
        where s.class_id = p_class_id and l.log_date = current_date),
     (select count(*)::int from students where class_id = p_class_id),
     coalesce((
+      -- 챌린지가 다시 시작되면(start_date 초기화) 그 날짜 이후 기록만 진행률에 반영됨
       select round(avg(least(days, c.challenge_days)) / max(c.challenge_days) * 100)
       from (
         select student_id, count(*) as days
         from logs l join students s on s.id = l.student_id
-        where s.class_id = p_class_id
+        join classes cc on cc.id = s.class_id
+        where s.class_id = p_class_id and l.log_date >= cc.start_date
         group by student_id
       ) t, classes c
       where c.id = p_class_id

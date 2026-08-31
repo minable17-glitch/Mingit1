@@ -393,6 +393,7 @@ export default function App() {
   const ocrInputRef = useRef(null);
   const [secs, setSecs] = useState(600);
   const [note, setNote] = useState("");
+  const [pageCount, setPageCount] = useState("");
   const [toast, setToast] = useState("");
   const [classProgress, setClassProgress] = useState({ joined_today: 0, total_students: 1, class_pct: 0 });
   const [bloomPulse, setBloomPulse] = useState(false);
@@ -441,7 +442,7 @@ export default function App() {
     if (role === "student" && studentInfo?.id) {
       getTodayLog(studentInfo.id).then((l) => setDoneToday(!!l)).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes })));
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
@@ -490,6 +491,7 @@ export default function App() {
           nick: s.nickname,
           totalDays: s.total_days,
           communalMinutes: s.communal_minutes || 0,
+          totalPages: s.total_pages || 0,
           completedBooks: completedCounts[s.id] || 0,
           cheersSent: cheerCounts[s.id] || 0,
         }))
@@ -807,7 +809,7 @@ export default function App() {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes })));
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
     } catch (e) {
       showToast(e.message || "저장에 실패했어요.");
@@ -878,9 +880,10 @@ export default function App() {
   const submit = async () => {
     if (note.trim().length < MIN_NOTE_LENGTH) return;
     const savedNote = note.trim();
+    const savedPages = pageCount.trim() ? Math.max(0, parseInt(pageCount, 10) || 0) : null;
     if (role !== "student" || !studentInfo?.id) {
       // 선생님 계정은 체험용으로만 동작 (실제 저장 없음)
-      setReflecting(false); setNote(""); setDoneToday(true); setBloomPulse(true);
+      setReflecting(false); setNote(""); setPageCount(""); setDoneToday(true); setBloomPulse(true);
       setTab("forest");
       showToast("선생님 계정에서는 기록이 저장되지 않아요 (체험용)");
       setTimeout(() => setBloomPulse(false), 1400);
@@ -895,10 +898,11 @@ export default function App() {
         minutes: sessionMinutes,
         note: savedNote,
         overflowMinutes,
+        pages: savedPages,
       });
-      setReflecting(false); setNote("");
+      setReflecting(false); setNote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes }, ...l]);
+      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes, pages: savedPages }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
       showToast(overflowMinutes > 0
@@ -1103,11 +1107,24 @@ export default function App() {
     setCustomTargetMinutes("");
   };
 
+  const handleResetChallenge = async () => {
+    if (!classInfo?.id) return;
+    if (!window.confirm(`오늘부터 새로운 ${challengeDays}일 챌린지를 다시 시작할까요?\n학생들의 나무와 기록은 그대로 유지되고, "우리 반 숲" 진행률과 D-day만 오늘 기준으로 초기화돼요.`)) return;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const updated = await updateClassSettings(classInfo.id, { startDate: today });
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+      refreshClassProgress(classInfo.id);
+      showToast("챌린지를 오늘부터 다시 시작했어요! 🌱");
+    } catch (e) { showToast(e.message || "챌린지 재시작에 실패했어요."); }
+  };
+
   const exportExcel = () => {
     try {
       const daily = teacherLogs.map((l) => ({
         닉네임: l.students?.nickname || "", 날짜: formatLogDate(l.log_date), 책제목: l.books?.title || "",
-        "읽은시간(분)": l.minutes, 느낀점: l.note, 완료: "O",
+        "읽은시간(분)": l.minutes, "읽은페이지수": l.pages ?? "", 느낀점: l.note, 완료: "O",
       }));
       const summary = teacherStats.map((s) => ({ 닉네임: s.nick, 완료일수: s.days, "총 독서시간(분)": s.min, 완독권수: s.done }));
       const wb = XLSX.utils.book_new();
@@ -1128,6 +1145,11 @@ export default function App() {
     .sort((a, b) => b.totalDays - a.totalDays)
     .slice(0, 3)
     .map((s) => ({ nick: s.nick, days: s.totalDays }));
+  const topBooks = [...badgeStats]
+    .filter((s) => s.completedBooks > 0)
+    .sort((a, b) => b.completedBooks - a.completedBooks)
+    .slice(0, 3)
+    .map((s) => ({ nick: s.nick, count: s.completedBooks }));
 
   const topByKey = (key) => {
     const top = [...badgeStats].sort((a, b) => b[key] - a[key])[0];
@@ -1138,6 +1160,7 @@ export default function App() {
     { icon: "☀️", title: "햇살 요정", holder: topByKey("cheersSent"), detail: (s) => `응원 ${s.cheersSent}번 보냄` },
     { icon: "💧", title: "물조리개 대장", holder: topByKey("communalMinutes"), detail: (s) => `우리 반 나무 +${s.communalMinutes}분` },
     { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
+    { icon: "📖", title: "다독왕", holder: topByKey("totalPages"), detail: (s) => `누적 ${s.totalPages}쪽 읽음` },
   ];
   const daysSinceStart = classInfo?.start_date
     ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
@@ -1668,7 +1691,7 @@ export default function App() {
                         <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #eee5d3" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
-                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}</span>
+                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
                           </div>
                           <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{e.note}”</div>
                         </div>
@@ -1759,6 +1782,16 @@ export default function App() {
                       <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < topDays.length - 1 ? "1px dashed #eee5d3" : "none" }}>
                         <span style={{ fontSize: 14 }}>{["🥇", "🥈", "🥉"][i]} <span className="cs-hand" style={{ fontSize: 17, color: C.ink }}>{s.nick}</span></span>
                         <span style={{ fontSize: 12.5, color: C.inkSoft }}>누적 {s.days}일</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, background: "#fff", borderRadius: 16, padding: "14px 16px", border: "1px solid #eee5d3" }}>
+                    <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 8 }}>🍎 완독왕 TOP 3</div>
+                    {topBooks.length === 0 && <div style={{ fontSize: 12.5, color: C.inkSoft, padding: "6px 0" }}>아직 완독한 책이 없어요.</div>}
+                    {topBooks.map((s, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < topBooks.length - 1 ? "1px dashed #eee5d3" : "none" }}>
+                        <span style={{ fontSize: 14 }}>{["🥇", "🥈", "🥉"][i]} <span className="cs-hand" style={{ fontSize: 17, color: C.ink }}>{s.nick}</span></span>
+                        <span style={{ fontSize: 12.5, color: C.inkSoft }}>{s.count}권 완독</span>
                       </div>
                     ))}
                   </div>
@@ -1971,6 +2004,11 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>
                   "우리 반 숲" 진행률, D-day 표시, 나무가 자라는 속도가 모두 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>
+                <button onClick={handleResetChallenge} style={{ width: "100%", marginTop: 10, padding: 11, borderRadius: 10,
+                  border: `1px dashed ${C.gold}`, background: "#fff9ec", color: C.gold, fontSize: 13, cursor: "pointer" }} className="cs-jua">
+                  🔄 챌린지 오늘부터 다시 시작</button>
+                <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 6 }}>
+                  D-day와 "우리 반 숲" 진행률만 오늘부터 새로 시작돼요. 학생들이 키운 나무·기록·완독은 그대로 남아요.</div>
               </div>
 
               {/* 학생 요약 미리보기 */}
@@ -2131,6 +2169,13 @@ export default function App() {
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
               <div style={{ fontSize: 11, color: note.trim().length >= MIN_NOTE_LENGTH ? C.green : "#c98a8a", textAlign: "right", marginTop: 4 }}>
                 {note.trim().length}/{MIN_NOTE_LENGTH}자 이상</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                <label style={{ fontSize: 13, color: C.inkSoft, whiteSpace: "nowrap" }}>오늘 읽은 페이지 수 (선택)</label>
+                <input type="number" inputMode="numeric" min="0" value={pageCount}
+                  onChange={(e) => setPageCount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="예: 20"
+                  style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2", fontSize: 14,
+                    fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
+              </div>
               <button onClick={submit} disabled={note.trim().length < MIN_NOTE_LENGTH || submitBusy} className="cs-jua" style={{ width: "100%", marginTop: 10, padding: 15, borderRadius: 16,
                 border: "none", fontSize: 17, color: "#fff", cursor: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? "pointer" : "not-allowed",
                 background: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe",
