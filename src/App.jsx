@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
+import forestBg from "./assets/forest-bg.jpg";
 import {
   createClass, studentLogin, logout as apiLogout,
   getClassById, updateClassSettings, getClassProgress,
@@ -201,73 +202,6 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false, access
           return <text key={type} x={50 + dx * R} y={cy + dy * R} fontSize={Math.max(10, R * 0.55)} textAnchor="middle" dominantBaseline="middle">{info.emoji}</text>;
         })}</>)}
       {reading && <g className="cs-drip"><path d="M50 20 q3.2 5 0 8.4 q-3.2 -3.4 0 -8.4 z" fill={C.water} /></g>}
-    </svg>
-  );
-}
-
-// 정원 배경 꾸미기 — 언덕·구름·잔디 빈터·들꽃·버섯·풀숲·조약돌
-function Scenery() {
-  const flowers = [
-    { x: 55, y: 352, c: "#F79FB5", s: 1.1 }, { x: 112, y: 388, c: "#FBD968", s: 1.2 },
-    { x: 384, y: 360, c: "#F79FB5", s: 1.1 }, { x: 412, y: 390, c: "#C6A8F0", s: 1.1 },
-    { x: 28, y: 392, c: "#FBD968", s: 1 }, { x: 225, y: 406, c: "#F79FB5", s: 1.1 },
-    { x: 305, y: 398, c: "#C6A8F0", s: 1 }, { x: 158, y: 406, c: "#FBD968", s: 0.95 },
-    { x: 350, y: 392, c: "#9BD187", s: 0.9 },
-  ];
-  const tufts = [{ x: 88, y: 372 }, { x: 150, y: 398 }, { x: 262, y: 392 }, { x: 332, y: 382 },
-    { x: 402, y: 402 }, { x: 44, y: 372 }, { x: 200, y: 400 }, { x: 365, y: 372 }];
-  const mush = [{ x: 72, y: 402, s: 1 }, { x: 352, y: 406, s: 1.1 }];
-  const peb = [{ x: 132, y: 410 }, { x: 292, y: 406 }, { x: 245, y: 412 }];
-  return (
-    <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }}
-      viewBox="0 0 440 412" preserveAspectRatio="none">
-      <defs>
-        <radialGradient id="grass" cx="50%" cy="42%" r="70%">
-          <stop offset="0%" stopColor="#D9EDAF" /><stop offset="100%" stopColor="#A6CD77" />
-        </radialGradient>
-      </defs>
-      {[[78, 58, 1], [352, 92, 0.85]].map((c, i) => (
-        <g key={"cl" + i} opacity="0.9">
-          <ellipse cx={c[0]} cy={c[1]} rx={26 * c[2]} ry={15 * c[2]} fill="#fff" />
-          <ellipse cx={c[0] + 22 * c[2]} cy={c[1] + 3 * c[2]} rx={20 * c[2]} ry={13 * c[2]} fill="#fff" />
-          <ellipse cx={c[0] - 20 * c[2]} cy={c[1] + 4 * c[2]} rx={17 * c[2]} ry={11 * c[2]} fill="#fff" />
-        </g>
-      ))}
-      <ellipse cx="120" cy="360" rx="210" ry="95" fill="#BCDD8F" />
-      <ellipse cx="360" cy="372" rx="200" ry="90" fill="#B0D682" />
-      <ellipse cx="220" cy="398" rx="248" ry="120" fill="url(#grass)" />
-      <ellipse cx="205" cy="330" rx="150" ry="40" fill="#DDF0B4" opacity="0.5" />
-      <ellipse cx="220" cy="250" rx="66" ry="13" fill="#3f7e4e" opacity="0.12" />
-      {[[24, 336, 1], [420, 346, 1.1]].map((b, i) => (
-        <g key={"bs" + i}>
-          <circle cx={b[0]} cy={b[1]} r={20 * b[2]} fill={C.leafD} />
-          <circle cx={b[0] - 16 * b[2]} cy={b[1] + 6 * b[2]} r={15 * b[2]} fill={C.leafM} />
-          <circle cx={b[0] + 16 * b[2]} cy={b[1] + 6 * b[2]} r={15 * b[2]} fill={C.leafM} />
-          <circle cx={b[0]} cy={b[1] + 8 * b[2]} r={15 * b[2]} fill={C.leafL} />
-        </g>
-      ))}
-      {tufts.map((t, i) => (
-        <g key={"tf" + i} stroke={C.leafD} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.8">
-          <path d={`M${t.x} ${t.y} q-3 -8 -4 -12`} /><path d={`M${t.x} ${t.y} q0 -9 0 -14`} /><path d={`M${t.x} ${t.y} q3 -8 4 -12`} />
-        </g>
-      ))}
-      {peb.map((p, i) => <ellipse key={"pb" + i} cx={p.x} cy={p.y} rx="6" ry="3.4" fill="#C9C3B2" />)}
-      {mush.map((m, i) => (
-        <g key={"ms" + i}>
-          <rect x={m.x - 2.4 * m.s} y={m.y - 2} width={4.8 * m.s} height={9 * m.s} rx={2 * m.s} fill="#FBF3E2" />
-          <ellipse cx={m.x} cy={m.y - 2} rx={7 * m.s} ry={5 * m.s} fill="#E8776E" />
-          <circle cx={m.x - 2.5 * m.s} cy={m.y - 3 * m.s} r={1.2 * m.s} fill="#fff" />
-          <circle cx={m.x + 2 * m.s} cy={m.y - 2 * m.s} r={1 * m.s} fill="#fff" />
-        </g>
-      ))}
-      {flowers.map((f, i) => (
-        <g key={"fw" + i}>
-          <rect x={f.x - 0.6} y={f.y} width="1.2" height={9 * f.s} fill={C.leafD} opacity="0.6" />
-          {[0, 60, 120, 180, 240, 300].map((a) => { const r = (a * Math.PI) / 180;
-            return <circle key={a} cx={f.x + Math.cos(r) * 3.2 * f.s} cy={f.y + Math.sin(r) * 3.2 * f.s} r={2.3 * f.s} fill={f.c} />; })}
-          <circle cx={f.x} cy={f.y} r={1.9 * f.s} fill="#FBD968" />
-        </g>
-      ))}
     </svg>
   );
 }
@@ -1252,7 +1186,6 @@ export default function App() {
         @keyframes cs-sway { 0%,100%{transform:rotate(-1.5deg)} 50%{transform:rotate(1.5deg)} }
         @keyframes cs-pulse { 0%,100%{transform:translateX(-50%) scale(1)} 50%{transform:translateX(-50%) scale(1.05)} }
         @keyframes cs-shimmer { 0%,100%{opacity:.45} 50%{opacity:1} }
-        @keyframes cs-sun { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
         @keyframes cs-up { from{transform:translateY(100%)} to{transform:translateY(0)} }
         @keyframes cs-float { 0%,100%{transform:translate(0,0) rotate(-6deg)} 50%{transform:translate(12px,-16px) rotate(8deg)} }
         .cs-drip { animation: cs-drip 1.3s ease-in infinite; }
@@ -1545,10 +1478,8 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
-                  <div style={{ position: "relative", height: forestHeight, marginTop: 4, overflow: "hidden" }}>
-                    <div style={{ position: "absolute", top: 6, right: 22, animation: "cs-sun 6s ease-in-out infinite" }}>
-                      <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="27" fill={C.sun} opacity="0.24" /><circle cx="30" cy="30" r="17" fill={C.sun} /></svg></div>
-                    <Scenery />
+                  <div style={{ position: "relative", height: forestHeight, marginTop: 4, overflow: "hidden",
+                    backgroundImage: `url(${forestBg})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}>
                     <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
                     <div style={{ position: "absolute", right: "12%", top: "44%", fontSize: 15, zIndex: 40, animation: "cs-float 7s ease-in-out infinite .8s" }}>🦋</div>
                     {forestRows.map((row, r) => {
