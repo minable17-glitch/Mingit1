@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - claude/saesak-book-app-gsi00u
+      - claude/game-development-approach-xupoj6
   workflow_dispatch:
 
 permissions:
@@ -32,6 +33,14 @@ jobs:
           # (실제 접근 제어는 데이터베이스의 Row Level Security 정책이 담당합니다.)
           VITE_SUPABASE_URL: https://ikljkokebcqaxpctcjpy.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_uXUn0fgJxfvbKdqguQ9SYg_bwhRpdJF
+      # 완전히 별도 프로젝트인 좀비 런 게임을 /zombie-run/ 경로에 함께 배포 (새싹책방 빌드에는 영향 없음)
+      - run: npm ci
+        working-directory: zombie-run
+      - run: npm run build
+        working-directory: zombie-run
+        env:
+          GH_PAGES: "1"
+      - run: cp -r zombie-run/dist dist/zombie-run
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
