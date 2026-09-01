@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - claude/saesak-book-app-gsi00u
-      - claude/game-development-approach-xupoj6
   workflow_dispatch:
 
 permissions:
