@@ -72,6 +72,15 @@ export async function deleteLog(logId) {
   if (error) throw error;
 }
 
+export async function updateTodayLog(logId, { note, ocrExcerpt = null }) {
+  const { error } = await supabase.rpc('student_update_today_log', {
+    p_log_id: logId,
+    p_note: note,
+    p_ocr_excerpt: ocrExcerpt,
+  });
+  if (error) throw error;
+}
+
 export async function verifyStudentPin(pin) {
   const { data, error } = await supabase.rpc('student_verify_pin', { p_pin: pin });
   if (error) throw error;

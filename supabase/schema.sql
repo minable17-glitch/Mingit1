@@ -635,6 +635,30 @@ $$;
 
 grant execute on function teacher_delete_log(uuid) to anon, authenticated;
 
+-- 학생이 오늘 이미 제출한 느낀점/인상 깊은 구절을 다시 고쳐 쓸 수 있게 함.
+-- 읽은 시간·페이지수 등 다른 값에 영향을 주는 항목은 여기서 바꿀 수 없고,
+-- 오늘 날짜 기록만(지난 기록은 불가) 본인 것만 고칠 수 있음
+create or replace function student_update_today_log(p_log_id uuid, p_note text, p_ocr_excerpt text)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if length(trim(coalesce(p_note, ''))) < 10 then
+    raise exception '느낀점은 최소 10자 이상 적어주세요';
+  end if;
+
+  update logs set note = trim(p_note), ocr_excerpt = nullif(trim(coalesce(p_ocr_excerpt, '')), '')
+    where logs.id = p_log_id
+      and logs.log_date = current_date
+      and logs.student_id in (select id from students where auth_user_id = auth.uid());
+
+  if not found then
+    raise exception '오늘 작성한 본인 기록만 수정할 수 있어요';
+  end if;
+end;
+$$;
+
+grant execute on function student_update_today_log(uuid, text, text) to anon, authenticated;
+
 -- 오늘 이미 기록을 남긴 뒤에도, 자유롭게 더 읽으면 그 시간만큼 오늘 기록에 더해줌
 -- (하루 인정 상한 DAILY_CAP_MINUTES=40분까지만, 10분마다 악세서리도 함께 줌)
 create or replace function add_bonus_reading(p_extra_minutes int)

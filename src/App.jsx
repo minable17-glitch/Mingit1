@@ -10,7 +10,7 @@ import {
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
-  changeTeacherPassword, deleteStudent, deleteClass, deleteLog, verifyStudentPin, changeStudentPin,
+  changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge,
 } from "./lib/api";
@@ -469,6 +469,10 @@ export default function App() {
   const [customTargetMinutes, setCustomTargetMinutes] = useState("");
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
+  const [editingLog, setEditingLog] = useState(null); // { id, note, quote } — 오늘 기록 수정 중
+  const [editNoteText, setEditNoteText] = useState("");
+  const [editQuoteText, setEditQuoteText] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
   const [pin, setPin] = useState("");
   const [myLog, setMyLog] = useState([]);
   const [teacherLogs, setTeacherLogs] = useState([]);
@@ -515,7 +519,7 @@ export default function App() {
         }
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ id: l.id, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
@@ -978,7 +982,7 @@ export default function App() {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ id: l.id, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
     } catch (e) {
       showToast(e.message || "저장에 실패했어요.");
@@ -1071,7 +1075,7 @@ export default function App() {
     setSubmitBusy(true);
     try {
       const overflowMinutes = Math.max(0, Math.min(sessionMinutes, DAILY_CAP_MINUTES) - dailyTargetMinutes);
-      await submitLog({
+      const saved = await submitLog({
         studentId: studentInfo.id,
         bookId: currentBook?.id ?? null,
         minutes: sessionMinutes,
@@ -1083,7 +1087,7 @@ export default function App() {
       clearPendingReflection(studentInfo.id);
       setReflecting(false); setNote(""); setQuote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
+      setMyLog((l) => [{ id: saved.id, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
       showToast(overflowMinutes > 0
@@ -1162,6 +1166,33 @@ export default function App() {
       showToast("기록을 삭제했어요.");
     } catch (e) {
       showToast(e.message || "삭제에 실패했어요.");
+    }
+  };
+
+  const handleOpenEditLog = (log) => {
+    setEditingLog(log);
+    setEditNoteText(log.note || "");
+    setEditQuoteText(log.quote || "");
+  };
+
+  const handleSaveEditLog = async () => {
+    if (!editingLog?.id) return;
+    if (editNoteText.trim().length < MIN_NOTE_LENGTH) {
+      showToast(`느낀점은 최소 ${MIN_NOTE_LENGTH}자 이상 적어주세요.`);
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const savedNote = editNoteText.trim();
+      const savedQuote = editQuoteText.trim() || null;
+      await updateTodayLog(editingLog.id, { note: savedNote, ocrExcerpt: savedQuote });
+      setMyLog((list) => list.map((l) => (l.id === editingLog.id ? { ...l, note: savedNote, quote: savedQuote } : l)));
+      setEditingLog(null);
+      showToast("오늘의 기록을 수정했어요 ✏️");
+    } catch (e) {
+      showToast(e.message || "수정에 실패했어요.");
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -1935,9 +1966,15 @@ export default function App() {
                       )}
                       {myLog.map((e, i) => (
                         <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #eee5d3" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
-                            <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
+                              {e.date === "오늘" && e.id && role === "student" && (
+                                <button onClick={() => handleOpenEditLog(e)} style={{ border: "none", background: "transparent",
+                                  color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>✏️ 수정</button>
+                              )}
+                            </div>
                           </div>
                           {e.quote && (
                             <div style={{ fontSize: 12.5, color: C.greenDk, lineHeight: 1.5, marginBottom: 6, fontStyle: "italic" }}>
@@ -2478,6 +2515,40 @@ export default function App() {
               <button onClick={() => setShowGuide(false)} className="cs-jua" style={{ marginTop: 14, padding: 13, borderRadius: 14,
                 border: "none", fontSize: 15, color: "#fff", cursor: "pointer", flexShrink: 0,
                 background: `linear-gradient(${C.green}, ${C.greenDk})` }}>확인했어요</button>
+            </div>
+          </div>
+        )}
+
+        {/* 오늘의 기록 수정 */}
+        {editingLog && (
+          <div onClick={() => !editBusy && setEditingLog(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
+              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 기록 수정 ✏️</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점과 인상 깊은 구절만 고칠 수 있어요. (오늘 기록만 가능)</div>
+
+              <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
+              <textarea value={editQuoteText} onChange={(e) => setEditQuoteText(e.target.value)} placeholder="마음에 남는 문장을 적어보세요"
+                style={{ width: "100%", minHeight: 56, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 14.5,
+                  fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff", marginBottom: 16 }} />
+
+              <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>✏️ 오늘의 소감</div>
+              <textarea value={editNoteText} onChange={(e) => setEditNoteText(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
+                style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
+                  fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
+              <div style={{ fontSize: 11, color: editNoteText.trim().length >= MIN_NOTE_LENGTH ? C.green : "#c98a8a", textAlign: "right", marginTop: 4 }}>
+                {editNoteText.trim().length}/{MIN_NOTE_LENGTH}자 이상</div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button onClick={() => setEditingLog(null)} disabled={editBusy} style={{ flex: 1, padding: 14, borderRadius: 14,
+                  border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 15, cursor: editBusy ? "default" : "pointer" }}>취소</button>
+                <button onClick={handleSaveEditLog} disabled={editNoteText.trim().length < MIN_NOTE_LENGTH || editBusy} className="cs-jua"
+                  style={{ flex: 1, padding: 14, borderRadius: 14, border: "none", fontSize: 15, color: "#fff",
+                    cursor: editNoteText.trim().length >= MIN_NOTE_LENGTH && !editBusy ? "pointer" : "not-allowed",
+                    background: editNoteText.trim().length >= MIN_NOTE_LENGTH && !editBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe" }}>
+                  {editBusy ? "저장 중..." : "저장하기"}</button>
+              </div>
             </div>
           </div>
         )}
