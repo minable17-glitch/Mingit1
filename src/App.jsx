@@ -21,7 +21,7 @@ import { getSession, setSession, clearSession, getReadingProgress, setReadingPro
   getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername,
   getCheersSeenAt, setCheersSeenAt,
   getPendingReflection, setPendingReflection, clearPendingReflection } from "./lib/session";
-import { todayKST } from "./lib/date";
+import { todayKST, addDaysToDateString, daysBetweenDateStrings } from "./lib/date";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
@@ -467,6 +467,8 @@ export default function App() {
   const [showFeelings, setShowFeelings] = useState(false);
   const [customChallengeDays, setCustomChallengeDays] = useState("");
   const [customTargetMinutes, setCustomTargetMinutes] = useState("");
+  const [dateRangeStart, setDateRangeStart] = useState("");
+  const [dateRangeEnd, setDateRangeEnd] = useState("");
   const [pin, setPin] = useState("");
   const [myLog, setMyLog] = useState([]);
   const [teacherLogs, setTeacherLogs] = useState([]);
@@ -549,6 +551,13 @@ export default function App() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, classInfo?.id, role, studentInfo?.id]);
+
+  // 반 관리 화면의 "시작일~종료일로 직접 정하기"에 현재 설정된 기간을 기본값으로 채워둠
+  useEffect(() => {
+    if (!classInfo?.start_date || !classInfo?.challenge_days) return;
+    setDateRangeStart(classInfo.start_date);
+    setDateRangeEnd(addDaysToDateString(classInfo.start_date, classInfo.challenge_days - 1));
+  }, [classInfo?.start_date, classInfo?.challenge_days]);
 
   const classmatesRef = useRef([]);
   useEffect(() => { classmatesRef.current = classmates; }, [classmates]);
@@ -1281,6 +1290,21 @@ export default function App() {
     if (!d || d < 1 || d > 365) { showToast("1~365 사이의 숫자를 입력해주세요."); return; }
     handleUpdateChallengeDays(d);
     setCustomChallengeDays("");
+  };
+
+  const handleApplyDateRange = async () => {
+    if (!classInfo?.id) return;
+    if (!dateRangeStart || !dateRangeEnd) { showToast("시작일과 종료일을 모두 선택해주세요."); return; }
+    const days = daysBetweenDateStrings(dateRangeStart, dateRangeEnd);
+    if (days < 1) { showToast("종료일은 시작일과 같거나 이후여야 해요."); return; }
+    if (days > 365) { showToast("챌린지 기간은 365일을 넘을 수 없어요."); return; }
+    try {
+      const updated = await updateClassSettings(classInfo.id, { startDate: dateRangeStart, challengeDays: days });
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+      refreshClassProgress(classInfo.id);
+      showToast(`챌린지 기간을 ${dateRangeStart} ~ ${dateRangeEnd}(${days}일)로 설정했어요!`);
+    } catch (e) { showToast(e.message || "설정 저장에 실패했어요."); }
   };
 
   const handleApplyCustomTargetMinutes = () => {
@@ -2251,6 +2275,18 @@ export default function App() {
                       border: "1.5px solid #d9d2c2", fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
                   <button onClick={handleApplyCustomChallengeDays} className="cs-jua" style={{ border: "none", background: C.greenDk,
                     color: "#fff", borderRadius: 10, padding: "9px 14px", fontSize: 13, cursor: "pointer" }}>적용</button>
+                </div>
+                <div style={{ fontSize: 11.5, color: C.inkSoft, margin: "10px 0 6px" }}>또는 시작일 ~ 종료일로 직접 정하기</div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="date" value={dateRangeStart} onChange={(e) => setDateRangeStart(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, padding: "9px 8px", borderRadius: 10, border: "1.5px solid #d9d2c2",
+                      fontSize: 12.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                  <span style={{ color: C.inkSoft, fontSize: 12.5 }}>~</span>
+                  <input type="date" value={dateRangeEnd} onChange={(e) => setDateRangeEnd(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, padding: "9px 8px", borderRadius: 10, border: "1.5px solid #d9d2c2",
+                      fontSize: 12.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
+                  <button onClick={handleApplyDateRange} className="cs-jua" style={{ border: "none", background: C.greenDk,
+                    color: "#fff", borderRadius: 10, padding: "9px 12px", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>적용</button>
                 </div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 8 }}>
                   "우리 반 숲" 진행률, D-day 표시, 나무가 자라는 속도가 모두 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>

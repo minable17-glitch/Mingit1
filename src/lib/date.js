@@ -5,3 +5,20 @@ export function todayKST() {
   const kstMs = Date.now() + 9 * 60 * 60 * 1000;
   return new Date(kstMs).toISOString().slice(0, 10);
 }
+
+// "YYYY-MM-DD" 문자열끼리 순수하게 날짜 계산만 함 (실제 시각·시간대와 무관하게
+// 달력 날짜로만 다루기 위해 항상 UTC 기준 정수로 변환해서 계산함)
+export function addDaysToDateString(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+export function daysBetweenDateStrings(startStr, endStr) {
+  const [sy, sm, sd] = startStr.split('-').map(Number);
+  const [ey, em, ed] = endStr.split('-').map(Number);
+  const start = Date.UTC(sy, sm - 1, sd);
+  const end = Date.UTC(ey, em - 1, ed);
+  return Math.round((end - start) / 86400000) + 1;
+}
