@@ -530,6 +530,25 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
 
+  // 화면을 계속 켜둔 채로 자정을 넘기면(태블릿 거치 등) "오늘의 반 목표"·오늘 완료 여부·
+  // D-day가 그대로 멈춰있던 문제 — 날짜가 바뀐 걸 감지하면 새로 불러옴
+  const lastDateRef = useRef(new Date().toISOString().slice(0, 10));
+  useEffect(() => {
+    if (screen !== "main" || !classInfo?.id) return;
+    const checkDateRollover = () => {
+      const today = new Date().toISOString().slice(0, 10);
+      if (today === lastDateRef.current) return;
+      lastDateRef.current = today;
+      refreshClassProgress(classInfo.id);
+      if (role === "student" && studentInfo?.id) {
+        getTodayLog(studentInfo.id).then((l) => setDoneToday(!!l)).catch(() => {});
+      }
+    };
+    const t = setInterval(checkDateRollover, 60000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, classInfo?.id, role, studentInfo?.id]);
+
   const classmatesRef = useRef([]);
   useEffect(() => { classmatesRef.current = classmates; }, [classmates]);
 
