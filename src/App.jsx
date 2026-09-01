@@ -113,6 +113,25 @@ const C = {
 };
 const STAGE_NAME = ["씨앗", "새싹", "줄기", "잎", "꽃봉오리", "활짝 핀 꽃"];
 const COVERS = ["#F6C6C6", "#F7DEA6", "#BFE3C0", "#C6D8F6", "#E3C6F6", "#F6D9BF"];
+
+// 역할 선택 화면의 "사용법 보기"에 표시되는 안내 내용
+const GUIDE_TEACHER = [
+  { title: "1. 계정 만들기", body: "'선생님으로 시작'에서 아이디·비밀번호로 계정을 만들어요.\n이메일은 선택이지만, 비밀번호를 잊었을 때 필요하니 등록해두는 걸 추천해요." },
+  { title: "2. 반 만들기", body: "로그인 후 반 이름, 목표 참여율, 챌린지 시작일을 정하면\n'숲123456' 같은 6자리 반 코드가 자동으로 만들어져요." },
+  { title: "3. 학생에게 반 코드 알려주기", body: "학생들은 이 반 코드로 접속해서 닉네임을 등록해요.\n처음 로그인할 때 PIN은 기본 0000이고, 이후 학생이 직접 바꿀 수 있어요." },
+  { title: "4. 반 관리 화면에서 확인하기", body: "우측 상단(또는 하단 탭)의 '반 관리'에서 학생별 참여일수·시간·기록을 확인할 수 있어요.\n닉네임을 누르면 그 학생의 날짜별 기록을 보고, 필요하면 하나씩 삭제할 수 있어요.\nPIN을 잊은 학생은 여기서 초기화(0000)해줄 수 있어요." },
+  { title: "5. 참여율·목표 시간 설정 바꾸기", body: "반 관리 화면에서 목표 참여율, 하루 읽기 목표 시간, 챌린지 기간(일수)을 언제든 수정할 수 있어요." },
+  { title: "6. 챌린지 다시 시작하기", body: "새 학기나 새 챌린지를 시작할 때 '챌린지 오늘부터 다시 시작' 버튼을 누르면\n반 전체 진행률과 D-day만 초기화돼요. 학생들이 키운 나무와 기록은 그대로 남아요." },
+  { title: "7. 엑셀로 내려받기", body: "반 관리 화면에서 전체 기록을 엑셀 파일로 내려받아 보관하거나 학부모 안내에 활용할 수 있어요." },
+];
+const GUIDE_STUDENT = [
+  { title: "1. 반 코드로 들어가기", body: "'학생으로 참여'에서 선생님이 알려준 반 코드를 입력하고 닉네임을 골라요.\n처음 로그인할 때 PIN은 0000이고, 이후 원하는 번호로 바꿀 수 있어요." },
+  { title: "2. 오늘 읽을 책 정하기", body: "책 제목을 검색하거나, 책 표지를 사진으로 찍으면 자동으로 제목을 인식해줘요." },
+  { title: "3. 읽기 시작하기", body: "'목표 시간 채우기'는 정해진 시간을 다 채우면 자동으로 끝나고,\n'자유롭게 읽기'는 원하는 만큼 읽고 직접 끝낼 수 있어요.\n읽는 동안 화면을 벗어나면 타이머가 멈춰요." },
+  { title: "4. 오늘의 한 줄 남기기", body: "다 읽으면 오늘 느낀 점을 짧게 적어요. 읽은 페이지 수도 적으면 '다독왕' 기록에 쌓여요." },
+  { title: "5. 우리 반 숲 구경하기", body: "친구들의 나무가 자라는 모습을 구경하고, 이모지로 서로 응원할 수 있어요.\n목표 시간보다 더 많이 읽으면(자유읽기 10분마다) 나무를 꾸밀 아이템도 받아요." },
+  { title: "6. 배지·랭킹 확인하기", body: "'이주의 주인공'에서 개근, 다독왕, 완독왕 같은 배지를 확인할 수 있어요." },
+];
 // 자유롭게 읽기로 목표 시간을 넘겨 읽으면 10분마다 하나씩 받는 나무 꾸미기 악세서리
 // (schema.sql의 v_catalog 배열과 반드시 항목이 같아야 함)
 const ACCESSORY_CATALOG = {
@@ -368,6 +387,8 @@ export default function App() {
   const [changePwMessage, setChangePwMessage] = useState("");
   const [deleteClassConfirmName, setDeleteClassConfirmName] = useState("");
   const [viewingStudent, setViewingStudent] = useState(null); // { id, nick } — 학생별 기록 보기
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideTab, setGuideTab] = useState("teacher");
   const [deleteClassBusy, setDeleteClassBusy] = useState(false);
   const [pinUnlockBusy, setPinUnlockBusy] = useState(false);
   const [pinUnlockError, setPinUnlockError] = useState("");
@@ -1323,6 +1344,9 @@ export default function App() {
             <button onClick={() => { setAuthError(""); setScreen("student-join"); }} className="cs-jua" style={{ width: "100%", maxWidth: 300,
               padding: "18px 20px", borderRadius: 18, border: `1.5px solid ${C.green}`, fontSize: 17, color: C.greenDk, cursor: "pointer",
               background: "#fff" }}>🧒 학생으로 참여</button>
+            <button onClick={() => { setGuideTab("teacher"); setShowGuide(true); }} style={{ border: "none", background: "transparent",
+              color: C.inkSoft, fontSize: 13, cursor: "pointer", marginTop: 6, textDecoration: "underline",
+              textDecorationStyle: "dotted" }}>📖 사용법 보기</button>
           </div>
         )}
 
@@ -1778,6 +1802,11 @@ export default function App() {
                         </div>
                       ))}
                       {role === "student" && studentInfo?.id && (
+                        <button onClick={() => { setGuideTab("student"); setShowGuide(true); }} style={{ border: "none",
+                          background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer", padding: 0,
+                          textDecoration: "underline", textDecorationStyle: "dotted", alignSelf: "flex-start" }}>📖 사용법 다시 보기</button>
+                      )}
+                      {role === "student" && studentInfo?.id && (
                         <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginTop: 4 }}>
                           <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 4 }}>🎀 나무 꾸미기</div>
                           <div style={{ fontSize: 11.5, color: C.inkSoft, marginBottom: 10 }}>
@@ -2032,6 +2061,9 @@ export default function App() {
                   background: "transparent", color: C.green, fontSize: 12.5, cursor: "pointer", marginBottom: 10, padding: 0 }}>
                   🔁 다른 학급으로 전환 ({myClasses.length}개)</button>
               )}
+              <button onClick={() => { setGuideTab("teacher"); setShowGuide(true); }} style={{ border: "none",
+                background: "transparent", color: C.inkSoft, fontSize: 12, cursor: "pointer", marginBottom: 10, padding: 0,
+                textDecoration: "underline", textDecorationStyle: "dotted", display: "block" }}>📖 사용법 다시 보기</button>
 
               {/* 목표 설정 */}
               <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>
@@ -2225,6 +2257,39 @@ export default function App() {
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* 사용법 안내 */}
+        {showGuide && (
+          <div onClick={() => setShowGuide(false)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 20px 30px", animation: "cs-up .28s ease", maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px", flexShrink: 0 }} />
+              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk, marginBottom: 12, flexShrink: 0 }}>📖 새싹책방 사용법</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexShrink: 0 }}>
+                <button onClick={() => setGuideTab("teacher")} className="cs-jua" style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                  border: guideTab === "teacher" ? "none" : `1.5px solid ${C.green}55`, cursor: "pointer", fontSize: 14,
+                  color: guideTab === "teacher" ? "#fff" : C.greenDk,
+                  background: guideTab === "teacher" ? `linear-gradient(${C.green}, ${C.greenDk})` : "#fff" }}>👩‍🏫 선생님용</button>
+                <button onClick={() => setGuideTab("student")} className="cs-jua" style={{ flex: 1, padding: "10px 0", borderRadius: 12,
+                  border: guideTab === "student" ? "none" : `1.5px solid ${C.green}55`, cursor: "pointer", fontSize: 14,
+                  color: guideTab === "student" ? "#fff" : C.greenDk,
+                  background: guideTab === "student" ? `linear-gradient(${C.green}, ${C.greenDk})` : "#fff" }}>🧒 학생용</button>
+              </div>
+              <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                {(guideTab === "teacher" ? GUIDE_TEACHER : GUIDE_STUDENT).map((step, i) => (
+                  <div key={i} style={{ background: "#fff", borderRadius: 14, padding: "12px 14px", border: "1px solid #eee5d3" }}>
+                    <div className="cs-jua" style={{ fontSize: 14, color: C.greenDk, marginBottom: 3 }}>{step.title}</div>
+                    <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.55, whiteSpace: "pre-line" }}>{step.body}</div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setShowGuide(false)} className="cs-jua" style={{ marginTop: 14, padding: 13, borderRadius: 14,
+                border: "none", fontSize: 15, color: "#fff", cursor: "pointer", flexShrink: 0,
+                background: `linear-gradient(${C.green}, ${C.greenDk})` }}>확인했어요</button>
             </div>
           </div>
         )}
