@@ -1312,6 +1312,12 @@ export default function App() {
     .sort((a, b) => b.totalDays - a.totalDays)
     .slice(0, 3)
     .map((s) => ({ nick: s.nick, days: s.totalDays }));
+  const myRank = (() => {
+    if (role !== "student" || !studentInfo?.id || badgeStats.length === 0) return null;
+    const sorted = [...badgeStats].sort((a, b) => b.totalDays - a.totalDays);
+    const idx = sorted.findIndex((s) => s.id === studentInfo.id);
+    return idx >= 0 ? { rank: idx + 1, total: sorted.length } : null;
+  })();
   const topBooks = [...badgeStats]
     .filter((s) => s.completedBooks > 0)
     .sort((a, b) => b.completedBooks - a.completedBooks)
@@ -1779,6 +1785,11 @@ export default function App() {
                   <Tree stage={myStage} size={150} accessories={equippedAccessories} />
                   <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
                   <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk, marginBottom: 4 }}>{myBook || "아직 없어요"}</div>
+                  {myBook && (
+                    <button onClick={() => setTab("search")} style={{ border: "none", background: "transparent", color: C.inkSoft,
+                      fontSize: 12, textDecoration: "underline", textDecorationStyle: "dotted", cursor: "pointer", marginBottom: 4 }}>
+                      📚 읽는 책 바꾸기</button>
+                  )}
                   {myBook && role === "student" && (
                     <button onClick={handleCompleteBook} style={{ border: "none", background: "transparent", color: C.gold,
                       fontSize: 12.5, textDecoration: "underline", cursor: "pointer", marginBottom: 8 }}>
@@ -2057,9 +2068,25 @@ export default function App() {
                 </div>
               </div>
               {selected.me ? (
-                <button onClick={() => { setSelected(null); setTab("log"); }} className="cs-jua" style={{ width: "100%", marginTop: 16,
-                  padding: 14, borderRadius: 14, border: "none", fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
-                  🔒 내 독서기록 보기</button>
+                <>
+                  <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                    <div style={{ flex: 1, background: "#fff", borderRadius: 14, padding: "12px 10px", textAlign: "center", border: "1px solid #eee5d3" }}>
+                      <div style={{ fontSize: 20 }}>💧</div>
+                      <div className="cs-jua" style={{ fontSize: 16, color: C.greenDk, marginTop: 2 }}>{selected.totalDays ?? 0}일</div>
+                      <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 1 }}>물을 준 횟수</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#fff", borderRadius: 14, padding: "12px 10px", textAlign: "center", border: "1px solid #eee5d3" }}>
+                      <div style={{ fontSize: 20 }}>🏆</div>
+                      <div className="cs-jua" style={{ fontSize: 16, color: C.greenDk, marginTop: 2 }}>
+                        {myRank ? `${myRank.rank}등` : "집계 중"}</div>
+                      <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 1 }}>
+                        {myRank ? `우리 반 ${myRank.total}명 중` : "잠시 후 다시 확인"}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => { setSelected(null); setTab("log"); }} className="cs-jua" style={{ width: "100%", marginTop: 10,
+                    padding: 14, borderRadius: 14, border: "none", fontSize: 16, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})` }}>
+                    🔒 내 독서기록 보기</button>
+                </>
               ) : (
                 <div style={{ marginTop: 14 }}>
                   <div style={{ fontSize: 12.5, color: C.inkSoft, textAlign: "center", marginBottom: 8 }}>응원을 보내볼까요? 💬</div>
