@@ -429,6 +429,7 @@ export default function App() {
   const myStage = stageFromDays(myLog.length, challengeDays);
   const timerRef = useRef(null);
   const pageVisibleRef = useRef(true);
+  const wakeLockRef = useRef(null);
 
   const refreshClassProgress = async (classId) => {
     try {
@@ -777,6 +778,29 @@ export default function App() {
     setReflecting(true);
   };
 
+  // 읽는 동안 화면이 자동으로 꺼지거나 어두워지지 않게 붙잡아둠 (지원 안 하는 기기는 그냥 무시)
+  const requestWakeLock = async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch { /* 지원하지 않거나 실패해도 타이머 자체는 정상 동작 */ }
+  };
+
+  useEffect(() => {
+    if (!reading) {
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
+      return;
+    }
+    requestWakeLock();
+    return () => {
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading]);
+
   // 화면(탭)을 벗어나면 물주기가 멈추도록 하는 심리적 장치 (강제 차단은 아님)
   useEffect(() => {
     const handleVisibility = () => {
@@ -784,6 +808,7 @@ export default function App() {
       pageVisibleRef.current = document.visibilityState === "visible";
       if (pageVisibleRef.current && wasHidden && reading) {
         showToast("다시 돌아오셨네요! 화면을 벗어나 있는 동안엔 타이머가 멈춰있었어요 📖");
+        requestWakeLock(); // 화면이 꺼졌다 켜지면 붙잡아둔 게 풀리므로 다시 요청함
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
