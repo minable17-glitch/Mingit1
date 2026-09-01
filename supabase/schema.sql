@@ -33,7 +33,9 @@ create table if not exists classes (
   challenge_days int not null default 30,
   teacher_auth_user_id uuid, -- 학급 코드+비밀번호(예전) 방식으로 로그인 중인 세션
   teacher_id uuid references teachers(id), -- 선생님 계정(아이디+비밀번호/카카오)으로 만든 경우
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  paused_since date, -- 시험기간 등으로 챌린지를 잠시 멈춘 날짜 (null이면 진행 중)
+  paused_days_total int not null default 0 -- 지금까지 누적된 정지 일수 (D-day 계산에서 제외됨)
 );
 
 create table if not exists students (
@@ -695,3 +697,41 @@ language sql security definer set search_path = public, extensions as $$
 $$;
 
 grant execute on function get_class_progress(uuid) to anon, authenticated;
+
+-- ── 챌린지 일시정지/재개 (시험기간 등에 D-day가 멈추도록) ──
+
+create or replace function pause_challenge(p_class_id uuid)
+returns table(id uuid, name text, code text, start_date date, goal_pct int,
+  daily_target_minutes int, challenge_days int, paused_since date, paused_days_total int)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_class_teacher(p_class_id) then
+    raise exception '이 학급의 담당 선생님만 챌린지를 정지할 수 있어요';
+  end if;
+  update classes set paused_since = current_date
+    where classes.id = p_class_id and paused_since is null;
+  return query select classes.id, classes.name, classes.code, classes.start_date, classes.goal_pct,
+    classes.daily_target_minutes, classes.challenge_days, classes.paused_since, classes.paused_days_total
+    from classes where classes.id = p_class_id;
+end;
+$$;
+grant execute on function pause_challenge(uuid) to anon, authenticated;
+
+create or replace function resume_challenge(p_class_id uuid)
+returns table(id uuid, name text, code text, start_date date, goal_pct int,
+  daily_target_minutes int, challenge_days int, paused_since date, paused_days_total int)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_class_teacher(p_class_id) then
+    raise exception '이 학급의 담당 선생님만 챌린지를 재개할 수 있어요';
+  end if;
+  update classes
+    set paused_days_total = paused_days_total + greatest(0, (current_date - paused_since)),
+        paused_since = null
+    where classes.id = p_class_id and paused_since is not null;
+  return query select classes.id, classes.name, classes.code, classes.start_date, classes.goal_pct,
+    classes.daily_target_minutes, classes.challenge_days, classes.paused_since, classes.paused_days_total
+    from classes where classes.id = p_class_id;
+end;
+$$;
+grant execute on function resume_challenge(uuid) to anon, authenticated;

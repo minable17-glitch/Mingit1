@@ -12,6 +12,7 @@ import {
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
+  pauseChallenge, resumeChallenge,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -122,7 +123,8 @@ const GUIDE_TEACHER = [
   { title: "4. 반 관리 화면에서 확인하기", body: "우측 상단(또는 하단 탭)의 '반 관리'에서 학생별 참여일수·시간·기록을 확인할 수 있어요.\n닉네임을 누르면 그 학생의 날짜별 기록을 보고, 필요하면 하나씩 삭제할 수 있어요.\nPIN을 잊은 학생은 여기서 초기화(0000)해줄 수 있어요." },
   { title: "5. 참여율·목표 시간 설정 바꾸기", body: "반 관리 화면에서 목표 참여율, 하루 읽기 목표 시간, 챌린지 기간(일수)을 언제든 수정할 수 있어요." },
   { title: "6. 챌린지 다시 시작하기", body: "새 학기나 새 챌린지를 시작할 때 '챌린지 오늘부터 다시 시작' 버튼을 누르면\n반 전체 진행률과 D-day만 초기화돼요. 학생들이 키운 나무와 기록은 그대로 남아요." },
-  { title: "7. 엑셀로 내려받기", body: "반 관리 화면에서 전체 기록을 엑셀 파일로 내려받아 보관하거나 학부모 안내에 활용할 수 있어요." },
+  { title: "7. 챌린지 일시정지하기", body: "시험기간처럼 며칠 쉬어야 할 때 '챌린지 일시정지' 버튼을 누르면\n그동안은 D-day가 늘어나지 않아요. 학생들은 원하면 계속 읽을 수 있고, 끝나면 '다시 진행하기'를 눌러주면 돼요." },
+  { title: "8. 엑셀로 내려받기", body: "반 관리 화면에서 전체 기록을 엑셀 파일로 내려받아 보관하거나 학부모 안내에 활용할 수 있어요." },
 ];
 const GUIDE_STUDENT = [
   { title: "1. 반 코드로 들어가기", body: "'학생으로 참여'에서 선생님이 알려준 반 코드를 입력하고 닉네임을 골라요.\n처음 로그인할 때 PIN은 0000이고, 이후 원하는 번호로 바꿀 수 있어요." },
@@ -1222,6 +1224,16 @@ export default function App() {
     } catch (e) { showToast(e.message || "챌린지 재시작에 실패했어요."); }
   };
 
+  const handleTogglePause = async () => {
+    if (!classInfo?.id) return;
+    try {
+      const updated = isPaused ? await resumeChallenge(classInfo.id) : await pauseChallenge(classInfo.id);
+      setClassInfo(updated);
+      setSession({ role: "teacher", classInfo: updated });
+      showToast(isPaused ? "챌린지를 다시 시작했어요! 📖" : "챌린지를 일시정지했어요. 시험기간 등이 끝나면 다시 눌러주세요.");
+    } catch (e) { showToast(e.message || "처리에 실패했어요."); }
+  };
+
   const exportExcel = () => {
     try {
       const daily = teacherLogs.map((l) => ({
@@ -1264,8 +1276,12 @@ export default function App() {
     { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
     { icon: "📖", title: "다독왕", holder: topByKey("totalPages"), detail: (s) => `누적 ${s.totalPages}쪽 읽음` },
   ];
+  const isPaused = !!classInfo?.paused_since;
   const daysSinceStart = classInfo?.start_date
-    ? Math.min(challengeDays, Math.max(1, Math.floor((Date.now() - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1))
+    ? Math.min(challengeDays, Math.max(1,
+        Math.floor(((isPaused ? new Date(classInfo.paused_since + "T00:00:00").getTime() : Date.now())
+          - new Date(classInfo.start_date + "T00:00:00").getTime()) / 86400000) + 1
+        - (classInfo.paused_days_total || 0)))
     : 1;
   // 배경 그림에 그려진 3개의 동심원 오솔길을 따라, 우리 반 나무는 정가운데,
   // 학생들은 가까운 원부터 채워서 바깥 원으로 빙 둘러싸는 형태로 배치한다.
@@ -1554,6 +1570,11 @@ export default function App() {
               {/* ── 숲 탭 ── */}
               {tab === "forest" && (
                 <>
+                  {isPaused && (
+                    <div style={{ margin: "10px 18px 0", padding: "9px 14px", borderRadius: 12, background: "#fff3d6",
+                      border: "1px solid #f0d99a", color: "#8a6d1f", fontSize: 12.5, textAlign: "center" }}>
+                      ⏸ 챌린지가 잠시 멈춰있어요. D-day는 늘어나지 않지만, 읽기는 계속할 수 있어요.</div>
+                  )}
                   <div style={{ padding: "16px 18px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <div className="cs-jua" style={{ fontSize: 23, color: C.greenDk }}>🌱 새싹책방</div>
@@ -2122,6 +2143,14 @@ export default function App() {
                   🔄 챌린지 오늘부터 다시 시작</button>
                 <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 6 }}>
                   D-day와 "우리 반 숲" 진행률만 오늘부터 새로 시작돼요. 학생들이 키운 나무·기록·완독은 그대로 남아요.</div>
+                <button onClick={handleTogglePause} style={{ width: "100%", marginTop: 10, padding: 11, borderRadius: 10,
+                  border: isPaused ? "none" : `1px dashed ${C.inkSoft}`, background: isPaused ? C.green : "#f7f5ee",
+                  color: isPaused ? "#fff" : C.inkSoft, fontSize: 13, cursor: "pointer" }} className="cs-jua">
+                  {isPaused ? "▶ 챌린지 다시 진행하기" : "⏸ 챌린지 일시정지 (시험기간 등)"}</button>
+                <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 6 }}>
+                  {isPaused
+                    ? "챌린지가 멈춰있어요. D-day가 늘어나지 않고, 학생들도 화면에서 정지 상태를 볼 수 있어요."
+                    : "시험기간처럼 며칠 쉬어야 할 때 눌러두면, 그동안은 D-day가 늘어나지 않아요. 읽기 자체는 계속할 수 있어요."}</div>
               </div>
 
               {/* 학생 요약 미리보기 */}

@@ -130,7 +130,7 @@ export async function createClassForAccount({ name, startDate, goalPct }) {
 export async function getMyClasses() {
   const { data, error } = await supabase
     .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -172,7 +172,7 @@ export async function studentLogin({ classCode, nickname, pin }) {
 export async function getClassById(classId) {
   const { data, error } = await supabase
     .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
     .eq('id', classId)
     .single();
   if (error) throw error;
@@ -189,10 +189,22 @@ export async function updateClassSettings(classId, { goalPct, dailyTargetMinutes
     .from('classes')
     .update(patch)
     .eq('id', classId)
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days')
+    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function pauseChallenge(classId) {
+  const { data, error } = await supabase.rpc('pause_challenge', { p_class_id: classId });
+  if (error) throw error;
+  return data[0];
+}
+
+export async function resumeChallenge(classId) {
+  const { data, error } = await supabase.rpc('resume_challenge', { p_class_id: classId });
+  if (error) throw error;
+  return data[0];
 }
 
 export async function getClassProgress(classId) {
