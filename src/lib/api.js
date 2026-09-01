@@ -66,6 +66,11 @@ export async function deleteClass(classId) {
   if (error) throw error;
 }
 
+export async function deleteLog(logId) {
+  const { error } = await supabase.rpc('teacher_delete_log', { p_log_id: logId });
+  if (error) throw error;
+}
+
 export async function verifyStudentPin(pin) {
   const { data, error } = await supabase.rpc('student_verify_pin', { p_pin: pin });
   if (error) throw error;
@@ -274,7 +279,7 @@ export async function markBookCompleted(bookId) {
 export async function getClassLogsForTeacher(classId) {
   const { data, error } = await supabase
     .from('logs')
-    .select('student_id, log_date, minutes, pages, note, books(title), students!inner(nickname, class_id)')
+    .select('id, student_id, log_date, minutes, pages, note, books(title), students!inner(nickname, class_id)')
     .eq('students.class_id', classId)
     .order('log_date', { ascending: false });
   if (error) throw error;

@@ -10,7 +10,7 @@ import {
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
-  changeTeacherPassword, deleteStudent, deleteClass, verifyStudentPin, changeStudentPin,
+  changeTeacherPassword, deleteStudent, deleteClass, deleteLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
 } from "./lib/api";
 
@@ -367,6 +367,7 @@ export default function App() {
   const [changePwBusy, setChangePwBusy] = useState(false);
   const [changePwMessage, setChangePwMessage] = useState("");
   const [deleteClassConfirmName, setDeleteClassConfirmName] = useState("");
+  const [viewingStudent, setViewingStudent] = useState(null); // { id, nick } — 학생별 기록 보기
   const [deleteClassBusy, setDeleteClassBusy] = useState(false);
   const [pinUnlockBusy, setPinUnlockBusy] = useState(false);
   const [pinUnlockError, setPinUnlockError] = useState("");
@@ -1027,6 +1028,17 @@ export default function App() {
       showToast(`'${nickname}' 학생을 삭제했어요.`);
     } catch (e) {
       showToast(e.message || '삭제에 실패했어요.');
+    }
+  };
+
+  const handleDeleteLog = async (log) => {
+    if (!window.confirm(`${formatLogDate(log.log_date)} 기록을 삭제할까요?\n되돌릴 수 없어요.`)) return;
+    try {
+      await deleteLog(log.id);
+      setTeacherLogs((list) => list.filter((l) => l.id !== log.id));
+      showToast("기록을 삭제했어요.");
+    } catch (e) {
+      showToast(e.message || "삭제에 실패했어요.");
     }
   };
 
@@ -2081,7 +2093,9 @@ export default function App() {
                 )}
                 {teacherStats.map((s, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", fontSize: 13, color: C.ink, padding: "6px 0", borderBottom: i < teacherStats.length - 1 ? "1px dashed #f0ead9" : "none" }}>
-                    <span style={{ flex: 1 }} className="cs-hand">{s.nick}</span>
+                    <button onClick={() => setViewingStudent({ id: s.id, nick: s.nick })} style={{ flex: 1, textAlign: "left", border: "none",
+                      background: "transparent", padding: 0, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                      className="cs-hand">{s.nick}</button>
                     <span style={{ width: 40, textAlign: "right" }}>{s.days}일</span>
                     <span style={{ width: 46, textAlign: "right" }}>{s.min}분</span>
                     <span style={{ width: 36, textAlign: "right" }}>{s.done}권</span>
@@ -2095,7 +2109,7 @@ export default function App() {
                     </span>
                   </div>
                 ))}
-                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>PIN 초기화를 누르면 그 학생의 PIN이 0000으로 바뀌어요. 삭제하면 그 학생의 모든 기록이 함께 지워지고 되돌릴 수 없어요.</div>
+                <div style={{ fontSize: 10.5, color: "#a7b3a0", marginTop: 8 }}>닉네임을 누르면 그 학생의 날짜별 기록을 볼 수 있어요. PIN 초기화를 누르면 그 학생의 PIN이 0000으로 바뀌어요. 삭제하면 그 학생의 모든 기록이 함께 지워지고 되돌릴 수 없어요.</div>
               </div>
 
               {/* 비밀번호 변경 */}
@@ -2160,6 +2174,45 @@ export default function App() {
                 📄 엑셀로 내보내기 (.xlsx)</button>
               <div style={{ fontSize: 11, color: "#a7b3a0", textAlign: "center", marginTop: 10 }}>
                 일별 기록(날짜·책·시간·느낀점)과 학생 요약이 시트 2장으로 저장돼요. 느낀점은 학생끼리는 비공개, 선생님만 볼 수 있어요.</div>
+            </div>
+          </div>
+        )}
+
+        {/* 학생별 기록 보기 (날짜별 삭제 포함) */}
+        {viewingStudent && (
+          <div onClick={() => setViewingStudent(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: 270,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 20px 30px", animation: "cs-up .28s ease", maxHeight: "85vh", overflowY: "auto" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
+              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>📔 {viewingStudent.nick}의 기록</div>
+              <div style={{ fontSize: 12, color: C.inkSoft, margin: "3px 0 14px" }}>날짜별로 삭제할 수 있어요. 삭제하면 되돌릴 수 없어요.</div>
+              {(() => {
+                const logs = [...teacherLogs]
+                  .filter((l) => l.student_id === viewingStudent.id)
+                  .sort((a, b) => b.log_date.localeCompare(a.log_date));
+                if (logs.length === 0) {
+                  return <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>아직 기록이 없어요.</div>;
+                }
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {logs.map((l) => (
+                      <div key={l.id} style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #eee5d3" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
+                          <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{formatLogDate(l.log_date)}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                            <span style={{ fontSize: 11.5, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              📖 {l.books?.title || ""}{l.minutes ? ` · ${l.minutes}분` : ""}{l.pages ? ` · ${l.pages}쪽` : ""}</span>
+                            <button onClick={() => handleDeleteLog(l)} style={{ border: "none", background: "transparent", color: "#d15b5b",
+                              fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>삭제</button>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{l.note}”</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

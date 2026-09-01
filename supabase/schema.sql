@@ -602,6 +602,37 @@ $$;
 
 grant execute on function student_set_equipped(text[]) to anon, authenticated;
 
+-- 선생님이 학생의 특정 날짜 기록 하나만 삭제 (그 학급 담당 선생님만) — 삭제하면
+-- 그 기록이 올려놨던 완료일수·공동 기여분·페이지수도 함께 되돌려놓음
+create or replace function teacher_delete_log(p_log_id uuid)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_log logs%rowtype;
+  v_is_owner boolean;
+begin
+  select * into v_log from logs where logs.id = p_log_id;
+  if not found then
+    raise exception '기록을 찾을 수 없어요';
+  end if;
+
+  select is_class_teacher(s.class_id) into v_is_owner from students s where s.id = v_log.student_id;
+  if not v_is_owner then
+    raise exception '이 학급의 담당 선생님만 기록을 삭제할 수 있어요';
+  end if;
+
+  delete from logs where logs.id = p_log_id;
+
+  update students
+    set total_days = greatest(0, total_days - 1),
+        communal_minutes = greatest(0, communal_minutes - coalesce(v_log.overflow_minutes, 0)),
+        total_pages = greatest(0, total_pages - coalesce(v_log.pages, 0))
+    where students.id = v_log.student_id;
+end;
+$$;
+
+grant execute on function teacher_delete_log(uuid) to anon, authenticated;
+
 -- 오늘 이미 기록을 남긴 뒤에도, 자유롭게 더 읽으면 그 시간만큼 오늘 기록에 더해줌
 -- (하루 인정 상한 DAILY_CAP_MINUTES=40분까지만, 10분마다 악세서리도 함께 줌)
 create or replace function add_bonus_reading(p_extra_minutes int)
