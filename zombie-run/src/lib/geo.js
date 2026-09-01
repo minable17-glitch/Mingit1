@@ -60,6 +60,15 @@ export function moveToward(fromLat, fromLon, toLat, toLon, stepMeters) {
   return destinationPoint(fromLat, fromLon, stepMeters, brng)
 }
 
+// point가 center에서 radiusMeters보다 멀면, 그 방향으로 radius 안쪽(90%)까지 당겨서 반환
+// (제한구역 모드에서 좀비/아이템 스폰 지점이 항상 경계 안에 있도록 묶어둠)
+export function clampToRadius(point, center, radiusMeters) {
+  const dist = haversineDistance(center.lat, center.lon, point.lat, point.lon)
+  if (dist <= radiusMeters) return point
+  const brng = bearingTo(center.lat, center.lon, point.lat, point.lon)
+  return destinationPoint(center.lat, center.lon, radiusMeters * 0.9, brng)
+}
+
 // {lat,lon} 배열로 된 경로를 distanceMeters만큼 따라 이동.
 // 새 위치와, 그 지점부터 남은 경로(먼저 지나온 구간은 잘라낸)를 반환 (도로 경로를 따라가는 좀비 이동용)
 export function advanceAlongPath(path, distanceMeters) {

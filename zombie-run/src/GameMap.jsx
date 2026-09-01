@@ -10,12 +10,13 @@ function iconHtml(emoji, className) {
 
 // 지도는 마운트될 때 한 번만 만들고, 이후에는 플레이어/좀비/아이템 마커만
 // leaflet을 직접 조작해서 갱신함 (React 리렌더마다 지도를 새로 만들면 깜빡이고 무거워짐)
-export default function GameMap({ playerPos, zombies, pickups, onShootZombie, follow }) {
+export default function GameMap({ playerPos, zombies, pickups, onShootZombie, follow, areaCenter, areaRadius }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const playerMarkerRef = useRef(null)
   const zombieMarkersRef = useRef(new Map())
   const pickupMarkersRef = useRef(new Map())
+  const areaCircleRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -29,6 +30,7 @@ export default function GameMap({ playerPos, zombies, pickups, onShootZombie, fo
       map.remove()
       mapRef.current = null
       playerMarkerRef.current = null
+      areaCircleRef.current = null
       zombieMarkersRef.current.clear()
       pickupMarkersRef.current.clear()
     }
@@ -108,6 +110,28 @@ export default function GameMap({ playerPos, zombies, pickups, onShootZombie, fo
       }
     }
   }, [pickups])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (areaCenter && areaRadius) {
+      if (!areaCircleRef.current) {
+        areaCircleRef.current = L.circle([areaCenter.lat, areaCenter.lon], {
+          radius: areaRadius,
+          color: '#ef5350',
+          weight: 2,
+          fillColor: '#ef5350',
+          fillOpacity: 0.06,
+        }).addTo(map)
+      } else {
+        areaCircleRef.current.setLatLng([areaCenter.lat, areaCenter.lon])
+        areaCircleRef.current.setRadius(areaRadius)
+      }
+    } else if (areaCircleRef.current) {
+      map.removeLayer(areaCircleRef.current)
+      areaCircleRef.current = null
+    }
+  }, [areaCenter, areaRadius])
 
   return <div ref={containerRef} className="zr-map" />
 }

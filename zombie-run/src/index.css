@@ -86,6 +86,17 @@ body {
   margin-bottom: 14px;
 }
 
+.zr-pace-picker-2col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.zr-pace-hint {
+  color: #9db3a6;
+  font-size: 11px;
+  text-align: left;
+  margin: -8px 0 14px;
+}
+
 .zr-pace-btn {
   border: 1px solid #34443b;
   background: transparent;
@@ -312,25 +323,35 @@ body {
   margin: 0 2px;
 }
 
-.zr-frozen-banner {
+.zr-banner-stack {
   position: absolute;
   top: calc(118px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
-  background: rgba(33, 150, 243, 0.25);
-  border: 1px solid #64b5f6;
-  color: #bbdefb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.zr-banner {
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.zr-error-banner {
-  top: calc(158px + env(safe-area-inset-top));
+.zr-banner-blue {
+  background: rgba(33, 150, 243, 0.25);
+  border: 1px solid #64b5f6;
+  color: #bbdefb;
+}
+
+.zr-banner-red {
   background: rgba(183, 28, 28, 0.3);
-  border-color: #ef5350;
+  border: 1px solid #ef5350;
   color: #ffcdd2;
 }
 

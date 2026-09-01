@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import GameMap from './GameMap.jsx'
-import { advanceAlongPath, haversineDistance, moveToward, randomPointNear } from './lib/geo.js'
+import { advanceAlongPath, clampToRadius, haversineDistance, moveToward, randomPointNear } from './lib/geo.js'
 import { fetchWalkingPath } from './lib/routing.js'
 
 // OpenRouteService 키가 있으면 좀비가 실제 도로/인도 경로를 따라 쫓아오고,
@@ -35,6 +35,12 @@ const DEFAULT_PACE_IDX = 1
 
 const LIVE_PACE_WINDOW_MS = 30000 // 실시간 페이스 계산에 쓰는 최근 구간(30초)
 const LIVE_PACE_MIN_WINDOW_SEC = 6 // 이보다 짧은 구간에서는 페이스가 안 흔들리게 표시 안 함
+
+// 제한구역 모드: 시작 위치를 중심으로 반경을 정해서 그 안에서만 좀비/아이템이 등장하고,
+// 그 밖에 계속 나가 있으면(누적 시간 기준) 생명이 줄어듦
+const AREA_RADIUS_PRESETS = [300, 500, 1000, 2000] // 미터
+const DEFAULT_RADIUS_IDX = 1
+const OUTSIDE_AREA_HEART_LOSS_MS = 60 * 60 * 1000 // 제한구역 밖에서 누적 이만큼(1시간) 지날 때마다 생명 1개 감소
 
 function formatTime(totalSec) {
   const m = Math.floor(totalSec / 60)
@@ -75,6 +81,11 @@ function makeInitialGame() {
     gameOverReason: null,
     targetPaceMps: PACE_PRESETS[DEFAULT_PACE_IDX].mps,
     paceSamples: [], // 실시간 페이스 계산용 { t, d } 샘플 (최근 LIVE_PACE_WINDOW_MS만 유지)
+    playMode: 'free', // 'free' | 'restricted'
+    areaCenter: null, // 제한구역 모드일 때 시작 위치
+    areaRadius: null, // 미터
+    outsideAreaMs: 0, // 제한구역 밖에서 누적된 시간(ms)
+    outsideAreaHeartsLost: 0, // 그동안 이미 깎은 생명 수 (중복 차감 방지용)
   }
 }
 
@@ -86,6 +97,8 @@ export default function App() {
   const [geoError, setGeoError] = useState('')
   const [follow, setFollow] = useState(true)
   const [paceIdx, setPaceIdx] = useState(DEFAULT_PACE_IDX)
+  const [playMode, setPlayMode] = useState('free')
+  const [radiusIdx, setRadiusIdx] = useState(DEFAULT_RADIUS_IDX)
   const [toastMsg, setToastMsg] = useState('')
   const toastTimerRef = useRef(null)
   const watchIdRef = useRef(null)
@@ -104,7 +117,8 @@ export default function App() {
     const count = Math.min(room, WAVE_SIZE_MIN + Math.floor(Math.random() * (WAVE_SIZE_MAX - WAVE_SIZE_MIN + 1)))
     const spawned = []
     for (let i = 0; i < count; i++) {
-      const p = randomPointNear(game.playerPos.lat, game.playerPos.lon, 70, 150)
+      let p = randomPointNear(game.playerPos.lat, game.playerPos.lon, 70, 150)
+      if (game.playMode === 'restricted' && game.areaCenter) p = clampToRadius(p, game.areaCenter, game.areaRadius)
       spawned.push({
         id: `z${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
         lat: p.lat,
@@ -123,7 +137,8 @@ export default function App() {
   const spawnPickup = useCallback(
     (type) => {
       if (!game.playerPos) return
-      const p = randomPointNear(game.playerPos.lat, game.playerPos.lon, 30, 90)
+      let p = randomPointNear(game.playerPos.lat, game.playerPos.lon, 30, 90)
+      if (game.playMode === 'restricted' && game.areaCenter) p = clampToRadius(p, game.areaCenter, game.areaRadius)
       game.pickups = [...game.pickups, { id: `${type}_${Date.now()}`, type, lat: p.lat, lon: p.lon }]
     },
     [game]
@@ -236,6 +251,29 @@ export default function App() {
       game.pickups = remaining
     }
 
+    if (game.playMode === 'restricted' && game.areaCenter && game.playerPos) {
+      const distFromCenter = haversineDistance(
+        game.areaCenter.lat,
+        game.areaCenter.lon,
+        game.playerPos.lat,
+        game.playerPos.lon
+      )
+      if (distFromCenter > game.areaRadius) {
+        game.outsideAreaMs += 1000
+        const shouldHaveLost = Math.floor(game.outsideAreaMs / OUTSIDE_AREA_HEART_LOSS_MS)
+        if (shouldHaveLost > game.outsideAreaHeartsLost) {
+          const lose = shouldHaveLost - game.outsideAreaHeartsLost
+          game.outsideAreaHeartsLost = shouldHaveLost
+          game.health -= lose
+          toast('제한구역을 너무 오래 벗어나 있어서 생명이 줄었어요 💔')
+          if (game.health <= 0) {
+            endGame('outside_area')
+            return
+          }
+        }
+      }
+    }
+
     rerender()
   }, [game, rerender, spawnWave, spawnPickup, toast, endGame])
 
@@ -292,13 +330,18 @@ export default function App() {
         game.playerPos = startPos
         game.lastPos = startPos
         game.targetPaceMps = PACE_PRESETS[paceIdx].mps
+        game.playMode = playMode
+        if (playMode === 'restricted') {
+          game.areaCenter = startPos
+          game.areaRadius = AREA_RADIUS_PRESETS[radiusIdx]
+        }
         tickIntervalRef.current = setInterval(tick, 1000)
         rerender()
       },
       (err) => setGeoError(err.message || '위치 권한이 필요해요.'),
       { enableHighAccuracy: true, timeout: 20000 }
     )
-  }, [game, handlePosition, tick, rerender, paceIdx])
+  }, [game, handlePosition, tick, rerender, paceIdx, playMode, radiusIdx])
 
   const shootZombie = useCallback(
     (id) => {
@@ -352,9 +395,14 @@ export default function App() {
     game.lastPos = keepPos
     game.status = 'playing'
     game.targetPaceMps = PACE_PRESETS[paceIdx].mps
+    game.playMode = playMode
+    if (playMode === 'restricted' && keepPos) {
+      game.areaCenter = keepPos
+      game.areaRadius = AREA_RADIUS_PRESETS[radiusIdx]
+    }
     tickIntervalRef.current = setInterval(tick, 1000)
     rerender()
-  }, [game, tick, rerender, paceIdx])
+  }, [game, tick, rerender, paceIdx, playMode, radiusIdx])
 
   const backToStart = useCallback(() => {
     const keepPos = game.playerPos
@@ -390,6 +438,40 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          <p className="zr-pace-label">플레이 모드</p>
+          <div className="zr-pace-picker zr-pace-picker-2col">
+            <button
+              className={playMode === 'free' ? 'zr-pace-btn zr-pace-btn-on' : 'zr-pace-btn'}
+              onClick={() => setPlayMode('free')}
+            >
+              자유 모드
+            </button>
+            <button
+              className={playMode === 'restricted' ? 'zr-pace-btn zr-pace-btn-on' : 'zr-pace-btn'}
+              onClick={() => setPlayMode('restricted')}
+            >
+              제한구역 모드
+            </button>
+          </div>
+          {playMode === 'restricted' && (
+            <>
+              <p className="zr-pace-label">플레이 반경 (지금 위치 기준)</p>
+              <div className="zr-pace-picker">
+                {AREA_RADIUS_PRESETS.map((r, i) => (
+                  <button
+                    key={r}
+                    className={i === radiusIdx ? 'zr-pace-btn zr-pace-btn-on' : 'zr-pace-btn'}
+                    onClick={() => setRadiusIdx(i)}
+                  >
+                    {r >= 1000 ? `${r / 1000}km` : `${r}m`}
+                  </button>
+                ))}
+              </div>
+              <p className="zr-pace-hint">이 반경 밖에 1시간 넘게 있으면 생명이 1개씩 줄어요.</p>
+            </>
+          )}
+
           {geoError && <p className="zr-error">{geoError}</p>}
           <button className="zr-btn zr-btn-primary" onClick={requestLocationAndStart}>
             도망치기 시작 🏃
@@ -401,7 +483,11 @@ export default function App() {
 
   if (game.status === 'gameover') {
     const reasonText =
-      game.gameOverReason === 'caught' ? '좀비 무리에게 붙잡혔어요 💀' : '무사히 도망치는 데 성공했어요 🎉'
+      game.gameOverReason === 'caught'
+        ? '좀비 무리에게 붙잡혔어요 💀'
+        : game.gameOverReason === 'outside_area'
+          ? '제한구역을 너무 오래 벗어나 있었어요 🗺️'
+          : '무사히 도망치는 데 성공했어요 🎉'
     return (
       <div className="zr-screen zr-start">
         <div className="zr-start-card">
@@ -446,6 +532,12 @@ export default function App() {
     if (dtSec >= LIVE_PACE_MIN_WINDOW_SEC) livePaceMps = (last.d - first.d) / dtSec
   }
   const behindPace = livePaceMps != null && livePaceMps < game.targetPaceMps * 0.97
+  const outsideArea =
+    game.playMode === 'restricted' &&
+    game.areaCenter &&
+    game.playerPos &&
+    haversineDistance(game.areaCenter.lat, game.areaCenter.lon, game.playerPos.lat, game.playerPos.lon) >
+      game.areaRadius
 
   return (
     <div className="zr-screen">
@@ -475,6 +567,8 @@ export default function App() {
         pickups={game.pickups}
         onShootZombie={shootZombie}
         follow={follow}
+        areaCenter={game.areaCenter}
+        areaRadius={game.areaRadius}
       />
 
       <div className="zr-hud-side">
@@ -496,9 +590,12 @@ export default function App() {
         <div className="zr-badge">💀 {game.score}</div>
       </div>
 
-      {frozenActive && <div className="zr-frozen-banner">⏳ 좀비 이동 정지 중</div>}
+      <div className="zr-banner-stack">
+        {frozenActive && <div className="zr-banner zr-banner-blue">⏳ 좀비 이동 정지 중</div>}
+        {outsideArea && <div className="zr-banner zr-banner-red">⚠️ 제한구역을 벗어났어요</div>}
+        {geoError && <div className="zr-banner zr-banner-red">{geoError}</div>}
+      </div>
       {toastMsg && <div className="zr-toast">{toastMsg}</div>}
-      {geoError && <div className="zr-frozen-banner zr-error-banner">{geoError}</div>}
 
       <div className="zr-hud-bottom">
         <button className="zr-round-btn" onClick={() => setFollow((f) => !f)}>
