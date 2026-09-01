@@ -21,6 +21,7 @@ import { getSession, setSession, clearSession, getReadingProgress, setReadingPro
   getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername,
   getCheersSeenAt, setCheersSeenAt,
   getPendingReflection, setPendingReflection, clearPendingReflection } from "./lib/session";
+import { todayKST } from "./lib/date";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
@@ -532,11 +533,11 @@ export default function App() {
 
   // 화면을 계속 켜둔 채로 자정을 넘기면(태블릿 거치 등) "오늘의 반 목표"·오늘 완료 여부·
   // D-day가 그대로 멈춰있던 문제 — 날짜가 바뀐 걸 감지하면 새로 불러옴
-  const lastDateRef = useRef(new Date().toISOString().slice(0, 10));
+  const lastDateRef = useRef(todayKST());
   useEffect(() => {
     if (screen !== "main" || !classInfo?.id) return;
     const checkDateRollover = () => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayKST();
       if (today === lastDateRef.current) return;
       lastDateRef.current = today;
       refreshClassProgress(classInfo.id);
@@ -792,7 +793,7 @@ export default function App() {
     }
     setAuthBusy(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayKST();
       const created = accountCreateMode
         ? await createClassForAccount({ name: teacherForm.name.trim(), startDate: today, goalPct: teacherForm.goalPct })
         : await createClass({
@@ -1293,7 +1294,7 @@ export default function App() {
     if (!classInfo?.id) return;
     if (!window.confirm(`오늘부터 새로운 ${challengeDays}일 챌린지를 다시 시작할까요?\n학생들의 나무와 기록은 그대로 유지되고, "우리 반 숲" 진행률과 D-day만 오늘 기준으로 초기화돼요.`)) return;
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayKST();
       const updated = await updateClassSettings(classInfo.id, { startDate: today });
       setClassInfo(updated);
       setSession({ role: "teacher", classInfo: updated });

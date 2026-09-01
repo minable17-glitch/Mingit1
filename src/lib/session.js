@@ -1,3 +1,5 @@
+import { todayKST } from './date';
+
 const KEY = 'saesak_session';
 
 export function getSession() {
@@ -24,7 +26,7 @@ export function getReadingProgress(studentId) {
   try {
     const raw = localStorage.getItem(`${PROGRESS_KEY}_${studentId}`);
     if (!raw) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKST();
     const parsed = JSON.parse(raw);
     if (parsed.date !== today) return null;
     return parsed;
@@ -34,7 +36,7 @@ export function getReadingProgress(studentId) {
 }
 
 export function setReadingProgress(studentId, { mode, secs }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   try {
     localStorage.setItem(`${PROGRESS_KEY}_${studentId}`, JSON.stringify({ date: today, mode, secs }));
   } catch { /* 저장 실패해도 앱은 계속 사용 가능 */ }
@@ -52,7 +54,7 @@ export function getPendingReflection(studentId) {
   try {
     const raw = localStorage.getItem(`${PENDING_REFLECTION_KEY}_${studentId}`);
     if (!raw) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKST();
     const parsed = JSON.parse(raw);
     if (parsed.date !== today) return null;
     return parsed;
@@ -62,7 +64,7 @@ export function getPendingReflection(studentId) {
 }
 
 export function setPendingReflection(studentId, { minutes, note = "", quote = "", pages = "" }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   try {
     localStorage.setItem(`${PENDING_REFLECTION_KEY}_${studentId}`, JSON.stringify({ date: today, minutes, note, quote, pages }));
   } catch { /* 저장 실패해도 앱은 계속 사용 가능 */ }

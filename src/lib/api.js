@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { todayKST } from './date';
 
 async function ensureFreshAnonSession() {
   await supabase.auth.signOut();
@@ -224,7 +225,7 @@ export async function getMyLogs(studentId) {
 }
 
 export async function getTodayLog(studentId) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   const { data, error } = await supabase
     .from('logs')
     .select('id, log_date, minutes, note')
@@ -270,7 +271,7 @@ export async function getCompletedBooks(studentId) {
 }
 
 export async function submitLog({ studentId, bookId, minutes, note, ocrExcerpt = null, overflowMinutes = 0, pages = null }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   const { data, error } = await supabase
     .from('logs')
     .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, ocr_excerpt: ocrExcerpt, overflow_minutes: overflowMinutes, pages })
