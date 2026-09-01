@@ -61,10 +61,10 @@ export function getPendingReflection(studentId) {
   }
 }
 
-export function setPendingReflection(studentId, { minutes, note = "", pages = "" }) {
+export function setPendingReflection(studentId, { minutes, note = "", quote = "", pages = "" }) {
   const today = new Date().toISOString().slice(0, 10);
   try {
-    localStorage.setItem(`${PENDING_REFLECTION_KEY}_${studentId}`, JSON.stringify({ date: today, minutes, note, pages }));
+    localStorage.setItem(`${PENDING_REFLECTION_KEY}_${studentId}`, JSON.stringify({ date: today, minutes, note, quote, pages }));
   } catch { /* 저장 실패해도 앱은 계속 사용 가능 */ }
 }
 

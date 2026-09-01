@@ -216,7 +216,7 @@ export async function getClassProgress(classId) {
 export async function getMyLogs(studentId) {
   const { data, error } = await supabase
     .from('logs')
-    .select('id, log_date, minutes, pages, note, book_id, books(title)')
+    .select('id, log_date, minutes, pages, note, ocr_excerpt, book_id, books(title)')
     .eq('student_id', studentId)
     .order('log_date', { ascending: false });
   if (error) throw error;
@@ -269,12 +269,12 @@ export async function getCompletedBooks(studentId) {
   return data;
 }
 
-export async function submitLog({ studentId, bookId, minutes, note, overflowMinutes = 0, pages = null }) {
+export async function submitLog({ studentId, bookId, minutes, note, ocrExcerpt = null, overflowMinutes = 0, pages = null }) {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('logs')
-    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, overflow_minutes: overflowMinutes, pages })
-    .select('id, log_date, minutes, note, pages')
+    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, ocr_excerpt: ocrExcerpt, overflow_minutes: overflowMinutes, pages })
+    .select('id, log_date, minutes, note, ocr_excerpt, pages')
     .single();
   if (error) throw error;
   return data;
@@ -291,7 +291,7 @@ export async function markBookCompleted(bookId) {
 export async function getClassLogsForTeacher(classId) {
   const { data, error } = await supabase
     .from('logs')
-    .select('id, student_id, log_date, minutes, pages, note, books(title), students!inner(nickname, class_id)')
+    .select('id, student_id, log_date, minutes, pages, note, ocr_excerpt, books(title), students!inner(nickname, class_id)')
     .eq('students.class_id', classId)
     .order('log_date', { ascending: false });
   if (error) throw error;

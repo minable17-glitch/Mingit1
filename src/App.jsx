@@ -154,7 +154,7 @@ const GUIDE_STUDENT = [
   { title: "1. 반 코드로 들어가기", body: "'학생으로 참여'에서 선생님이 알려준 반 코드를 입력하고 닉네임을 골라요.\n처음 로그인할 때 PIN은 0000이고, 이후 원하는 번호로 바꿀 수 있어요." },
   { title: "2. 오늘 읽을 책 정하기", body: "책 제목을 검색하거나, 책 표지를 사진으로 찍으면 자동으로 제목을 인식해줘요." },
   { title: "3. 읽기 시작하기", body: "'목표 시간 채우기'는 정해진 시간을 다 채우면 자동으로 끝나고,\n'자유롭게 읽기'는 원하는 만큼 읽고 직접 끝낼 수 있어요.\n읽는 동안 화면을 벗어나면 타이머가 멈춰요." },
-  { title: "4. 오늘의 한 줄 남기기", body: "다 읽으면 오늘 느낀 점을 짧게 적어요. 읽은 페이지 수도 적으면 '다독왕' 기록에 쌓여요." },
+  { title: "4. 오늘의 한 줄 남기기", body: "다 읽으면 마음에 남는 구절(사진으로 스캔 가능)과 느낀 점을 적어요. 읽은 페이지 수도 적으면 '다독왕' 기록에 쌓여요." },
   { title: "5. 우리 반 숲 구경하기", body: "친구들의 나무가 자라는 모습을 구경하고, 이모지로 서로 응원할 수 있어요.\n목표 시간보다 더 많이 읽으면(자유읽기 10분마다) 나무를 꾸밀 아이템도 받아요." },
   { title: "6. 배지·랭킹 확인하기", body: "'이주의 주인공'에서 개근, 다독왕, 완독왕 같은 배지를 확인할 수 있어요." },
 ];
@@ -442,6 +442,7 @@ export default function App() {
   const ocrInputRef = useRef(null);
   const [secs, setSecs] = useState(600);
   const [note, setNote] = useState("");
+  const [quote, setQuote] = useState("");
   const [pageCount, setPageCount] = useState("");
   const [toast, setToast] = useState("");
   const [classProgress, setClassProgress] = useState({ joined_today: 0, total_students: 1, class_pct: 0 });
@@ -500,13 +501,14 @@ export default function App() {
             setSessionMinutes(pending.minutes);
             setIsBonusRead(false);
             if (pending.note) setNote(pending.note);
+            if (pending.quote) setQuote(pending.quote);
             if (pending.pages) setPageCount(String(pending.pages));
             setReflecting(true);
           }
         }
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
@@ -941,7 +943,7 @@ export default function App() {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
     } catch (e) {
       showToast(e.message || "저장에 실패했어요.");
@@ -1001,9 +1003,9 @@ export default function App() {
       const MIN_OCR_CONFIDENCE = 55;
       const looksLikeRealText = /[가-힣a-zA-Z]{2,}/.test(text);
       if (text && looksLikeRealText && (data?.confidence ?? 0) >= MIN_OCR_CONFIDENCE) {
-        setNote((n) => {
-          const updated = n.trim() ? `${n.trim()}\n${text}` : text;
-          if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: updated, pages: pageCount });
+        setQuote((q) => {
+          const updated = q.trim() ? `${q.trim()}\n${text}` : text;
+          if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, quote: updated, pages: pageCount });
           return updated;
         });
         showToast("구절을 인식했어요. 잘못 읽은 글자는 직접 고쳐주세요 ✏️");
@@ -1021,10 +1023,11 @@ export default function App() {
   const submit = async () => {
     if (note.trim().length < MIN_NOTE_LENGTH) return;
     const savedNote = note.trim();
+    const savedQuote = quote.trim() || null;
     const savedPages = pageCount.trim() ? Math.max(0, parseInt(pageCount, 10) || 0) : null;
     if (role !== "student" || !studentInfo?.id) {
       // 선생님 계정은 체험용으로만 동작 (실제 저장 없음)
-      setReflecting(false); setNote(""); setPageCount(""); setDoneToday(true); setBloomPulse(true);
+      setReflecting(false); setNote(""); setQuote(""); setPageCount(""); setDoneToday(true); setBloomPulse(true);
       setTab("forest");
       showToast("선생님 계정에서는 기록이 저장되지 않아요 (체험용)");
       setTimeout(() => setBloomPulse(false), 1400);
@@ -1038,13 +1041,14 @@ export default function App() {
         bookId: currentBook?.id ?? null,
         minutes: sessionMinutes,
         note: savedNote,
+        ocrExcerpt: savedQuote,
         overflowMinutes,
         pages: savedPages,
       });
       clearPendingReflection(studentInfo.id);
-      setReflecting(false); setNote(""); setPageCount("");
+      setReflecting(false); setNote(""); setQuote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes, pages: savedPages }, ...l]);
+      setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
       showToast(overflowMinutes > 0
@@ -1287,7 +1291,7 @@ export default function App() {
     try {
       const daily = teacherLogs.map((l) => ({
         닉네임: l.students?.nickname || "", 날짜: formatLogDate(l.log_date), 책제목: l.books?.title || "",
-        "읽은시간(분)": l.minutes, "읽은페이지수": l.pages ?? "", 느낀점: l.note, 완료: "O",
+        "읽은시간(분)": l.minutes, "읽은페이지수": l.pages ?? "", "인상깊은구절": l.ocr_excerpt ?? "", 느낀점: l.note, 완료: "O",
       }));
       const summary = teacherStats.map((s) => ({ 닉네임: s.nick, 완료일수: s.days, "총 독서시간(분)": s.min, 완독권수: s.done }));
       const wb = XLSX.utils.book_new();
@@ -1868,6 +1872,10 @@ export default function App() {
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
                             <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
                           </div>
+                          {e.quote && (
+                            <div style={{ fontSize: 12.5, color: C.greenDk, lineHeight: 1.5, marginBottom: 6, fontStyle: "italic" }}>
+                              📖 {e.quote}</div>
+                          )}
                           <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{e.note}”</div>
                         </div>
                       ))}
@@ -2329,6 +2337,10 @@ export default function App() {
                               fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>삭제</button>
                           </div>
                         </div>
+                        {l.ocr_excerpt && (
+                          <div style={{ fontSize: 12.5, color: C.greenDk, lineHeight: 1.5, marginBottom: 6, fontStyle: "italic" }}>
+                            📖 {l.ocr_excerpt}</div>
+                        )}
                         <div style={{ fontSize: 14, color: C.ink, lineHeight: 1.5 }}>“{l.note}”</div>
                       </div>
                     ))}
@@ -2426,16 +2438,27 @@ export default function App() {
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
               <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
               <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
+
+              <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
               <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFile} />
               <button onClick={() => ocrInputRef.current?.click()} disabled={ocrBusy} style={{ width: "100%", padding: 12, borderRadius: 14,
                 marginBottom: 6, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
-                {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기 (선택)"}</button>
-              <div style={{ fontSize: 10.5, color: C.inkSoft, marginBottom: 12, textAlign: "center" }}>
+                {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기"}</button>
+              <div style={{ fontSize: 10.5, color: C.inkSoft, marginBottom: 10, textAlign: "center" }}>
                 그림자 없이 밝은 곳에서, 글자 부분만 화면 가득 채워 찍으면 더 잘 읽혀요. 인식된 글자는 자유롭게 고쳐도 돼요.</div>
+              <textarea value={quote} onChange={(e) => {
+                  const v = e.target.value;
+                  setQuote(v);
+                  if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, quote: v, pages: pageCount });
+                }} placeholder="마음에 남는 문장을 적거나, 위 버튼으로 사진을 찍어보세요"
+                style={{ width: "100%", minHeight: 64, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 14.5,
+                  fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff", marginBottom: 16 }} />
+
+              <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>✏️ 오늘의 소감</div>
               <textarea value={note} onChange={(e) => {
                   const v = e.target.value;
                   setNote(v);
-                  if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: v, pages: pageCount });
+                  if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: v, quote, pages: pageCount });
                 }} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
@@ -2447,7 +2470,7 @@ export default function App() {
                   onChange={(e) => {
                     const v = e.target.value.replace(/[^0-9]/g, "");
                     setPageCount(v);
-                    if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, pages: v });
+                    if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, quote, pages: v });
                   }} placeholder="예: 20"
                   style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2", fontSize: 14,
                     fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
