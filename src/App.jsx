@@ -892,7 +892,7 @@ export default function App() {
           return 0;
         }
         const next = readMode === "free" ? s + 1 : s - 1;
-        if (progressKey) setReadingProgress(progressKey, { mode: readMode, secs: next });
+        if (progressKey) setReadingProgress(progressKey, { mode: isBonusRead ? "bonus" : readMode, secs: next });
         return next;
       });
     }, 1000);
@@ -916,16 +916,18 @@ export default function App() {
 
   const startReading = (mode, bonus = false) => {
     setIsBonusRead(bonus);
-    const saved = !bonus && progressKey ? getReadingProgress(progressKey) : null;
-    const resumable = saved && saved.mode === mode && !doneToday;
+    const progressMode = bonus ? "bonus" : mode;
+    const saved = progressKey ? getReadingProgress(progressKey) : null;
+    // 보너스 읽기는 이미 오늘 목표를 채운 뒤라 doneToday가 true인 게 정상이라, 그 경우엔 막지 않음
+    const resumable = saved && saved.mode === progressMode && (bonus || !doneToday);
     setReadMode(mode);
     setSecs(resumable ? saved.secs : (mode === "free" ? 0 : dailyTargetMinutes * 60));
     setReading(true);
     syncReadingSession(true);
     if (resumable) {
-      showToast(`아까 멈춘 곳부터 이어서 읽어요 (남은 ${Math.ceil(saved.secs / 60)}분) ⏱️`);
-    } else if (!bonus && progressKey) {
-      setReadingProgress(progressKey, { mode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
+      showToast(`아까 멈춘 곳부터 이어서 읽어요 (${bonus ? `${Math.floor(saved.secs / 60)}분째` : `남은 ${Math.ceil(saved.secs / 60)}분`}) ⏱️`);
+    } else if (progressKey) {
+      setReadingProgress(progressKey, { mode: progressMode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
     }
   };
 
@@ -958,7 +960,7 @@ export default function App() {
     clearInterval(timerRef.current);
     setReading(false);
     syncReadingSession(false);
-    if (!isBonusRead && progressKey) clearReadingProgress(progressKey);
+    if (progressKey) clearReadingProgress(progressKey);
     const minutesRead = Math.max(1, Math.round(secs / 60));
     if (isBonusRead) {
       setIsBonusRead(false);
@@ -2434,6 +2436,7 @@ export default function App() {
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
               <button onClick={() => {
                 clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
+                if (progressKey) setReadingProgress(progressKey, { mode: isBonusRead ? "bonus" : readMode, secs });
                 showToast(readMode === "target"
                   ? `잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`
                   : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
