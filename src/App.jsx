@@ -6,7 +6,7 @@ import {
   getClassById, updateClassSettings, getClassProgress,
   getMyLogs, getTodayLog, getCurrentBook, startBook as apiStartBook, submitLog,
   getClassLogsForTeacher, getClassRoster, searchBooks,
-  getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer,
+  getClassCurrentBooks, getClassReadingSessions, setReadingSession, sendCheer, getCheersReceivedSince,
   markBookCompleted, getClassCompletedBookCounts, getClassCheersSentCounts, getCompletedBooks, getBestsellers,
   teacherSignUp, teacherSignIn, createClassForAccount, getMyClasses,
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
@@ -17,7 +17,8 @@ import {
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 const MIN_NOTE_LENGTH = 10; // 느낀점 최소 글자 수
 import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress,
-  getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername } from "./lib/session";
+  getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername,
+  getCheersSeenAt, setCheersSeenAt } from "./lib/session";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
@@ -459,6 +460,37 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  const classmatesRef = useRef([]);
+  useEffect(() => { classmatesRef.current = classmates; }, [classmates]);
+
+  const checkNewCheers = async () => {
+    if (role !== "student" || !studentInfo?.id) return;
+    try {
+      const sinceIso = getCheersSeenAt(studentInfo.id);
+      if (!sinceIso) {
+        // 이 기능을 처음 쓰는 경우, 이미 쌓여있던 응원은 알림 없이 넘어가고 지금부터로 기준을 잡음
+        setCheersSeenAt(studentInfo.id, new Date().toISOString());
+        return;
+      }
+      const received = await getCheersReceivedSince(studentInfo.id, sinceIso);
+      if (received.length > 0) {
+        const names = [...new Set(received.map((c) => classmatesRef.current.find((m) => m.id === c.from_student_id)?.nick || "친구"))];
+        const emojis = received.map((c) => c.emoji).join(" ");
+        const nameText = names.length === 1 ? `${names[0]}님이` : `${names[0]}님 외 ${names.length - 1}명이`;
+        showToast(`${nameText} 나를 응원했어요! ${emojis}`);
+      }
+      setCheersSeenAt(studentInfo.id, new Date().toISOString());
+    } catch { /* 응원 알림은 실패해도 무시하고 계속 사용 가능 */ }
+  };
+
+  useEffect(() => {
+    if (screen !== "main" || role !== "student" || !studentInfo?.id) return;
+    checkNewCheers();
+    const interval = setInterval(checkNewCheers, 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, role, studentInfo?.id]);
 
   const refreshClassmates = async (classId, myStudentId) => {
     try {

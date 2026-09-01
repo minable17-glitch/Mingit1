@@ -358,6 +358,18 @@ export async function sendCheer({ fromStudentId, toStudentId, emoji }) {
   if (error) throw error;
 }
 
+export async function getCheersReceivedSince(studentId, sinceIso) {
+  let query = supabase
+    .from('cheers')
+    .select('from_student_id, emoji, created_at')
+    .eq('to_student_id', studentId)
+    .order('created_at', { ascending: true });
+  if (sinceIso) query = query.gt('created_at', sinceIso);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
 export async function logout() {
   await supabase.auth.signOut();
 }

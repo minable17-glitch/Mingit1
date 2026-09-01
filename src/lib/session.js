@@ -64,3 +64,20 @@ export function setSavedTeacherUsername(username) {
 export function clearSavedTeacherUsername() {
   localStorage.removeItem(TEACHER_ID_KEY);
 }
+
+const CHEERS_SEEN_KEY = 'saesak_cheers_seen_at';
+
+// 마지막으로 응원 알림을 확인한 시각 — 이후에 온 응원만 팝업으로 보여주기 위함
+export function getCheersSeenAt(studentId) {
+  try {
+    return localStorage.getItem(`${CHEERS_SEEN_KEY}_${studentId}`) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCheersSeenAt(studentId, iso) {
+  try {
+    localStorage.setItem(`${CHEERS_SEEN_KEY}_${studentId}`, iso);
+  } catch { /* 저장 실패해도 앱은 계속 사용 가능 */ }
+}
