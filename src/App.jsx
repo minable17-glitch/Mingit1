@@ -226,6 +226,9 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false, access
   const [cy, R] = canopyMap[stage] || canopyMap[3];
   const k = R / 23;
   const trunkTop = stage <= 1 ? 96 : stage === 2 ? 82 : cy + R * 0.7;
+  // 악세서리는 나무가 다 자라기 전(씨앗·새싹 단계)에도 바로 눈에 보이도록,
+  // 단계별로 알맞은 위치에 걸어줌 (기존엔 stage>=2에서만 보여서 초반엔 얻어도 안 보였음)
+  const [accCy, accR] = stage <= 0 ? [90, 9] : stage === 1 ? [88, 12] : [cy, R];
   return (
     <svg viewBox="0 0 100 122" width={w} height={h} style={{ overflow: "visible", display: "block" }}>
       {communal && stage >= 4 && <circle cx="50" cy={cy} r={R + 18} fill={C.sun} opacity="0.13" />}
@@ -241,12 +244,13 @@ function Tree({ stage = 3, size = 120, communal = false, reading = false, access
       {stage >= 2 && (<>
         <rect x={50 - 4} y={trunkTop} width="8" height={112 - trunkTop} rx="4" fill={communal ? C.trunkDark : C.trunk} />
         {fluffyCanopy(cy, R)}{stage >= 4 && drawFlowers(cy, R, stage === 5, stage === 5 ? (communal ? 6 : 5) : 3)}{treeFace(50, cy + 1, k)}
-        {accessories.slice(0, MAX_EQUIPPED_ACCESSORIES).map((type, i) => {
-          const info = ACCESSORY_CATALOG[type];
-          if (!info) return null;
-          const [dx, dy] = ACCESSORY_SLOTS[i];
-          return <text key={type} x={50 + dx * R} y={cy + dy * R} fontSize={Math.max(10, R * 0.55)} textAnchor="middle" dominantBaseline="middle">{info.emoji}</text>;
-        })}</>)}
+      </>)}
+      {accessories.slice(0, MAX_EQUIPPED_ACCESSORIES).map((type, i) => {
+        const info = ACCESSORY_CATALOG[type];
+        if (!info) return null;
+        const [dx, dy] = ACCESSORY_SLOTS[i];
+        return <text key={type} x={50 + dx * accR} y={accCy + dy * accR} fontSize={Math.max(9, accR * 0.55)} textAnchor="middle" dominantBaseline="middle">{info.emoji}</text>;
+      })}
       {reading && <g className="cs-drip"><path d="M50 20 q3.2 5 0 8.4 q-3.2 -3.4 0 -8.4 z" fill={C.water} /></g>}
     </svg>
   );
