@@ -19,7 +19,8 @@ const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 const MIN_NOTE_LENGTH = 10; // 느낀점 최소 글자 수
 import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress,
   getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername,
-  getCheersSeenAt, setCheersSeenAt } from "./lib/session";
+  getCheersSeenAt, setCheersSeenAt,
+  getPendingReflection, setPendingReflection, clearPendingReflection } from "./lib/session";
 
 // 나무 성장 6단계(0~5)의 기준 일수를 챌린지 기간에 비례해서 늘리거나 줄임
 // (기본값 30일 기준 1/4/10/18/26일 지점에서 자람)
@@ -466,7 +467,21 @@ export default function App() {
     if (screen !== "main" || !classInfo?.id) return;
     refreshClassProgress(classInfo.id);
     if (role === "student" && studentInfo?.id) {
-      getTodayLog(studentInfo.id).then((l) => setDoneToday(!!l)).catch(() => {});
+      getTodayLog(studentInfo.id).then((l) => {
+        setDoneToday(!!l);
+        if (l) {
+          clearPendingReflection(studentInfo.id);
+        } else {
+          const pending = getPendingReflection(studentInfo.id);
+          if (pending) {
+            setSessionMinutes(pending.minutes);
+            setIsBonusRead(false);
+            if (pending.note) setNote(pending.note);
+            if (pending.pages) setPageCount(String(pending.pages));
+            setReflecting(true);
+          }
+        }
+      }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
         setMyLog(logs.map((l) => ({ date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
@@ -800,6 +815,7 @@ export default function App() {
     if (progressKey) clearReadingProgress(progressKey);
     setSessionMinutes(dailyTargetMinutes);
     setReflecting(true);
+    if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: dailyTargetMinutes });
   };
 
   // 읽는 동안 화면이 자동으로 꺼지거나 어두워지지 않게 붙잡아둠 (지원 안 하는 기기는 그냥 무시)
@@ -925,6 +941,7 @@ export default function App() {
     } else {
       setSessionMinutes(minutesRead);
       setReflecting(true);
+      if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: minutesRead });
     }
   };
 
@@ -957,7 +974,11 @@ export default function App() {
       const { data } = await worker.recognize(processed);
       const text = (data?.text || "").trim();
       if (text) {
-        setNote((n) => (n.trim() ? `${n.trim()}\n${text}` : text));
+        setNote((n) => {
+          const updated = n.trim() ? `${n.trim()}\n${text}` : text;
+          if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: updated, pages: pageCount });
+          return updated;
+        });
         showToast("구절을 인식했어요. 잘못 읽은 글자는 직접 고쳐주세요 ✏️");
       } else {
         showToast("글자를 잘 못 읽었어요. 그림자 없이 밝은 곳에서, 글자 부분만 크게 찍어볼까요?");
@@ -993,6 +1014,7 @@ export default function App() {
         overflowMinutes,
         pages: savedPages,
       });
+      clearPendingReflection(studentInfo.id);
       setReflecting(false); setNote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
       setMyLog((l) => [{ date: "오늘", book: currentBook?.title || "", note: savedNote, minutes: sessionMinutes, pages: savedPages }, ...l]);
@@ -2383,7 +2405,11 @@ export default function App() {
                 {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기 (선택)"}</button>
               <div style={{ fontSize: 10.5, color: C.inkSoft, marginBottom: 12, textAlign: "center" }}>
                 그림자 없이 밝은 곳에서, 글자 부분만 화면 가득 채워 찍으면 더 잘 읽혀요. 인식된 글자는 자유롭게 고쳐도 돼요.</div>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
+              <textarea value={note} onChange={(e) => {
+                  const v = e.target.value;
+                  setNote(v);
+                  if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: v, pages: pageCount });
+                }} placeholder="오늘 읽은 부분에서 느낀 점을 적어보세요"
                 style={{ width: "100%", minHeight: 96, resize: "none", borderRadius: 14, border: "1.5px solid #d9d2c2", padding: 13, fontSize: 15,
                   fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
               <div style={{ fontSize: 11, color: note.trim().length >= MIN_NOTE_LENGTH ? C.green : "#c98a8a", textAlign: "right", marginTop: 4 }}>
@@ -2391,7 +2417,11 @@ export default function App() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
                 <label style={{ fontSize: 13, color: C.inkSoft, whiteSpace: "nowrap" }}>오늘 읽은 페이지 수 (선택)</label>
                 <input type="number" inputMode="numeric" min="0" value={pageCount}
-                  onChange={(e) => setPageCount(e.target.value.replace(/[^0-9]/g, ""))} placeholder="예: 20"
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, "");
+                    setPageCount(v);
+                    if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, pages: v });
+                  }} placeholder="예: 20"
                   style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2", fontSize: 14,
                     fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
               </div>

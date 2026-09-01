@@ -44,6 +44,34 @@ export function clearReadingProgress(studentId) {
   localStorage.removeItem(`${PROGRESS_KEY}_${studentId}`);
 }
 
+const PENDING_REFLECTION_KEY = 'saesak_pending_reflection';
+
+// 10분 다 읽고 느낀점을 쓰다가 폰이 꺼지거나 앱이 강제 종료돼도, 다시 켰을 때
+// 처음부터 다시 읽지 않고 느낀점 화면으로 바로 이어지도록 저장해둠
+export function getPendingReflection(studentId) {
+  try {
+    const raw = localStorage.getItem(`${PENDING_REFLECTION_KEY}_${studentId}`);
+    if (!raw) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const parsed = JSON.parse(raw);
+    if (parsed.date !== today) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function setPendingReflection(studentId, { minutes, note = "", pages = "" }) {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    localStorage.setItem(`${PENDING_REFLECTION_KEY}_${studentId}`, JSON.stringify({ date: today, minutes, note, pages }));
+  } catch { /* 저장 실패해도 앱은 계속 사용 가능 */ }
+}
+
+export function clearPendingReflection(studentId) {
+  localStorage.removeItem(`${PENDING_REFLECTION_KEY}_${studentId}`);
+}
+
 const TEACHER_ID_KEY = 'saesak_saved_teacher_id';
 
 // 선생님 로그인 화면의 "아이디 저장" — 비밀번호는 저장하지 않음
