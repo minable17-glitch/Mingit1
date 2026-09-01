@@ -836,6 +836,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reading, readMode]);
 
+  // 읽는 동안 주기적으로 "아직 읽는 중"이라는 신호를 보냄. 폰이 꺼지거나 앱이
+  // 강제 종료되면 이 신호가 끊기고, 친구들 화면에서는 일정 시간 뒤 자동으로
+  // "독서중" 표시가 사라짐 (getClassReadingSessions의 오래된 기록 제외 로직과 한 쌍)
+  useEffect(() => {
+    if (!reading) return;
+    const heartbeat = setInterval(() => {
+      if (pageVisibleRef.current) syncReadingSession(true);
+    }, 25000);
+    return () => clearInterval(heartbeat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading]);
+
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   const startReading = (mode, bonus = false) => {

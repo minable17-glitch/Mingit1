@@ -336,13 +336,19 @@ export async function getClassCurrentBooks(studentIds) {
   return byStudent;
 }
 
+// 폰이 꺼지거나 앱이 강제 종료되면 "읽기 종료" 신호를 보낼 방법이 없으므로,
+// 일정 시간(90초) 넘게 심장박동(updated_at 갱신)이 없으면 오래된 상태로 보고 제외함
+const READING_SESSION_STALE_MS = 90 * 1000;
+
 export async function getClassReadingSessions(studentIds) {
   if (!studentIds.length) return {};
+  const staleThreshold = new Date(Date.now() - READING_SESSION_STALE_MS).toISOString();
   const { data, error } = await supabase
     .from('reading_sessions')
-    .select('student_id, is_reading')
+    .select('student_id, is_reading, updated_at')
     .in('student_id', studentIds)
-    .eq('is_reading', true);
+    .eq('is_reading', true)
+    .gte('updated_at', staleThreshold);
   if (error) throw error;
   const byStudent = {};
   for (const row of data) byStudent[row.student_id] = true;
