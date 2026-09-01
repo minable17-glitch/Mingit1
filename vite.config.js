@@ -14,11 +14,6 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false,
       includeAssets: ['favicon.svg'],
-      // 오프라인 지원용 서비스워커가 /Mingit1/ 하위 모든 주소를 새싹책방 화면으로 가로채는데,
-      // 같은 Pages 사이트에 별도로 얹은 /zombie-run/ 게임은 그 대상에서 제외해야 함
-      workbox: {
-        navigateFallbackDenylist: [/\/zombie-run\//],
-      },
       manifest: {
         name: '새싹책방',
         short_name: '새싹책방',
