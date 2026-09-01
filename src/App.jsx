@@ -2286,6 +2286,9 @@ export default function App() {
                     <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.55, whiteSpace: "pre-line" }}>{step.body}</div>
                   </div>
                 ))}
+                <div style={{ textAlign: "center", fontSize: 11.5, color: C.inkSoft, marginTop: 6, lineHeight: 1.6 }}>
+                  문의: 낙원중학교 교사 민동수 (경기도메신저)<br />이메일: minable17@gmail.com
+                </div>
               </div>
               <button onClick={() => setShowGuide(false)} className="cs-jua" style={{ marginTop: 14, padding: 13, borderRadius: 14,
                 border: "none", fontSize: 15, color: "#fff", cursor: "pointer", flexShrink: 0,
