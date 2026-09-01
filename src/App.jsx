@@ -74,18 +74,41 @@ async function preprocessImageForOcr(file) {
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = imageData.data;
-    const gray = new Float32Array(d.length / 4);
-    let min = 255, max = 0;
+    const gray = new Uint8ClampedArray(d.length / 4);
+    const histogram = new Array(256).fill(0);
     for (let i = 0; i < d.length; i += 4) {
-      const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
       gray[i / 4] = g;
-      if (g < min) min = g;
-      if (g > max) max = g;
+      histogram[g]++;
     }
-    const range = Math.max(1, max - min);
-    for (let i = 0; i < d.length; i += 4) {
-      const stretched = Math.min(255, Math.max(0, ((gray[i / 4] - min) / range) * 255));
-      d[i] = d[i + 1] = d[i + 2] = stretched;
+    // 최솟값/최댓값 대신 5~95 백분위수로 범위를 잡아서, 픽셀 한두 개의 노이즈 때문에
+    // 범위가 왜곡되는 걸 방지함
+    const total = gray.length;
+    let cum = 0, p5 = 0, p95 = 255;
+    for (let v = 0; v < 256; v++) {
+      cum += histogram[v];
+      if (cum >= total * 0.05) { p5 = v; break; }
+    }
+    cum = 0;
+    for (let v = 255; v >= 0; v--) {
+      cum += histogram[v];
+      if (cum >= total * 0.05) { p95 = v; break; }
+    }
+    const range = p95 - p5;
+
+    // 글자가 없는 빈 페이지를 찍으면 명암 범위가 원래 매우 좁은데, 여기에 대비를
+    // 억지로 끌어올리면 미세한 그림자·종이 잡티가 글자처럼 보이는 노이즈로 부풀려져서
+    // 엉뚱한 글씨로 잘못 인식되는 원인이 됨. 범위가 좁을 땐 대비를 세게 넣지 않음.
+    if (range < 40) {
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = d[i + 1] = d[i + 2] = gray[i / 4];
+      }
+    } else {
+      const safeRange = Math.max(1, range);
+      for (let i = 0; i < d.length; i += 4) {
+        const stretched = Math.min(255, Math.max(0, ((gray[i / 4] - p5) / safeRange) * 255));
+        d[i] = d[i + 1] = d[i + 2] = stretched;
+      }
     }
     ctx.putImageData(imageData, 0, 0);
     return await new Promise((resolve) => canvas.toBlob((b) => resolve(b || file), "image/png"));
@@ -973,7 +996,11 @@ export default function App() {
       await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK });
       const { data } = await worker.recognize(processed);
       const text = (data?.text || "").trim();
-      if (text) {
+      // 글자가 없는 빈 부분을 찍으면 확신도(confidence)가 낮은 잡음성 텍스트가 나오는
+      // 경우가 많아서, 확신도가 너무 낮거나 실제 글자(한글/영문)가 거의 없으면 걸러냄
+      const MIN_OCR_CONFIDENCE = 55;
+      const looksLikeRealText = /[가-힣a-zA-Z]{2,}/.test(text);
+      if (text && looksLikeRealText && (data?.confidence ?? 0) >= MIN_OCR_CONFIDENCE) {
         setNote((n) => {
           const updated = n.trim() ? `${n.trim()}\n${text}` : text;
           if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note: updated, pages: pageCount });
