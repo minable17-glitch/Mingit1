@@ -1744,7 +1744,13 @@ export default function App() {
                       <BookCard key={i} book={b} selected={myBook === b.title} onChoose={() => chooseBook(b)} onDetail={() => setBookDetail(b)} />
                     ))}
                     {!searching && !searchError && query.trim() && results.length === 0 && (
-                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 20 }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>
+                      <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: "20px 0 4px" }}>검색 결과가 없어요. 다른 낱말로 찾아볼까요?</div>
+                    )}
+                    {!searching && !searchError && query.trim() && (
+                      <button onClick={() => chooseBook({ title: query.trim(), author: "", cover: null })} className="cs-jua"
+                        style={{ border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, borderRadius: 14,
+                          padding: "12px 14px", fontSize: 13.5, cursor: "pointer", marginTop: 2 }}>
+                        ✏️ 찾는 책이 없나요? "{query.trim()}"(으)로 직접 등록하기</button>
                     )}
                     {!query.trim() && (
                       <>
