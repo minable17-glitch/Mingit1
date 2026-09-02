@@ -29,6 +29,10 @@ export default defineConfig({
             options: {
               cacheName: 'html-shell',
               networkTimeoutSeconds: 3,
+              // 브라우저/웹뷰 자체의 HTTP 캐시까지 건너뛰고 항상 진짜 네트워크로
+              // 요청하도록 함 (카카오톡 인앱 브라우저 등에서 오래된 응답이
+              // 그대로 재사용되는 걸 방지)
+              fetchOptions: { cache: 'no-store' },
             },
           },
         ],
