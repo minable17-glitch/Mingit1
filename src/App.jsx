@@ -537,8 +537,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
 
-  // 화면을 계속 켜둔 채로 자정을 넘기면(태블릿 거치 등) "오늘의 반 목표"·오늘 완료 여부·
-  // D-day가 그대로 멈춰있던 문제 — 날짜가 바뀐 걸 감지하면 새로 불러옴
+  // 화면을 계속 켜둔 채로(또는 백그라운드에 있다가 다시 열었을 때) 자정을 넘기면
+  // "오늘의 반 목표"·오늘 완료 여부·D-day가 그대로 멈춰있던 문제 — 날짜가 바뀐 걸
+  // 감지하면 새로 불러옴. 백그라운드 탭에서는 setInterval이 멈출 수 있어서,
+  // 앱을 다시 열 때(visibilitychange)도 똑같이 확인함
   const lastDateRef = useRef(todayKST());
   useEffect(() => {
     if (screen !== "main" || !classInfo?.id) return;
@@ -552,7 +554,12 @@ export default function App() {
       }
     };
     const t = setInterval(checkDateRollover, 60000);
-    return () => clearInterval(t);
+    const handleVisible = () => { if (document.visibilityState === "visible") checkDateRollover(); };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", handleVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, classInfo?.id, role, studentInfo?.id]);
 
