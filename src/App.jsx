@@ -519,7 +519,7 @@ export default function App() {
         }
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ id: l.id, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
@@ -989,7 +989,7 @@ export default function App() {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ id: l.id, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+        setMyLog(logs.map((l) => ({ id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
       }).catch(() => {});
     } catch (e) {
       showToast(e.message || "저장에 실패했어요.");
@@ -1094,7 +1094,7 @@ export default function App() {
       clearPendingReflection(studentInfo.id);
       setReflecting(false); setNote(""); setQuote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ id: saved.id, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
+      setMyLog((l) => [{ id: saved.id, log_date: saved.log_date, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
       showToast(overflowMinutes > 0
@@ -1977,7 +1977,7 @@ export default function App() {
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
-                              {e.date === "오늘" && e.id && role === "student" && (
+                              {e.log_date === todayKST() && e.id && role === "student" && (
                                 <button onClick={() => handleOpenEditLog(e)} style={{ border: "none", background: "transparent",
                                   color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>✏️ 수정</button>
                               )}
