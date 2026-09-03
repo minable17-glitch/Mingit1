@@ -73,7 +73,7 @@ export async function deleteLog(logId) {
 }
 
 export async function updateTodayLog(logId, { note, ocrExcerpt = null }) {
-  const { error } = await supabase.rpc('student_update_today_log', {
+  const { error } = await supabase.rpc('student_update_log', {
     p_log_id: logId,
     p_note: note,
     p_ocr_excerpt: ocrExcerpt,

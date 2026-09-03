@@ -469,7 +469,7 @@ export default function App() {
   const [customTargetMinutes, setCustomTargetMinutes] = useState("");
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
-  const [editingLog, setEditingLog] = useState(null); // { id, note, quote } — 오늘 기록 수정 중
+  const [editingLog, setEditingLog] = useState(null); // { id, date, note, quote } — 기록 수정 중
   const [editNoteText, setEditNoteText] = useState("");
   const [editQuoteText, setEditQuoteText] = useState("");
   const [editBusy, setEditBusy] = useState(false);
@@ -1195,7 +1195,7 @@ export default function App() {
       await updateTodayLog(editingLog.id, { note: savedNote, ocrExcerpt: savedQuote });
       setMyLog((list) => list.map((l) => (l.id === editingLog.id ? { ...l, note: savedNote, quote: savedQuote } : l)));
       setEditingLog(null);
-      showToast("오늘의 기록을 수정했어요 ✏️");
+      showToast("기록을 수정했어요 ✏️");
     } catch (e) {
       showToast(e.message || "수정에 실패했어요.");
     } finally {
@@ -1977,7 +1977,7 @@ export default function App() {
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
-                              {e.log_date === todayKST() && e.id && role === "student" && (
+                              {e.id && role === "student" && (
                                 <button onClick={() => handleOpenEditLog(e)} style={{ border: "none", background: "transparent",
                                   color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>✏️ 수정</button>
                               )}
@@ -2526,14 +2526,14 @@ export default function App() {
           </div>
         )}
 
-        {/* 오늘의 기록 수정 */}
+        {/* 지난 기록 수정 */}
         {editingLog && (
           <div onClick={() => !editBusy && setEditingLog(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect,
             display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
-              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 기록 수정 ✏️</div>
-              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점과 인상 깊은 구절만 고칠 수 있어요. (오늘 기록만 가능)</div>
+              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>{editingLog?.date} 기록 수정 ✏️</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점과 인상 깊은 구절만 고칠 수 있어요.</div>
 
               <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
               <textarea value={editQuoteText} onChange={(e) => setEditQuoteText(e.target.value)} placeholder="마음에 남는 문장을 적어보세요"
