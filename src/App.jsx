@@ -445,6 +445,11 @@ export default function App() {
   const [submitBusy, setSubmitBusy] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
   const ocrInputRef = useRef(null);
+  const [ocrCropSrc, setOcrCropSrc] = useState(null); // 사진 미리보기 URL — 있으면 영역 선택 화면이 열림
+  const [ocrCropFile, setOcrCropFile] = useState(null);
+  const [ocrCropRect, setOcrCropRect] = useState(null); // {x0,y0,x1,y1} — 표시된 사진 기준 0~1 비율
+  const ocrCropImgRef = useRef(null);
+  const ocrDragRef = useRef(null);
   const [secs, setSecs] = useState(600);
   const [note, setNote] = useState("");
   const [quote, setQuote] = useState("");
@@ -1024,15 +1029,12 @@ export default function App() {
     }
   };
 
-  const handleOcrFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const runOcr = async (fileOrBlob) => {
     setOcrBusy(true);
     let worker;
     try {
       const { default: Tesseract } = await import("tesseract.js");
-      const processed = await preprocessImageForOcr(file);
+      const processed = await preprocessImageForOcr(fileOrBlob);
       worker = await Tesseract.createWorker("kor+eng");
       // 사진 한 장 전체가 아니라 한 문단(구절)만 찍는 상황이라, 이 모드가 인식률이 더 좋음
       await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK });
@@ -1058,6 +1060,67 @@ export default function App() {
       if (worker) { try { await worker.terminate(); } catch { /* 무시 */ } }
       setOcrBusy(false);
     }
+  };
+
+  // 사진을 고르면 바로 스캔하지 않고, 글자가 있는 부분만 선택할 수 있는 화면을 먼저 보여줌
+  const handleOcrFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setOcrCropFile(file);
+    setOcrCropSrc(URL.createObjectURL(file));
+    setOcrCropRect(null);
+  };
+
+  const closeOcrCrop = () => {
+    if (ocrCropSrc) URL.revokeObjectURL(ocrCropSrc);
+    setOcrCropSrc(null);
+    setOcrCropFile(null);
+    setOcrCropRect(null);
+  };
+
+  const handleCropPointerDown = (e) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    ocrDragRef.current = { x, y };
+    setOcrCropRect({ x0: x, y0: y, x1: x, y1: y });
+  };
+  const handleCropPointerMove = (e) => {
+    if (!ocrDragRef.current) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    setOcrCropRect({ x0: ocrDragRef.current.x, y0: ocrDragRef.current.y, x1: x, y1: y });
+  };
+  const handleCropPointerUp = () => { ocrDragRef.current = null; };
+
+  const handleScanWholePhoto = async () => {
+    const file = ocrCropFile;
+    closeOcrCrop();
+    if (file) await runOcr(file);
+  };
+
+  const handleScanCroppedPhoto = async () => {
+    const rect = ocrCropRect;
+    const imgEl = ocrCropImgRef.current;
+    const hasArea = rect && Math.abs(rect.x1 - rect.x0) > 0.02 && Math.abs(rect.y1 - rect.y0) > 0.02;
+    if (!hasArea || !imgEl) {
+      showToast("스캔할 부분을 손가락으로 드래그해서 선택해주세요.");
+      return;
+    }
+    const nw = imgEl.naturalWidth, nh = imgEl.naturalHeight;
+    const x0 = Math.min(rect.x0, rect.x1) * nw, x1 = Math.max(rect.x0, rect.x1) * nw;
+    const y0 = Math.min(rect.y0, rect.y1) * nh, y1 = Math.max(rect.y0, rect.y1) * nh;
+    const w = Math.max(1, Math.round(x1 - x0)), h = Math.max(1, Math.round(y1 - y0));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(imgEl, x0, y0, w, h, 0, 0, w, h);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    closeOcrCrop();
+    if (blob) await runOcr(blob);
   };
 
   const submit = async () => {
@@ -2520,6 +2583,39 @@ export default function App() {
           </div>
         )}
 
+        {/* OCR 스캔 영역 선택 */}
+        {ocrCropSrc && (
+          <div style={{ position: "fixed", inset: 0, background: "#1c241dee", zIndex: 300,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ fontSize: 13, color: "#fff", textAlign: "center", marginBottom: 10, maxWidth: 320 }}>
+              손가락으로 드래그해서 글자가 있는 부분만 선택해주세요<br />(선택 안 하고 바로 스캔하면 사진 전체를 읽어요)</div>
+            <div
+              onPointerDown={handleCropPointerDown} onPointerMove={handleCropPointerMove}
+              onPointerUp={handleCropPointerUp} onPointerLeave={handleCropPointerUp}
+              style={{ position: "relative", maxWidth: "100%", maxHeight: "58vh", touchAction: "none", lineHeight: 0, cursor: "crosshair" }}>
+              <img ref={ocrCropImgRef} src={ocrCropSrc} alt="" draggable={false}
+                style={{ maxWidth: "100%", maxHeight: "58vh", display: "block", userSelect: "none", pointerEvents: "none" }} />
+              {ocrCropRect && (() => {
+                const left = Math.min(ocrCropRect.x0, ocrCropRect.x1) * 100;
+                const top = Math.min(ocrCropRect.y0, ocrCropRect.y1) * 100;
+                const width = Math.abs(ocrCropRect.x1 - ocrCropRect.x0) * 100;
+                const height = Math.abs(ocrCropRect.y1 - ocrCropRect.y0) * 100;
+                return <div style={{ position: "absolute", left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%`,
+                  border: `2px solid ${C.gold}`, background: `${C.gold}33`, pointerEvents: "none" }} />;
+              })()}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16, width: "100%", maxWidth: 340 }}>
+              <button onClick={closeOcrCrop} disabled={ocrBusy} style={{ flex: 1, padding: 13, borderRadius: 14, border: "1.5px solid #ffffff55",
+                background: "transparent", color: "#fff", fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>취소</button>
+              <button onClick={handleScanWholePhoto} disabled={ocrBusy} className="cs-jua" style={{ flex: 1, padding: 13, borderRadius: 14,
+                border: "none", background: "#ffffff33", color: "#fff", fontSize: 13, cursor: ocrBusy ? "default" : "pointer" }}>전체 스캔</button>
+              <button onClick={handleScanCroppedPhoto} disabled={ocrBusy} className="cs-jua" style={{ flex: 1.4, padding: 13, borderRadius: 14,
+                border: "none", background: `linear-gradient(${C.green}, ${C.greenDk})`, color: "#fff", fontSize: 13.5,
+                cursor: ocrBusy ? "default" : "pointer" }}>{ocrBusy ? "읽는 중..." : "선택한 부분 스캔"}</button>
+            </div>
+          </div>
+        )}
+
         {/* 지난 기록 수정 */}
         {editingLog && (
           <div onClick={() => !editBusy && setEditingLog(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect,
@@ -2608,7 +2704,7 @@ export default function App() {
               <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
 
               <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
-              <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFile} />
+              <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFileSelected} />
               <button onClick={() => ocrInputRef.current?.click()} disabled={ocrBusy} style={{ width: "100%", padding: 12, borderRadius: 14,
                 marginBottom: 6, border: `1.5px dashed ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 14, cursor: ocrBusy ? "default" : "pointer" }}>
                 {ocrBusy ? "📷 구절을 읽는 중..." : "📷 마음에 드는 구절 스캔하기"}</button>
