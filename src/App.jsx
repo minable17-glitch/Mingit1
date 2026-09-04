@@ -154,7 +154,7 @@ const GUIDE_TEACHER = [
 const GUIDE_STUDENT = [
   { title: "1. 반 코드로 들어가기", body: "'학생으로 참여'에서 선생님이 알려준 반 코드를 입력하고 닉네임을 골라요.\n처음 로그인할 때 PIN은 0000이고, 이후 원하는 번호로 바꿀 수 있어요." },
   { title: "2. 오늘 읽을 책 정하기", body: "책 제목을 검색하거나, 책 표지를 사진으로 찍으면 자동으로 제목을 인식해줘요." },
-  { title: "3. 읽기 시작하기", body: "'목표 시간 채우기'는 정해진 시간을 다 채우면 자동으로 끝나고,\n'자유롭게 읽기'는 원하는 만큼 읽고 직접 끝낼 수 있어요.\n읽는 동안 화면을 벗어나면 타이머가 멈춰요." },
+  { title: "3. 읽기 시작하기", body: "'목표 시간 채우기'는 정해진 시간을 다 채우면 멈추지 않고 자유롭게 이어서 읽을 수 있고,\n다 읽었으면 '다 읽었어요'를 눌러서 마무리하면 돼요.\n읽는 동안 화면을 벗어나면 타이머가 멈춰요." },
   { title: "4. 오늘의 한 줄 남기기", body: "다 읽으면 마음에 남는 구절(사진으로 스캔 가능)과 느낀 점을 적어요. 읽은 페이지 수도 적으면 '다독왕' 기록에 쌓여요." },
   { title: "5. 우리 반 숲 구경하기", body: "친구들의 나무가 자라는 모습을 구경하고, 이모지로 서로 응원할 수 있어요.\n목표 시간보다 더 많이 읽으면(자유읽기 10분마다) 나무를 꾸밀 아이템도 받아요." },
   { title: "6. 배지·랭킹 확인하기", body: "'이주의 주인공'에서 개근, 다독왕, 완독왕 같은 배지를 확인할 수 있어요." },
@@ -877,16 +877,6 @@ export default function App() {
     }
   };
 
-  const finishAuto = () => {
-    clearInterval(timerRef.current);
-    setReading(false);
-    syncReadingSession(false);
-    if (progressKey) clearReadingProgress(progressKey);
-    setSessionMinutes(dailyTargetMinutes);
-    setReflecting(true);
-    if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: dailyTargetMinutes });
-  };
-
   // 읽는 동안 화면이 자동으로 꺼지거나 어두워지지 않게 붙잡아둠 (지원 안 하는 기기는 그냥 무시)
   const requestWakeLock = async () => {
     try {
@@ -931,9 +921,13 @@ export default function App() {
       if (!pageVisibleRef.current) return; // 화면을 벗어난 동안엔 시간이 흐르지 않음
       setSecs((s) => {
         if (readMode === "target" && s <= 1) {
-          clearInterval(timerRef.current);
-          finishAuto();
-          return 0;
+          // 목표 시간을 다 채워도 억지로 끝내지 않고, 그대로 자유롭게 이어서 읽을 수 있게 함
+          // (다 읽었으면 그때 '다 읽었어요'를 눌러서 느낀점을 남기면 됨)
+          const next = dailyTargetMinutes * 60;
+          setReadMode("free");
+          showToast("목표 시간을 다 채웠어요! 계속 읽어도 되고, 그만 읽으려면 '다 읽었어요'를 눌러주세요 🌱");
+          if (progressKey) setReadingProgress(progressKey, { mode: "free", secs: next });
+          return next;
         }
         const next = readMode === "free" ? s + 1 : s - 1;
         if (progressKey) setReadingProgress(progressKey, { mode: isBonusRead ? "bonus" : readMode, secs: next });
@@ -2591,7 +2585,7 @@ export default function App() {
             </div>
             <div style={{ fontSize: 11, color: "#a7b3a0", marginTop: 10, textAlign: "center", maxWidth: 260 }}>
               {readMode === "target"
-                ? <>⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.<br />목표 시간을 다 채우면 자동으로 느낀점 화면으로 넘어가요.</>
+                ? <>⏸ 잠깐 멈추기: 나중에 이어서 읽을 수 있어요.<br />목표 시간을 다 채우면 멈추지 않고 자유롭게 이어서 읽을 수 있어요.</>
                 : (() => {
                     const minRequired = isBonusRead ? 600 : dailyTargetMinutes * 60;
                     if (secs < minRequired) {
