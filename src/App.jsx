@@ -1165,6 +1165,13 @@ export default function App() {
         }).catch(() => {});
       }
     } catch (e) {
+      if (e.message?.includes("row-level security")) {
+        // 로그인 세션이 꼬여서 본인 확인이 안 되는 경우: 자동으로 로그아웃시켜서
+        // 다시 로그인하면 정상화되도록 함. 쓰던 내용은 임시저장돼 있어서 로그인하면 다시 보임.
+        showToast("로그인 정보가 꼬였어요. 다시 로그인해주세요! (쓰던 내용은 그대로 남아있어요)");
+        await handleLogout();
+        return;
+      }
       showToast(e.message?.includes("duplicate") ? "오늘은 이미 기록했어요." : (e.message || "저장에 실패했어요. 다시 시도해주세요."));
     } finally {
       setSubmitBusy(false);
@@ -2697,10 +2704,13 @@ export default function App() {
 
         {/* 느낀점 */}
         {reflecting && (
-          <div style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
+          <div onClick={() => setReflecting(false)} style={{ position: "fixed", inset: 0, background: "#2e3d2faa", zIndex: Z.reflect, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0", padding: "22px 20px 30px", animation: "cs-up .28s ease" }}>
               <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 16px" }} />
-              <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
+                <button onClick={() => setReflecting(false)} style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 4 }}>✕</button>
+              </div>
               <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
 
               <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
