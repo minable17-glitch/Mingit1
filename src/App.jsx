@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import RoleGate from './components/RoleGate';
 import StudentLoginGate from './components/StudentLoginGate';
 import EquipmentTab from './components/EquipmentTab';
 import ReadTab from './components/ReadTab';
@@ -18,8 +19,9 @@ const TABS = [
 ];
 
 export default function App() {
-  const [mode, setMode] = useState('student'); // 'student' | 'admin'
   const [student, setStudent] = useState(() => getSession());
+  // 'student' | 'admin' | null(=역할 선택 화면). 이미 로그인된 학생이 있으면 바로 학생 화면으로.
+  const [mode, setMode] = useState(() => (getSession() ? 'student' : null));
   const [equipment, setEquipment] = useState(null);
   const [equipmentLoaded, setEquipmentLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('equipment');
@@ -56,10 +58,15 @@ export default function App() {
     setEquipment(null);
     setEquipmentLoaded(false);
     setActiveTab('equipment');
+    setMode(null);
+  }
+
+  if (mode === null) {
+    return <RoleGate onPickStudent={() => setMode('student')} onPickAdmin={() => setMode('admin')} />;
   }
 
   if (mode === 'admin') {
-    return <AdminTab onExit={() => setMode('student')} />;
+    return <AdminTab onExit={() => setMode(null)} />;
   }
 
   if (!student) {

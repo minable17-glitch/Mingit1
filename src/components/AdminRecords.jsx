@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { adminListStudents, adminListShootingLogs, adminListReflections } from '../lib/api';
 
-export default function AdminRecords({ classId, adminPin }) {
+export default function AdminRecords({ classId }) {
   const [students, setStudents] = useState([]);
   const [logs, setLogs] = useState([]);
   const [reflections, setReflections] = useState([]);
@@ -14,9 +14,9 @@ export default function AdminRecords({ classId, adminPin }) {
       setLoading(true);
       try {
         const [s, l, r] = await Promise.all([
-          adminListStudents(classId, adminPin),
-          adminListShootingLogs(classId, adminPin),
-          adminListReflections(classId, adminPin),
+          adminListStudents(classId),
+          adminListShootingLogs(classId),
+          adminListReflections(classId),
         ]);
         if (cancelled) return;
         setStudents(s);
@@ -29,7 +29,7 @@ export default function AdminRecords({ classId, adminPin }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [classId, adminPin]);
+  }, [classId]);
 
   if (loading) return <div className="card center muted">불러오는 중...</div>;
   if (error) return <div className="card msg msg-error">{error}</div>;

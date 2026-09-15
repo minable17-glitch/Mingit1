@@ -37,18 +37,22 @@ VITE_SUPABASE_ANON_KEY=
 ## 3. 화면 구조
 
 ```
-StudentLoginGate   학급 코드 + 학번 + 이름 + PIN(4자리) 로그인 (최초 로그인 = 자동 등록)
-  └ 하단 탭 5개
-      내 장비     활 번호 · 조/사대 위치 · 사이트 세팅 저장
-      읽어보기    이미지 콘텐츠 카드 목록 → 상세(이미지 세로 스크롤)
-      배워보기    영상(유튜브 embed 또는 직접 재생) + 이미지 + 설명, 박스 호흡 타이머 포함
-      기록하기    과녁 탭 마커 기록 + 명중 수 자동 집계 + 조준 보정 코치 (핵심 기능)
-      성찰하기    심리기법 체크 + 인내/자기조절/삶연계 서술형 (매일 업서트)
-  └ 헤더의 "관리자" 버튼 → AdminTab (학생 세션과 별개)
-      학급 생성/로그인(학급 이름 + 관리자 코드)
-      읽어보기/배워보기 콘텐츠 CRUD
-      학생 명단·슈팅 기록·성찰 기록 조회
+RoleGate   "역할을 선택하세요" — 학생으로 로그인 / 선생님으로 로그인
+  ├ 학생으로 로그인
+  │  StudentLoginGate   학급 코드 + 학번 + 이름 + PIN(4자리) 로그인 (최초 로그인 = 자동 등록)
+  │    └ 하단 탭 5개
+  │        내 장비     활 번호 · 조/사대 위치 · 사이트 세팅 저장
+  │        읽어보기    이미지 콘텐츠 카드 목록 → 상세(이미지 세로 스크롤)
+  │        배워보기    영상(유튜브 embed 또는 직접 재생) + 이미지 + 설명, 박스 호흡 타이머 포함
+  │        기록하기    과녁 탭 마커 기록 + 명중 수 자동 집계 + 조준 보정 코치 (핵심 기능)
+  │        성찰하기    심리기법 체크 + 인내/자기조절/삶연계 서술형 (매일 업서트)
+  └ 선생님으로 로그인 → AdminTab
+       AuthScreen    아이디/비밀번호 로그인, 계정 만들기, 아이디 찾기(이메일), 비밀번호 찾기(아이디+이메일)
+       ClassPicker   로그인한 교사가 만든 학급 목록 + 새 학급 만들기 (교사 1명이 여러 학급 가능)
+       학급 선택 후  읽어보기/배워보기 콘텐츠 CRUD, 학생 명단·슈팅 기록·성찰 기록 조회
 ```
+
+학생 화면 상단에도 작은 "관리자" 버튼이 있어서 로그아웃 없이 바로 관리자 화면으로 전환할 수 있다(같은 기기를 교사가 테스트할 때 편하도록).
 
 ## 4. 파일 지도
 
@@ -64,6 +68,7 @@ src/
     aimCoach.js                조준 보정 로직 (순수 함수, 아래 §5 참고)
     media.js                   유튜브 URL → embed 변환, 쉼표구분 URL 파싱
   components/
+    RoleGate.jsx                 첫 화면 역할 선택(학생/선생님)
     StudentLoginGate.jsx
     EquipmentTab.jsx
     ReadTab.jsx / LearnTab.jsx
@@ -71,7 +76,7 @@ src/
     RecordTab.jsx                기록하기 화면 본체
     BoxBreathing.jsx             박스 호흡(4-4-4-4) 타이머 위젯
     ReflectTab.jsx
-    AdminTab.jsx                 관리자 로그인 + 서브탭 셸
+    AdminTab.jsx                 교사 계정 로그인/가입/찾기(AuthScreen) + 학급 선택(ClassPicker) + 서브탭 셸
     AdminContentEditor.jsx       읽어보기/배워보기 콘텐츠 CRUD (kind prop으로 공용화)
     AdminRecords.jsx             학생/슈팅기록/성찰기록 조회
 
@@ -91,26 +96,31 @@ supabase/schema.sql            전체 스키마 + RPC 함수 (Supabase SQL Edito
 
 | 테이블 | 용도 |
 |---|---|
-| `classes` | 학급 이름, 학급 코드(학생용), 관리자 코드 해시(교사용) |
+| `teachers` | 교사 계정: 아이디(unique)+비밀번호 해시+이메일, `auth_user_id`로 현재 익명 세션과 연결 |
+| `classes` | 학급 이름, 학급 코드(학생용), `teacher_id`로 소유 교사 연결 |
 | `students` | 학번+이름+PIN해시, `auth_user_id`로 현재 익명 세션과 연결 |
 | `equipment` | 학생별 활 번호·조/사대·사이트 세팅 (student_id가 PK, upsert) |
 | `read_contents` / `learn_contents` | 교사가 등록하는 콘텐츠 (이미지 URL은 쉼표로 여러 개, 학생에게는 `visible=true`만 노출) |
 | `shooting_logs` | 회차별(학생당 하루 1건, `unique(student_id, log_date)`) 탄착 마커·명중수·조준보정 문구·사이트 전/후 |
 | `reflections` | 회차별(학생당 하루 1건) 성찰 기록 |
 
-**보안 설계**: 모든 테이블에 RLS를 켜두고, `read_contents`/`learn_contents`의 "visible=true row만 select" 정책 외에는 **직접 테이블 접근을 전부 막는다**. 모든 읽기/쓰기는 SECURITY DEFINER RPC 함수를 통해서만 하고, 함수 내부에서 `auth.uid()`(학생) 또는 관리자 코드 해시 비교(`assert_admin`, 교사)로 권한을 확인한다. 이 패턴은 새싹책방 앱에서 실제로 검증된 방식을 그대로 따른 것이다.
+**보안 설계**: 모든 테이블에 RLS를 켜두고, `read_contents`/`learn_contents`의 "visible=true row만 select" 정책 외에는 **직접 테이블 접근을 전부 막는다**. 모든 읽기/쓰기는 SECURITY DEFINER RPC 함수를 통해서만 하고, 함수 내부에서 `auth.uid()`로 신원(학생 또는 교사)을 확인한다. 관리자 함수들은 `assert_class_owner(p_class_id)`로 "지금 로그인한 교사가 이 학급의 `teacher_id`와 일치하는가"만 확인한다. 이 패턴(익명 인증 + SECURITY DEFINER RPC + RLS)은 새싹책방 앱에서 실제로 검증된 방식을 그대로 따른 것이다.
 
-관리자 인증은 계정 시스템 없이 "학급 코드 + 관리자 코드(숫자 4자리 이상)" 조합만 쓰는 가벼운 방식이다 (명세서의 "간단한 접근 제한" 요구에 맞춤). 관리자 코드는 **로그인 상태 동안 브라우저 메모리(React state)에만 유지**하고 localStorage에 저장하지 않는다 — 관리자 화면을 새로고침하면 다시 로그인해야 한다 (의도된 동작).
+**교사 계정 (v2, 최초 버전의 "학급코드+관리자코드" 방식에서 교체됨)**: 아이디+비밀번호 계정 시스템. 교사 1명이 여러 학급을 만들 수 있고, 로그인 후 `ClassPicker`에서 관리할 학급을 고른다. "아이디 찾기"/"비밀번호 찾기"는 **이메일 발송 인프라가 없어서** 실제 이메일을 보내지 않고, 가입 시 등록한 이메일이 일치하면 그 자리에서 바로 아이디를 보여주거나 새 비밀번호를 설정하게 해준다 — 진짜 이메일 인증 루프는 아니지만, 학교 내부용 저위험 도구라 이 정도면 충분하다고 판단했다. 나중에 진짜 이메일을 보내고 싶으면 러닝 앱 인수인계서에서 설명한 `supabase.functions.invoke('send-password-reset')` 패턴(Supabase Edge Function + 이메일 서비스)을 참고할 것.
 
-## 7. 아직 안 한 것 / 다음 단계 후보
+## 7. 배포 상태 & 아직 안 한 것
 
-- **Supabase 프로젝트 아직 미생성**: 교사가 새 Supabase 프로젝트를 만들고, `supabase/schema.sql`을 SQL Editor에서 실행하고, Authentication → Providers에서 **Anonymous Sign-Ins**를 켜야 실제로 동작한다. 그 다음 `.env`(로컬)와 GitHub 저장소 Secrets(`ARCHERY_SUPABASE_URL`, `ARCHERY_SUPABASE_ANON_KEY`, 배포용)에 값을 넣어야 한다.
+- **Supabase 프로젝트**: 만들어졌다. 프로젝트명 `level-up-archery`, 프로젝트 ref `uufwydjebpxydyjjseix` (`minable17` 계정, 새싹책방과는 별개의 Supabase 계정 — Free 플랜 "계정당 프로젝트 2개" 제한 때문에 새 계정으로 만들었다). Anonymous Sign-Ins도 켜져 있다. `supabase/schema.sql`은 안전하게 재실행 가능하게 작성되어 있으니(IF EXISTS 가드), 스키마를 더 바꾸면 SQL Editor에서 전체 파일을 다시 실행하면 된다.
+- **배포**: `.github/workflows/deploy-archery.yml`이 이 브랜치 push마다 GitHub Pages로 빌드/배포한다. publishable(anon) key는 공개해도 안전한 값이라 워크플로 파일에 직접 넣었다(새싹책방의 `deploy.yml`과 같은 방식). 배포 주소: **https://minable17-glitch.github.io/Mingit1/**
+  - 처음 배포 시도가 실패했었는데, 원인은 저장소 Settings → Environments → `github-pages`의 "Deployment branches" 제한이 이 브랜치를 허용하지 않아서였다. "No restriction"으로 바꾼 뒤 정상 배포됨. 앞으로 새 브랜치에서 배포할 때도 같은 문제가 날 수 있으니 기억해둘 것.
+  - 두 앱(새싹책방/양궁)이 같은 저장소의 같은 GitHub Pages 사이트를 두고 각자 배포를 시도하는 구조라, 마지막으로 성공한 배포가 사이트를 덮어쓴다. 두 앱을 동시에 안정적으로 운영하려면 저장소를 분리하는 게 맞다.
 - **앱 아이콘**: `public/icon-192.png`, `public/icon-512.png`가 아직 새싹책방(나무 그림)의 아이콘 그대로 남아있다. `public/favicon.svg`만 과녁 모양으로 교체했다. 실제 배포 전에 학교 쪽에서 양궁 테마 아이콘으로 교체를 권한다.
 - **콘텐츠는 관리자가 직접 입력**: 읽어보기/배워보기 이미지·영상은 교사가 어딘가(구글 드라이브 등)에 올린 뒤 "공유 가능한 URL"을 관리자 화면에 붙여넣는 방식이다. 구글 드라이브 OAuth 업로드 연동은 만들지 않았다(2단계 후보).
 - **성장 그래프**: `getMyShootingHistory()`로 최근 기록을 가져오는 API는 만들어뒀고 `RecordTab`에서 간단한 리스트로만 보여준다. "성장" 느낌을 살리려면 `/my-records` 스타일의 꺾은선 그래프를 추가하면 좋다(러닝 앱 인수인계서 §8의 제안과 동일한 방향).
 - **사진 증빙/AI 자동인식**: 이번 구현에는 포함하지 않았다. 필요해지면 러닝 앱 인수인계서 §6-6(구글 드라이브 업로드), §6-7(AI는 항상 선택지)의 패턴을 참고할 것.
 - **관리자 학생 삭제/PIN 초기화**: 명세서에 명시되지 않아 이번 버전에는 없다. 필요하면 새싹책방의 `teacher_delete_student`, `teacher_reset_student_pin` RPC 패턴을 그대로 가져오면 된다.
+- **진짜 이메일 발송**: 위 §6 참고 — 아이디/비밀번호 찾기가 지금은 이메일을 안 보내고 화면에 바로 보여주는 방식이다.
 
 ## 8. 스모크 테스트 이력
 
-`npm run build`, `npm run lint` 통과 확인. Playwright로 로그인 화면·관리자 화면·학생 4개 탭·과녁 탭 마커 찍기→저장 흐름까지 목(mock) Supabase 응답으로 콘솔 에러 없이 동작하는 것을 확인했다 (실제 Supabase 프로젝트가 없어서 진짜 로그인/저장까지는 검증하지 못함 — §7 참고).
+`npm run build`, `npm run lint` 통과 확인. Playwright로 역할 선택 화면·학생 로그인·학생 5개 탭·과녁 탭 마커 찍기→저장(조준 보정 문구 포함)·교사 로그인/가입/아이디찾기/비밀번호찾기 화면·학급 선택(ClassPicker)·학급 관리 서브탭(학생·기록/읽어보기/배워보기) 까지 목(mock) Supabase 응답으로 콘솔 에러 없이 동작하는 것을 확인했다. GitHub Actions 빌드+배포도 실제로 성공해서 라이브 URL에 올라가 있다 (§7 참고). 다만 실제 Supabase 프로젝트에 대고 진짜 로그인/회원가입까지 이 세션의 샌드박스에서 직접 눌러보지는 못했다 — 샌드박스의 아웃바운드 네트워크 정책이 임의의 외부 도메인(발급받은 Supabase 프로젝트 서브도메인 포함)을 막고 있기 때문. 실제 브라우저(교사/학생 기기)에서는 문제 없이 접속된다.

@@ -6,7 +6,7 @@ import {
 
 const EMPTY = { id: null, title: '', category: '', imageUrls: '', videoUrl: '', description: '', orderIndex: 0, visible: true };
 
-export default function AdminContentEditor({ kind, classId, adminPin }) {
+export default function AdminContentEditor({ kind, classId }) {
   const isLearn = kind === 'learn';
   const listFn = isLearn ? adminListLearnContents : adminListReadContents;
   const upsertFn = isLearn ? adminUpsertLearnContent : adminUpsertReadContent;
@@ -21,7 +21,7 @@ export default function AdminContentEditor({ kind, classId, adminPin }) {
   async function refresh() {
     setLoading(true);
     try {
-      const rows = await listFn(classId, adminPin);
+      const rows = await listFn(classId);
       setItems(rows);
     } catch (err) {
       setError(err.message || '목록을 불러오지 못했어요.');
@@ -57,7 +57,7 @@ export default function AdminContentEditor({ kind, classId, adminPin }) {
     setPending(true);
     setError('');
     try {
-      await upsertFn(classId, adminPin, form);
+      await upsertFn(classId, form);
       setForm(EMPTY);
       await refresh();
     } catch (err) {
@@ -70,7 +70,7 @@ export default function AdminContentEditor({ kind, classId, adminPin }) {
   async function handleDelete(id) {
     if (!window.confirm('이 콘텐츠를 삭제할까요?')) return;
     try {
-      await deleteFn(classId, adminPin, id);
+      await deleteFn(classId, id);
       await refresh();
     } catch (err) {
       setError(err.message || '삭제에 실패했어요.');

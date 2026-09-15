@@ -11,18 +11,49 @@ async function ensureFreshAnonSession() {
 
 // ── 로그인 ──────────────────────────────────────────────
 
-export async function createClass({ name, adminPin }) {
+export async function teacherSignup({ username, password, email }) {
   await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('create_class', { p_name: name, p_admin_pin: adminPin });
+  const { data, error } = await supabase.rpc('teacher_signup', {
+    p_username: username,
+    p_password: password,
+    p_email: email,
+  });
   if (error) throw error;
   return data[0];
 }
 
-export async function teacherLogin({ classCode, adminPin }) {
+export async function teacherLogin({ username, password }) {
   await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('teacher_login', { p_class_code: classCode, p_admin_pin: adminPin });
+  const { data, error } = await supabase.rpc('teacher_login', { p_username: username, p_password: password });
   if (error) throw error;
   return data[0];
+}
+
+export async function teacherFindUsername({ email }) {
+  const { data, error } = await supabase.rpc('teacher_find_username', { p_email: email });
+  if (error) throw error;
+  return data?.[0]?.username || null;
+}
+
+export async function teacherResetPassword({ username, email, newPassword }) {
+  const { error } = await supabase.rpc('teacher_reset_password', {
+    p_username: username,
+    p_email: email,
+    p_new_password: newPassword,
+  });
+  if (error) throw error;
+}
+
+export async function createClass({ name }) {
+  const { data, error } = await supabase.rpc('create_class', { p_name: name });
+  if (error) throw error;
+  return data[0];
+}
+
+export async function getMyClasses() {
+  const { data, error } = await supabase.rpc('get_my_classes');
+  if (error) throw error;
+  return data || [];
 }
 
 export async function studentLogin({ classCode, studentNumber, name, pin }) {
@@ -134,18 +165,17 @@ export async function getMyReflection(logDate) {
   return data?.[0] || null;
 }
 
-// ── 관리자 ──────────────────────────────────────────────
+// ── 관리자 (지금 로그인한 교사가 학급 소유자인지는 서버에서 확인) ──
 
-export async function adminListReadContents(classId, adminPin) {
-  const { data, error } = await supabase.rpc('admin_list_read_contents', { p_class_id: classId, p_admin_pin: adminPin });
+export async function adminListReadContents(classId) {
+  const { data, error } = await supabase.rpc('admin_list_read_contents', { p_class_id: classId });
   if (error) throw error;
   return data || [];
 }
 
-export async function adminUpsertReadContent(classId, adminPin, content) {
+export async function adminUpsertReadContent(classId, content) {
   const { data, error } = await supabase.rpc('admin_upsert_read_content', {
     p_class_id: classId,
-    p_admin_pin: adminPin,
     p_id: content.id || null,
     p_title: content.title,
     p_category: content.category,
@@ -157,21 +187,20 @@ export async function adminUpsertReadContent(classId, adminPin, content) {
   return data;
 }
 
-export async function adminDeleteReadContent(classId, adminPin, id) {
-  const { error } = await supabase.rpc('admin_delete_read_content', { p_class_id: classId, p_admin_pin: adminPin, p_id: id });
+export async function adminDeleteReadContent(classId, id) {
+  const { error } = await supabase.rpc('admin_delete_read_content', { p_class_id: classId, p_id: id });
   if (error) throw error;
 }
 
-export async function adminListLearnContents(classId, adminPin) {
-  const { data, error } = await supabase.rpc('admin_list_learn_contents', { p_class_id: classId, p_admin_pin: adminPin });
+export async function adminListLearnContents(classId) {
+  const { data, error } = await supabase.rpc('admin_list_learn_contents', { p_class_id: classId });
   if (error) throw error;
   return data || [];
 }
 
-export async function adminUpsertLearnContent(classId, adminPin, content) {
+export async function adminUpsertLearnContent(classId, content) {
   const { data, error } = await supabase.rpc('admin_upsert_learn_content', {
     p_class_id: classId,
-    p_admin_pin: adminPin,
     p_id: content.id || null,
     p_title: content.title,
     p_category: content.category,
@@ -185,25 +214,25 @@ export async function adminUpsertLearnContent(classId, adminPin, content) {
   return data;
 }
 
-export async function adminDeleteLearnContent(classId, adminPin, id) {
-  const { error } = await supabase.rpc('admin_delete_learn_content', { p_class_id: classId, p_admin_pin: adminPin, p_id: id });
+export async function adminDeleteLearnContent(classId, id) {
+  const { error } = await supabase.rpc('admin_delete_learn_content', { p_class_id: classId, p_id: id });
   if (error) throw error;
 }
 
-export async function adminListStudents(classId, adminPin) {
-  const { data, error } = await supabase.rpc('admin_list_students', { p_class_id: classId, p_admin_pin: adminPin });
-  if (error) throw error;
-  return data || [];
-}
-
-export async function adminListShootingLogs(classId, adminPin, limit = 300) {
-  const { data, error } = await supabase.rpc('admin_list_shooting_logs', { p_class_id: classId, p_admin_pin: adminPin, p_limit: limit });
+export async function adminListStudents(classId) {
+  const { data, error } = await supabase.rpc('admin_list_students', { p_class_id: classId });
   if (error) throw error;
   return data || [];
 }
 
-export async function adminListReflections(classId, adminPin, limit = 300) {
-  const { data, error } = await supabase.rpc('admin_list_reflections', { p_class_id: classId, p_admin_pin: adminPin, p_limit: limit });
+export async function adminListShootingLogs(classId, limit = 300) {
+  const { data, error } = await supabase.rpc('admin_list_shooting_logs', { p_class_id: classId, p_limit: limit });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminListReflections(classId, limit = 300) {
+  const { data, error } = await supabase.rpc('admin_list_reflections', { p_class_id: classId, p_limit: limit });
   if (error) throw error;
   return data || [];
 }
