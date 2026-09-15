@@ -1,16 +1,10 @@
-# React + Vite
+# Mingit1
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+이 저장소는 여러 개의 독립된 학교용 웹앱을 브랜치별로 관리합니다. 각 브랜치가 하나의
+완전히 별개인 앱이며, 서로의 코드를 공유하지 않습니다.
 
-Currently, two official plugins are available:
+- `claude/saesak-book-app-gsi00u` — 새싹책방 (독서 챌린지 앱)
+- `claude/archery-growth-webapp-kmznwk` — LEVEL-UP ARCHERY (양궁 성장일지 앱)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+이 브랜치는 양궁 앱 pull request의 기준점(base)으로만 쓰이는 빈 브랜치이며,
+실제 앱 코드는 포함하지 않습니다.
