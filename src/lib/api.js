@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
-import { todayKST } from './date';
 
+// 로그인(학생/관리자) 직전에는 항상 이전 익명 세션을 정리하고 새로 발급받아서,
+// 이전에 로그인했던 다른 사람의 세션과 섞이지 않도록 함.
 async function ensureFreshAnonSession() {
   await supabase.auth.signOut();
   const { data, error } = await supabase.auth.signInAnonymously();
@@ -8,413 +9,201 @@ async function ensureFreshAnonSession() {
   return data.session;
 }
 
-// 선생님 계정: Supabase 이메일 인증 대신 학생 로그인과 같은 방식(해시된 비밀번호 + RPC)을 씀.
-// 이메일 형식 검증/전송 횟수 제한 등을 아예 거치지 않아서 훨씬 안정적임.
-export async function teacherSignUp({ username, password, email }) {
+// ── 로그인 ──────────────────────────────────────────────
+
+export async function createClass({ name, adminPin }) {
   await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('teacher_account_signup', {
-    p_username: username.trim(),
-    p_password: password,
-    p_email: email?.trim() || null,
-  });
+  const { data, error } = await supabase.rpc('create_class', { p_name: name, p_admin_pin: adminPin });
   if (error) throw error;
   return data[0];
 }
 
-export async function teacherSignIn({ username, password }) {
+export async function teacherLogin({ classCode, adminPin }) {
   await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('teacher_account_login', {
-    p_username: username.trim(),
-    p_password: password,
-  });
+  const { data, error } = await supabase.rpc('teacher_login', { p_class_code: classCode, p_admin_pin: adminPin });
   if (error) throw error;
   return data[0];
 }
 
-export async function requestPasswordReset(username) {
-  const { error } = await supabase.functions.invoke('send-password-reset', { body: { username } });
-  if (error) throw error;
-}
-
-export async function requestUsernameReminder(email) {
-  const { error } = await supabase.functions.invoke('send-username-reminder', { body: { email } });
-  if (error) throw error;
-}
-
-export async function resetStudentPin(studentId, newPin = '0000') {
-  const { error } = await supabase.rpc('teacher_reset_student_pin', {
-    p_student_id: studentId,
-    p_new_pin: newPin,
-  });
-  if (error) throw error;
-}
-
-export async function changeTeacherPassword({ oldPassword, newPassword }) {
-  const { error } = await supabase.rpc('teacher_change_password', {
-    p_old_password: oldPassword,
-    p_new_password: newPassword,
-  });
-  if (error) throw error;
-}
-
-export async function deleteStudent(studentId) {
-  const { error } = await supabase.rpc('teacher_delete_student', { p_student_id: studentId });
-  if (error) throw error;
-}
-
-export async function deleteClass(classId) {
-  const { error } = await supabase.rpc('teacher_delete_class', { p_class_id: classId });
-  if (error) throw error;
-}
-
-export async function deleteLog(logId) {
-  const { error } = await supabase.rpc('teacher_delete_log', { p_log_id: logId });
-  if (error) throw error;
-}
-
-export async function updateTodayLog(logId, { note, ocrExcerpt = null }) {
-  const { error } = await supabase.rpc('student_update_log', {
-    p_log_id: logId,
-    p_note: note,
-    p_ocr_excerpt: ocrExcerpt,
-  });
-  if (error) throw error;
-}
-
-export async function verifyStudentPin(pin) {
-  const { data, error } = await supabase.rpc('student_verify_pin', { p_pin: pin });
-  if (error) throw error;
-  return !!data;
-}
-
-export async function changeStudentPin({ oldPin, newPin }) {
-  const { error } = await supabase.rpc('student_change_pin', { p_old_pin: oldPin, p_new_pin: newPin });
-  if (error) throw error;
-}
-
-export async function getMyAccessories(studentId) {
-  const { data, error } = await supabase
-    .from('students')
-    .select('accessory_counts, equipped_accessories')
-    .eq('id', studentId)
-    .single();
-  if (error) throw error;
-  return { counts: data.accessory_counts || {}, equipped: data.equipped_accessories || [] };
-}
-
-export async function setEquippedAccessories(types) {
-  const { error } = await supabase.rpc('student_set_equipped', { p_types: types });
-  if (error) throw error;
-}
-
-export async function addBonusReading(extraMinutes) {
-  const { error } = await supabase.rpc('add_bonus_reading', { p_extra_minutes: extraMinutes });
-  if (error) throw error;
-}
-
-export async function resetTeacherPassword({ username, code, newPassword }) {
-  const { error } = await supabase.rpc('teacher_reset_password', {
-    p_username: username.trim(),
-    p_code: code.trim(),
-    p_new_password: newPassword,
-  });
-  if (error) throw error;
-}
-
-export async function getAuthSession() {
-  const { data } = await supabase.auth.getSession();
-  return data.session;
-}
-
-export async function createClassForAccount({ name, startDate, goalPct }) {
-  const { data, error } = await supabase.rpc('create_class', {
-    p_name: name,
-    p_admin_password: null,
-    p_start_date: startDate,
-    p_goal_pct: goalPct,
-  });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function getMyClasses() {
-  const { data, error } = await supabase
-    .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function createClass({ name, adminPassword, startDate, goalPct }) {
-  await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('create_class', {
-    p_name: name,
-    p_admin_password: adminPassword,
-    p_start_date: startDate,
-    p_goal_pct: goalPct,
-  });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function teacherLogin({ classCode, adminPassword }) {
-  await ensureFreshAnonSession();
-  const { data, error } = await supabase.rpc('teacher_login', {
-    p_class_code: classCode,
-    p_admin_password: adminPassword,
-  });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function studentLogin({ classCode, nickname, pin }) {
+export async function studentLogin({ classCode, studentNumber, name, pin }) {
   await ensureFreshAnonSession();
   const { data, error } = await supabase.rpc('student_login', {
     p_class_code: classCode,
-    p_nickname: nickname,
+    p_student_number: studentNumber,
+    p_name: name,
     p_pin: pin,
   });
   if (error) throw error;
   return data[0];
 }
 
-export async function getClassById(classId) {
-  const { data, error } = await supabase
-    .from('classes')
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
-    .eq('id', classId)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateClassSettings(classId, { goalPct, dailyTargetMinutes, challengeDays, startDate }) {
-  const patch = {};
-  if (goalPct !== undefined) patch.goal_pct = goalPct;
-  if (dailyTargetMinutes !== undefined) patch.daily_target_minutes = dailyTargetMinutes;
-  if (challengeDays !== undefined) patch.challenge_days = challengeDays;
-  if (startDate !== undefined) patch.start_date = startDate;
-  const { data, error } = await supabase
-    .from('classes')
-    .update(patch)
-    .eq('id', classId)
-    .select('id, name, code, start_date, goal_pct, daily_target_minutes, challenge_days, paused_since, paused_days_total')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function pauseChallenge(classId) {
-  const { data, error } = await supabase.rpc('pause_challenge', { p_class_id: classId });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function resumeChallenge(classId) {
-  const { data, error } = await supabase.rpc('resume_challenge', { p_class_id: classId });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function getClassProgress(classId) {
-  const { data, error } = await supabase.rpc('get_class_progress', { p_class_id: classId });
-  if (error) throw error;
-  return data[0];
-}
-
-export async function getMyLogs(studentId) {
-  const { data, error } = await supabase
-    .from('logs')
-    .select('id, log_date, minutes, pages, note, ocr_excerpt, book_id, books(title)')
-    .eq('student_id', studentId)
-    .order('log_date', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function getTodayLog(studentId) {
-  const today = todayKST();
-  const { data, error } = await supabase
-    .from('logs')
-    .select('id, log_date, minutes, note')
-    .eq('student_id', studentId)
-    .eq('log_date', today)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function getCurrentBook(studentId) {
-  const { data, error } = await supabase
-    .from('books')
-    .select('id, title, author, cover_url, is_completed')
-    .eq('student_id', studentId)
-    .eq('is_completed', false)
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function startBook(studentId, { title, author, coverUrl }) {
-  const { data, error } = await supabase
-    .from('books')
-    .insert({ student_id: studentId, title, author, cover_url: coverUrl || null })
-    .select('id, title, author, cover_url, is_completed')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function getCompletedBooks(studentId) {
-  const { data, error } = await supabase
-    .from('books')
-    .select('id, title, author, cover_url, completed_at')
-    .eq('student_id', studentId)
-    .eq('is_completed', true)
-    .order('completed_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function submitLog({ studentId, bookId, minutes, note, ocrExcerpt = null, overflowMinutes = 0, pages = null }) {
-  const today = todayKST();
-  const { data, error } = await supabase
-    .from('logs')
-    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, ocr_excerpt: ocrExcerpt, overflow_minutes: overflowMinutes, pages })
-    .select('id, log_date, minutes, note, ocr_excerpt, pages')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function markBookCompleted(bookId) {
-  const { error } = await supabase
-    .from('books')
-    .update({ is_completed: true, completed_at: new Date().toISOString() })
-    .eq('id', bookId);
-  if (error) throw error;
-}
-
-export async function getClassLogsForTeacher(classId) {
-  const { data, error } = await supabase
-    .from('logs')
-    .select('id, student_id, log_date, minutes, pages, note, ocr_excerpt, books(title), students!inner(nickname, class_id)')
-    .eq('students.class_id', classId)
-    .order('log_date', { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function getClassRoster(classId) {
-  const { data, error } = await supabase
-    .from('students')
-    .select('id, nickname, total_days, communal_minutes, total_pages, equipped_accessories')
-    .eq('class_id', classId);
-  if (error) throw error;
-  return data;
-}
-
-export async function getClassCompletedBookCounts(studentIds) {
-  if (!studentIds.length) return {};
-  const { data, error } = await supabase
-    .from('books')
-    .select('student_id')
-    .in('student_id', studentIds)
-    .eq('is_completed', true);
-  if (error) throw error;
-  const byStudent = {};
-  for (const row of data) byStudent[row.student_id] = (byStudent[row.student_id] || 0) + 1;
-  return byStudent;
-}
-
-export async function getClassCheersSentCounts(studentIds) {
-  if (!studentIds.length) return {};
-  const { data, error } = await supabase
-    .from('cheers')
-    .select('from_student_id')
-    .in('from_student_id', studentIds);
-  if (error) throw error;
-  const byStudent = {};
-  for (const row of data) byStudent[row.from_student_id] = (byStudent[row.from_student_id] || 0) + 1;
-  return byStudent;
-}
-
-export async function getClassCurrentBooks(studentIds) {
-  if (!studentIds.length) return {};
-  const { data, error } = await supabase
-    .from('books')
-    .select('student_id, title, started_at')
-    .in('student_id', studentIds)
-    .eq('is_completed', false)
-    .order('started_at', { ascending: false });
-  if (error) throw error;
-  const byStudent = {};
-  for (const row of data) {
-    if (!byStudent[row.student_id]) byStudent[row.student_id] = row.title;
-  }
-  return byStudent;
-}
-
-// 폰이 꺼지거나 앱이 강제 종료되면 "읽기 종료" 신호를 보낼 방법이 없으므로,
-// 일정 시간(90초) 넘게 심장박동(updated_at 갱신)이 없으면 오래된 상태로 보고 제외함
-const READING_SESSION_STALE_MS = 90 * 1000;
-
-export async function getClassReadingSessions(studentIds) {
-  if (!studentIds.length) return {};
-  const staleThreshold = new Date(Date.now() - READING_SESSION_STALE_MS).toISOString();
-  const { data, error } = await supabase
-    .from('reading_sessions')
-    .select('student_id, is_reading, updated_at')
-    .in('student_id', studentIds)
-    .eq('is_reading', true)
-    .gte('updated_at', staleThreshold);
-  if (error) throw error;
-  const byStudent = {};
-  for (const row of data) byStudent[row.student_id] = true;
-  return byStudent;
-}
-
-export async function setReadingSession(studentId, isReading) {
-  const { error } = await supabase
-    .from('reading_sessions')
-    .upsert({ student_id: studentId, is_reading: isReading, started_at: isReading ? new Date().toISOString() : null, updated_at: new Date().toISOString() });
-  if (error) throw error;
-}
-
-export async function sendCheer({ fromStudentId, toStudentId, emoji }) {
-  const { error } = await supabase
-    .from('cheers')
-    .insert({ from_student_id: fromStudentId, to_student_id: toStudentId, emoji });
-  if (error) throw error;
-}
-
-export async function getCheersReceivedSince(studentId, sinceIso) {
-  let query = supabase
-    .from('cheers')
-    .select('from_student_id, emoji, created_at')
-    .eq('to_student_id', studentId)
-    .order('created_at', { ascending: true });
-  if (sinceIso) query = query.gt('created_at', sinceIso);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
-}
-
 export async function logout() {
   await supabase.auth.signOut();
 }
 
-export async function searchBooks(query) {
-  const { data, error } = await supabase.functions.invoke('search-books', { body: { query } });
+// ── 내 장비 ──────────────────────────────────────────────
+
+export async function saveEquipment({ bowNumber, laneInfo, sightVertical, sightHorizontal, sightNote }) {
+  const { error } = await supabase.rpc('save_equipment', {
+    p_bow_number: bowNumber,
+    p_lane_info: laneInfo,
+    p_sight_vertical: sightVertical,
+    p_sight_horizontal: sightHorizontal,
+    p_sight_note: sightNote,
+  });
   if (error) throw error;
-  return data?.books || [];
 }
 
-export async function getBestsellers() {
-  const { data, error } = await supabase.functions.invoke('bestsellers');
+export async function getMyEquipment() {
+  const { data, error } = await supabase.rpc('get_my_equipment');
   if (error) throw error;
-  return data?.books || [];
+  return data?.[0] || null;
+}
+
+// ── 읽어보기 / 배워보기 ────────────────────────────────
+
+export async function listReadContents(classId) {
+  const { data, error } = await supabase
+    .from('read_contents')
+    .select('*')
+    .eq('class_id', classId)
+    .eq('visible', true)
+    .order('order_index', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function listLearnContents(classId) {
+  const { data, error } = await supabase
+    .from('learn_contents')
+    .select('*')
+    .eq('class_id', classId)
+    .eq('visible', true)
+    .order('order_index', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// ── 기록하기 ──────────────────────────────────────────────
+
+export async function saveShootingLog(payload) {
+  const { error } = await supabase.rpc('save_shooting_log', {
+    p_log_date: payload.logDate,
+    p_session_label: payload.sessionLabel,
+    p_bow_number: payload.bowNumber,
+    p_markers: payload.markers,
+    p_hit_count: payload.hitCount,
+    p_group_center_x: payload.groupCenterX,
+    p_group_center_y: payload.groupCenterY,
+    p_aim_advice: payload.aimAdvice,
+    p_sight_before: payload.sightBefore,
+    p_sight_after: payload.sightAfter,
+  });
+  if (error) throw error;
+}
+
+export async function getMyShootingLog(logDate) {
+  const { data, error } = await supabase.rpc('get_my_shooting_log', { p_log_date: logDate });
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+export async function getMyShootingHistory(limit = 10) {
+  const { data, error } = await supabase.rpc('get_my_shooting_history', { p_limit: limit });
+  if (error) throw error;
+  return data || [];
+}
+
+// ── 성찰하기 ──────────────────────────────────────────────
+
+export async function saveReflection(payload) {
+  const { error } = await supabase.rpc('save_reflection', {
+    p_log_date: payload.logDate,
+    p_used_skills: payload.usedSkills,
+    p_short_note: payload.shortNote,
+    p_endure: payload.endure,
+    p_regulate: payload.regulate,
+    p_life_link: payload.lifeLink,
+  });
+  if (error) throw error;
+}
+
+export async function getMyReflection(logDate) {
+  const { data, error } = await supabase.rpc('get_my_reflection', { p_log_date: logDate });
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+// ── 관리자 ──────────────────────────────────────────────
+
+export async function adminListReadContents(classId, adminPin) {
+  const { data, error } = await supabase.rpc('admin_list_read_contents', { p_class_id: classId, p_admin_pin: adminPin });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminUpsertReadContent(classId, adminPin, content) {
+  const { data, error } = await supabase.rpc('admin_upsert_read_content', {
+    p_class_id: classId,
+    p_admin_pin: adminPin,
+    p_id: content.id || null,
+    p_title: content.title,
+    p_category: content.category,
+    p_image_urls: content.imageUrls,
+    p_order_index: content.orderIndex ?? 0,
+    p_visible: content.visible ?? true,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function adminDeleteReadContent(classId, adminPin, id) {
+  const { error } = await supabase.rpc('admin_delete_read_content', { p_class_id: classId, p_admin_pin: adminPin, p_id: id });
+  if (error) throw error;
+}
+
+export async function adminListLearnContents(classId, adminPin) {
+  const { data, error } = await supabase.rpc('admin_list_learn_contents', { p_class_id: classId, p_admin_pin: adminPin });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminUpsertLearnContent(classId, adminPin, content) {
+  const { data, error } = await supabase.rpc('admin_upsert_learn_content', {
+    p_class_id: classId,
+    p_admin_pin: adminPin,
+    p_id: content.id || null,
+    p_title: content.title,
+    p_category: content.category,
+    p_video_url: content.videoUrl,
+    p_image_urls: content.imageUrls,
+    p_description: content.description,
+    p_order_index: content.orderIndex ?? 0,
+    p_visible: content.visible ?? true,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function adminDeleteLearnContent(classId, adminPin, id) {
+  const { error } = await supabase.rpc('admin_delete_learn_content', { p_class_id: classId, p_admin_pin: adminPin, p_id: id });
+  if (error) throw error;
+}
+
+export async function adminListStudents(classId, adminPin) {
+  const { data, error } = await supabase.rpc('admin_list_students', { p_class_id: classId, p_admin_pin: adminPin });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminListShootingLogs(classId, adminPin, limit = 300) {
+  const { data, error } = await supabase.rpc('admin_list_shooting_logs', { p_class_id: classId, p_admin_pin: adminPin, p_limit: limit });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function adminListReflections(classId, adminPin, limit = 300) {
+  const { data, error } = await supabase.rpc('admin_list_reflections', { p_class_id: classId, p_admin_pin: adminPin, p_limit: limit });
+  if (error) throw error;
+  return data || [];
 }
