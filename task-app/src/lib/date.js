@@ -42,3 +42,10 @@ export function dueLabel(dueStr, today) {
   if (left === 1) return '내일 마감';
   return `D-${left}`;
 }
+
+// 그 주의 월요일
+export function weekStart(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=일
+  return addDays(dateStr, wd === 0 ? -6 : 1 - wd);
+}

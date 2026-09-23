@@ -1,7 +1,8 @@
 // Supabase 호출 모음. 화면 코드는 이 파일의 함수만 부릅니다.
 import { supabase } from './supabaseClient.js';
-import { nextActionFromSteps } from './briefing.js';
-import { todayKST } from './date.js';
+import { assess, nextActionFromSteps } from './briefing.js';
+import { toDateKST, todayKST, weekStart } from './date.js';
+import { DEFAULT_TEMPLATES, stepsFromTemplate, templateStepsFromTask } from './templates.js';
 
 export const DEFAULT_CATEGORIES = [
   { name: '담임', color: '#f59e0b' },
@@ -23,7 +24,10 @@ export function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      scopes: 'https://www.googleapis.com/auth/calendar.events',
+      scopes: [
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/gmail.readonly', // 2단계: 라벨 메일 가져오기
+      ].join(' '),
       // 갱신 토큰을 받으려면 offline + consent 가 필요
       queryParams: { access_type: 'offline', prompt: 'consent' },
       redirectTo: window.location.origin + window.location.pathname,
@@ -122,17 +126,18 @@ const now = () => new Date().toISOString();
 
 // ── 업무 ────────────────────────────────────
 
-export async function createTask({ title, categoryId, dueDate }) {
+// sync: false 이면 캘린더 반영을 호출한 쪽에 맡김 (곧바로 단계까지 저장할 때 두 번 부르지 않도록)
+export async function createTask({ title, categoryId, dueDate, nextAction }, { sync = true } = {}) {
   const task = check(await supabase.from('tasks').insert({
     title: title.trim(),
     category_id: categoryId,
     due_date: dueDate || null,
-    next_action: PLACEHOLDER_NEXT_ACTION,
+    next_action: nextAction?.trim() || PLACEHOLDER_NEXT_ACTION,
     calendar_dirty: Boolean(dueDate),
   }).select().single());
   await logActivity(task.id, 'create', task.title);
-  if (dueDate) syncCalendar(task.id);
-  return task;
+  if (dueDate && sync) syncCalendar(task.id);
+  return { ...task, steps: [] };
 }
 
 // 업무명·분류·마감·다음 행동 수정
@@ -200,6 +205,19 @@ export async function addNote(task, note, nextAction) {
   await logActivity(task.id, 'note', note.trim());
 }
 
+// 단계 하나 추가 (던져넣기 등). 다음 행동이 임시 문구였으면 이 단계로 바꿈
+export async function addStep(task, title, dueDate) {
+  const steps = task.steps ?? [];
+  const position = steps.reduce((m, s) => Math.max(m, s.position + 1), 0);
+  check(await supabase.from('steps').insert({ task_id: task.id, position, title: title.trim(), due_date: dueDate || null }));
+  const patch = { last_activity_at: now() };
+  if (task.next_action === PLACEHOLDER_NEXT_ACTION || steps.every((s) => s.done)) patch.next_action = title.trim();
+  if (dueDate) patch.calendar_dirty = true;
+  check(await supabase.from('tasks').update(patch).eq('id', task.id));
+  await logActivity(task.id, 'edit', `단계 추가: ${title.trim()}`);
+  if (dueDate) syncCalendar(task.id);
+}
+
 export async function completeTask(task) {
   check(await supabase.from('tasks').update({
     status: 'done', completed_at: now(), last_activity_at: now(),
@@ -222,6 +240,22 @@ export async function deleteTask(task) {
   const ids = [task.calendar_event_id, ...(task.steps ?? []).map((s) => s.calendar_event_id)].filter(Boolean);
   if (ids.length) await deleteCalendarEvents(ids);
   check(await supabase.from('tasks').delete().eq('id', task.id));
+}
+
+// ── 공 넘겨놓은 일 (결재·회신 대기) ──────────────
+
+export async function setWaiting(task, waitingOn) {
+  check(await supabase.from('tasks').update({
+    waiting_on: waitingOn.trim(), waiting_since: now(), last_activity_at: now(),
+  }).eq('id', task.id));
+  await logActivity(task.id, 'wait', waitingOn.trim());
+}
+
+export async function clearWaiting(task, note) {
+  const patch = { waiting_on: null, waiting_since: null, last_activity_at: now() };
+  if (note?.trim()) patch.latest_note = note.trim();
+  check(await supabase.from('tasks').update(patch).eq('id', task.id));
+  await logActivity(task.id, 'reply', `${task.waiting_on} 응답${note?.trim() ? `: ${note.trim()}` : ''}`);
 }
 
 // ── 분류 ────────────────────────────────────
@@ -298,4 +332,225 @@ export async function addWorkBlock(task, { date, start, minutes }) {
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   check(await supabase.from('tasks').update({ last_activity_at: now() }).eq('id', task.id));
+}
+
+// ── 2단계: AI 도움 (던져넣기·공문·회고·짜투리) ─────────
+
+async function assist(mode, body) {
+  const { data, error } = await supabase.functions.invoke('ai-assist', {
+    body: { mode, today: todayKST(), ...body },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+// AI에게 넘길 업무 요약 한 줄
+export function briefTask(task, categoryById, settings, today = todayKST()) {
+  const info = assess(task, today, settings.neglect_days, settings.waiting_days);
+  return {
+    id: task.id,
+    title: task.title,
+    category: categoryById[task.category_id]?.name,
+    next_action: task.next_action,
+    due: info.due,
+    idle: info.idle,
+    waiting_on: task.waiting_on ?? null,
+  };
+}
+
+export function triage(text, briefs, categories) {
+  return assist('triage', { text, tasks: briefs, categories: categories.map((c) => c.name) });
+}
+
+const categoryIdByName = (categories, name) =>
+  categories.find((c) => c.name === name)?.id ?? categories[0]?.id;
+
+// 던져넣기 제안을 확정해서 반영
+export async function applyTriage(result, tasks, categories) {
+  if (result.kind === 'attach') {
+    const task = tasks.find((t) => t.id === result.task_id);
+    if (!task) throw new Error('붙일 업무를 찾지 못했어요');
+    if (result.attach_as === 'step') return addStep(task, result.content);
+    if (result.attach_as === 'next_action') return updateTask(task, { next_action: result.content });
+    return addNote(task, result.content);
+  }
+  return createTask({
+    title: result.new_title || result.content,
+    categoryId: categoryIdByName(categories, result.category_name),
+    dueDate: result.due_date,
+    nextAction: result.content,
+  });
+}
+
+export function extractDocument(text, categories) {
+  return assist('extract', { text, categories: categories.map((c) => c.name) });
+}
+
+// 공문·메일 제안(사용자가 고친 것)을 업무로 만들기
+// draft: { title, category_id, due_date, steps: [{title, due_date}], next_action, note }
+export async function createFromDraft(draft) {
+  const task = await createTask(
+    { title: draft.title, categoryId: draft.category_id, dueDate: draft.due_date },
+    { sync: false },
+  );
+  const steps = draft.steps.filter((s) => s.title.trim());
+  if (steps.length) {
+    await saveBreakdown(task, steps, draft.next_action);
+  } else {
+    if (draft.next_action?.trim()) await updateTask(task, { next_action: draft.next_action });
+    if (draft.due_date) syncCalendar(task.id);
+  }
+  if (draft.note?.trim()) await addNote(task, draft.note);
+  return task;
+}
+
+// AI 추출 결과 → 편집용 초안
+export function draftFromExtraction(ex, categories) {
+  const deliverables = ex.deliverables?.length ? `제출물: ${ex.deliverables.join(', ')}` : '';
+  return {
+    title: ex.title,
+    category_id: categoryIdByName(categories, ex.category_name),
+    due_date: ex.due_date || '',
+    steps: ex.steps ?? [],
+    next_action: ex.next_action ?? '',
+    note: [ex.summary, deliverables].filter(Boolean).join(' / '),
+  };
+}
+
+export function askReview(history, week) {
+  return assist('review', { history, week });
+}
+
+export function smallActions(minutes, briefs) {
+  return assist('small', { minutes, tasks: briefs });
+}
+
+// ── 주간 회고 ────────────────────────────────
+
+export async function loadWeekData(activeTasks, categoryById, settings) {
+  const today = todayKST();
+  const start = weekStart(today);
+  const since = new Date(`${start}T00:00:00+09:00`).toISOString();
+  const [activity, completed] = await Promise.all([
+    supabase.from('activity_log').select('at, kind, content, tasks(title)').gte('at', since).order('at').then(check),
+    supabase.from('tasks').select('title').eq('status', 'done').gte('completed_at', since).then(check),
+  ]);
+  const KIND = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
+  return {
+    start,
+    completed: completed.map((t) => t.title),
+    activity: activity.slice(-80).map((a) =>
+      `${toDateKST(a.at).slice(5)} ${a.tasks?.title ?? ''} — ${KIND[a.kind] ?? a.kind}${a.content ? `: ${a.content}` : ''}`),
+    active: activeTasks.map((t) => briefTask(t, categoryById, settings, today)),
+  };
+}
+
+export async function saveReview(summary) {
+  check(await supabase.from('weekly_reviews').upsert(
+    { week_start: weekStart(todayKST()), summary, user_id: (await supabase.auth.getUser()).data.user.id },
+    { onConflict: 'user_id,week_start' },
+  ));
+}
+
+export async function loadReviews() {
+  return check(await supabase.from('weekly_reviews').select('*').order('week_start', { ascending: false }).limit(20));
+}
+
+export async function applySuggestion(task, suggestion) {
+  if (suggestion.change === 'complete') return completeTask(task);
+  if (suggestion.change === 'due_date') return updateTask(task, { due_date: suggestion.value });
+  return updateTask(task, { next_action: suggestion.value });
+}
+
+// ── 템플릿 ───────────────────────────────────
+
+export async function loadTemplates() {
+  return check(await supabase.from('templates').select('*').order('created_at'));
+}
+
+// 처음 한 번만 기본 템플릿(품의·출장·평가계획)을 넣음. 사용자가 지운 뒤에는 다시 넣지 않음.
+// '아직 안 넣음 → 넣음'으로 바꾸는 데 성공한 쪽만 넣으므로 동시에 두 번 불려도 한 번만 들어감.
+export async function ensureDefaultTemplates(userId, categories) {
+  const claimed = check(await supabase.from('settings')
+    .update({ templates_seeded: true })
+    .eq('user_id', userId)
+    .eq('templates_seeded', false)
+    .select('user_id'));
+  if (!claimed.length) return;
+  check(await supabase.from('templates').insert(DEFAULT_TEMPLATES.map((t) => ({
+    name: t.name,
+    category_id: categories.find((c) => c.name === t.category)?.id ?? null,
+    steps: t.steps,
+    next_action: t.next_action,
+  }))));
+}
+
+export async function createTemplate({ name, categoryId, steps, nextAction }) {
+  return check(await supabase.from('templates').insert({
+    name: name.trim(), category_id: categoryId || null, steps, next_action: nextAction || null,
+  }).select().single());
+}
+
+export async function updateTemplate(id, patch) {
+  check(await supabase.from('templates').update(patch).eq('id', id));
+}
+
+export async function deleteTemplate(id) {
+  check(await supabase.from('templates').delete().eq('id', id));
+}
+
+export async function saveTaskAsTemplate(task, name) {
+  return createTemplate({
+    name,
+    categoryId: task.category_id,
+    steps: templateStepsFromTask(task),
+    nextAction: [...(task.steps ?? [])].sort((a, b) => a.position - b.position)[0]?.title,
+  });
+}
+
+export async function createFromTemplate(template, { title, categoryId, dueDate }) {
+  return createFromDraft({
+    title,
+    category_id: categoryId,
+    due_date: dueDate,
+    steps: stepsFromTemplate(template, dueDate),
+    next_action: template.next_action ?? '',
+  });
+}
+
+// ── 받은 제안함 (Gmail) ─────────────────────────
+
+export async function loadInbox() {
+  return check(await supabase.from('inbox').select('*').eq('status', 'pending').order('received_at', { ascending: false }));
+}
+
+export async function checkGmail() {
+  const { data, error } = await supabase.functions.invoke('gmail-import', { body: {} });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error === 'label_not_found' ? `Gmail에 '${data.label}' 라벨이 없어요` : data.error);
+  return data;
+}
+
+export async function acceptInbox(item, draft) {
+  const task = await createFromDraft(draft);
+  check(await supabase.from('inbox').update({ status: 'accepted' }).eq('id', item.id));
+  return task;
+}
+
+export async function dismissInbox(item) {
+  check(await supabase.from('inbox').update({ status: 'dismissed' }).eq('id', item.id));
+}
+
+// ── 위젯 ────────────────────────────────────
+
+export async function createWidgetToken(userId) {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  await updateSettings(userId, { widget_token: token });
+  return token;
+}
+
+export function widgetUrl(token, format = 'html') {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-summary?key=${token}&format=${format}`;
 }

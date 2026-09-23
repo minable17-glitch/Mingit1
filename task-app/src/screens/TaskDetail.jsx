@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
-import { dueLabel, formatShort, todayKST } from '../lib/date.js';
+import { diffDays, dueLabel, formatShort, toDateKST, todayKST } from '../lib/date.js';
 import Breakdown from './Breakdown.jsx';
 
-const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료' };
+const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
 export default function TaskDetail({ taskId, categories, categoryById, onClose }) {
   const [task, setTask] = useState(null);
@@ -91,6 +91,15 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
       </div>
 
       {active && (
+        <Waiting
+          task={task}
+          today={today}
+          onWait={(who) => run(() => api.setWaiting(task, who))}
+          onReply={(note) => run(() => api.clearWaiting(task, note))}
+        />
+      )}
+
+      {active && !task.waiting_on && (
         <NextAction
           key={task.next_action}
           value={task.next_action}
@@ -156,6 +165,17 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
         ) : (
           <button disabled={busy} onClick={() => run(() => api.reopenTask(task))}>다시 진행</button>
         )}
+        {task.steps.length > 0 && (
+          <button
+            disabled={busy}
+            onClick={() => {
+              const name = prompt('템플릿 이름', task.title);
+              if (name?.trim()) run(async () => { await api.saveTaskAsTemplate(task, name.trim()); alert('템플릿으로 저장했어요.'); });
+            }}
+          >
+            템플릿으로 저장
+          </button>
+        )}
         <button
           className="danger"
           disabled={busy}
@@ -169,6 +189,37 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
         </button>
       </div>
     </section>
+  );
+}
+
+// 공 넘겨놓은 일: 결재·회신을 기다리는 동안은 '방치' 대신 'N일 무응답'으로 알려줌
+function Waiting({ task, today, onWait, onReply }) {
+  const [who, setWho] = useState('');
+  const [note, setNote] = useState('');
+  const [open, setOpen] = useState(false);
+
+  if (task.waiting_on) {
+    const since = toDateKST(task.waiting_since ?? task.last_activity_at);
+    const days = diffDays(since, today);
+    return (
+      <div className="waiting-box">
+        <div>⏳ <b>{task.waiting_on}</b> 기다리는 중 · {formatShort(since)}부터 {days}일째</div>
+        <div className="row">
+          <input className="grow" placeholder="받은 답 메모 (선택)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <button className="primary" onClick={() => onReply(note)}>답 받음</button>
+        </div>
+      </div>
+    );
+  }
+  if (!open) {
+    return <button className="link" onClick={() => setOpen(true)}>⏳ 공 넘기기 (결재·회신 대기로 표시)</button>;
+  }
+  return (
+    <form className="waiting-box row" onSubmit={(e) => { e.preventDefault(); if (who.trim()) onWait(who); }}>
+      <input className="grow" autoFocus placeholder="누구/무엇을 기다리나요? (예: 교감 결재, 행정실 회신)" value={who} onChange={(e) => setWho(e.target.value)} />
+      <button className="primary" disabled={!who.trim()}>표시</button>
+      <button type="button" className="link" onClick={() => setOpen(false)}>취소</button>
+    </form>
   );
 }
 

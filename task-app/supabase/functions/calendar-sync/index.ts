@@ -3,23 +3,9 @@
 //  - { action: "block", task_id, date, start, minutes }  작업 시간 블록 일정 생성
 //  - { action: "delete", event_ids }  업무 삭제 전에 연결된 일정 지우기
 import { corsHeaders, json, userClient } from "../_shared/common.ts";
+import { getGoogleAccessToken } from "../_shared/google.ts";
 
 const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-
-async function getAccessToken(refreshToken: string) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
-      client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET")!,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) throw new Error(`google_token_${res.status}`);
-  return (await res.json()).access_token as string;
-}
 
 function nextDay(date: string) {
   const [y, m, d] = date.split("-").map(Number);
@@ -70,7 +56,7 @@ Deno.serve(async (req) => {
 
     const { data: tokenRow } = await supabase.from("google_tokens").select("refresh_token").maybeSingle();
     if (!tokenRow) return json({ error: "no_google_token" }, 400);
-    const token = await getAccessToken(tokenRow.refresh_token);
+    const token = await getGoogleAccessToken(tokenRow.refresh_token);
 
     if (payload.action === "delete") {
       for (const id of payload.event_ids ?? []) await reconcile(token, id, null);

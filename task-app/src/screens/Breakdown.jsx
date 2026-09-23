@@ -13,6 +13,7 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
   const started = useRef(false);
 
   async function ask(nextHistory) {
+    setHistory(nextHistory); // 실패해도 방금 한 답이 사라지지 않게 먼저 기록
     setLoading(true);
     setError('');
     try {
@@ -22,7 +23,6 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
         setHistory([...nextHistory, { role: 'assistant', content: res.question }]);
       } else {
         setQuestion('');
-        setHistory(nextHistory);
         setDraft({ steps: res.steps, next_action: res.next_action });
       }
     } catch (e) {
@@ -97,13 +97,13 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
               <button className="link" onClick={startManual}>직접 적기</button>
             </div>
           )}
-          {question && !loading && (
+          {question && !loading && history.at(-1)?.role === 'assistant' && (
             <form className="row" onSubmit={sendAnswer}>
               <input className="grow" autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="답하기" />
               <button className="primary" disabled={!answer.trim()}>보내기</button>
             </form>
           )}
-          {question && !loading && (
+          {question && !loading && history.at(-1)?.role === 'assistant' && (
             <div className="row small">
               <span className="muted">질문 {asked.length}/3</span>
               <button className="link" onClick={skipToProposal}>그만 묻고 제안 받기</button>
@@ -126,7 +126,7 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
   );
 }
 
-function DraftEditor({ draft, onChange, onSave, saving, onRestart }) {
+export function DraftEditor({ draft, onChange, onSave, saving, onRestart }) {
   const setStep = (i, patch) =>
     onChange({ ...draft, steps: draft.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
   const move = (i, d) => {
@@ -164,7 +164,7 @@ function DraftEditor({ draft, onChange, onSave, saving, onRestart }) {
 
       <div className="actions">
         <button className="primary" disabled={saving} onClick={onSave}>{saving ? '저장 중…' : '확정해서 저장'}</button>
-        <button className="link" onClick={onRestart}>AI와 처음부터 다시</button>
+        {onRestart && <button className="link" onClick={onRestart}>AI와 처음부터 다시</button>}
       </div>
     </div>
   );

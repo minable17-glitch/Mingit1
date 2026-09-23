@@ -15,31 +15,37 @@ export function idleDays(task, today) {
   return diffDays(toDateKST(task.last_activity_at), today);
 }
 
-export function assess(task, today, neglectDays) {
+// 공을 넘겨놓은(결재·회신 대기) 업무는 '방치' 대신 'N일 무응답'으로 판단함
+export function assess(task, today, neglectDays, waitingDays = 3) {
   const due = nearestDue(task);
   const daysLeft = due ? diffDays(today, due) : null;
   const idle = idleDays(task, today);
+  const waiting = Boolean(task.waiting_on);
+  const waitDays = waiting && task.waiting_since ? diffDays(toDateKST(task.waiting_since), today) : 0;
   return {
     due,
     daysLeft,
     idle,
+    waiting,
+    waitDays,
     overdue: daysLeft !== null && daysLeft < 0,
     dueSoon: daysLeft !== null && daysLeft >= 0 && daysLeft <= DUE_SOON_DAYS,
-    neglected: idle >= neglectDays,
+    neglected: !waiting && idle >= neglectDays,
+    noReply: waiting && waitDays >= waitingDays,
   };
 }
 
-// 위험도 순위: 마감 지남 → 마감 임박 → 방치 → 나머지
-function rank(a) {
+// 위험도 순위: 마감 지남 → 마감 임박 → 무응답·방치 → 나머지
+export function rank(a) {
   if (a.overdue) return 0;
   if (a.dueSoon) return 1;
-  if (a.neglected) return 2;
+  if (a.noReply || a.neglected) return 2;
   return 3;
 }
 
-export function sortForBriefing(tasks, today, neglectDays) {
+export function sortForBriefing(tasks, today, neglectDays, waitingDays) {
   return tasks
-    .map((task) => ({ task, info: assess(task, today, neglectDays) }))
+    .map((task) => ({ task, info: assess(task, today, neglectDays, waitingDays) }))
     .sort((x, y) => {
       const r = rank(x.info) - rank(y.info);
       if (r !== 0) return r;

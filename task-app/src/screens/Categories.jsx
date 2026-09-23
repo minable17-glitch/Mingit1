@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
 
-export default function Categories({ categories, reload }) {
+export default function Categories({ categories, reload, onClose }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#64748b');
   const [deleting, setDeleting] = useState(null); // 삭제할 분류
@@ -25,7 +25,8 @@ export default function Categories({ categories, reload }) {
 
   return (
     <section>
-      <header className="page-head"><h1>분류 관리</h1></header>
+      <header className="page-head"><button className="link" onClick={onClose}>← 설정</button></header>
+      <h1>분류 관리</h1>
 
       <ul className="cat-list">
         {categories.map((c, i) => (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import * as api from './lib/api.js';
 import Briefing from './screens/Briefing.jsx';
@@ -6,15 +6,27 @@ import TaskDetail from './screens/TaskDetail.jsx';
 import Archive from './screens/Archive.jsx';
 import Categories from './screens/Categories.jsx';
 import Settings from './screens/Settings.jsx';
+import Review from './screens/Review.jsx';
+import Inbox from './screens/Inbox.jsx';
+import DraftForm from './screens/DraftForm.jsx';
+import Templates from './screens/Templates.jsx';
+import Timetable from './screens/Timetable.jsx';
 
 const TABS = [
   { key: 'briefing', label: '브리핑' },
   { key: 'archive', label: '보관함' },
-  { key: 'categories', label: '분류' },
+  { key: 'review', label: '회고' },
   { key: 'settings', label: '설정' },
 ];
 
-const DEFAULT_SETTINGS = { neglect_days: 3, calendar_steps: true };
+const DEFAULT_SETTINGS = {
+  neglect_days: 3,
+  waiting_days: 3,
+  calendar_steps: true,
+  gmail_label: '업무',
+  bell_schedule: [],
+  timetable: {},
+};
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = 확인 중
@@ -62,21 +74,29 @@ function Login() {
 
 function Main({ userId }) {
   const [tab, setTab] = useState('briefing');
-  const [openTaskId, setOpenTaskId] = useState(null);
+  // 탭 위에 겹쳐 여는 화면: { type: 'task', id } | { type: 'inbox' } | { type: 'draft', draft, source }
+  //   | { type: 'review' } | { type: 'categories' } | { type: 'templates' } | { type: 'timetable' }
+  const [overlay, setOverlay] = useState(null);
   const [categories, setCategories] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [cats, active, st] = await Promise.all([
+      const [cats, active, st, tpls, inbox] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
+        // 2단계 SQL을 아직 실행하지 않았어도 1단계 기능은 그대로 쓰이도록
+        api.loadTemplates().catch(() => []), api.loadInbox().catch(() => []),
       ]);
       setCategories(cats);
       setTasks(active);
       setSettings({ ...DEFAULT_SETTINGS, ...st });
+      setTemplates(tpls);
+      setInboxCount(inbox.length);
       setError('');
       return active;
     } catch (e) {
@@ -85,10 +105,15 @@ function Main({ userId }) {
     }
   }, []);
 
+  // 첫 실행 준비(기본 분류·템플릿)는 한 번만 (개발 모드에서 effect가 두 번 돌아도 중복 생성 없게)
+  const initStarted = useRef(false);
   useEffect(() => {
+    if (initStarted.current) return;
+    initStarted.current = true;
     (async () => {
       try {
         await api.ensureDefaults(userId);
+        await api.ensureDefaultTemplates(userId, await api.loadCategories()).catch(() => {});
       } catch (e) {
         setError(e.message ?? String(e));
       }
@@ -109,24 +134,45 @@ function Main({ userId }) {
   if (!ready) return <div className="center muted">불러오는 중…</div>;
 
   const categoryById = Object.fromEntries(categories.map((c) => [c.id, c]));
-  const shared = { categories, categoryById, settings, reload, userId };
+  const openTask = (id) => setOverlay({ type: 'task', id });
+  const close = () => { setOverlay(null); reload(); };
+  const shared = {
+    categories, categoryById, settings, reload, userId, tasks, templates,
+    onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
+  };
+
+  const overlayView = overlay && {
+    task: () => <TaskDetail {...shared} taskId={overlay.id} onClose={close} />,
+    inbox: () => <Inbox {...shared} onClose={close} />,
+    review: () => <Review {...shared} onClose={close} />,
+    categories: () => <Categories {...shared} onClose={close} />,
+    templates: () => <Templates {...shared} onClose={close} />,
+    timetable: () => <Timetable {...shared} onClose={close} />,
+    draft: () => (
+      <DraftForm
+        initial={overlay.draft}
+        categories={categories}
+        source={overlay.source}
+        onCancel={close}
+        onConfirm={async (draft) => {
+          const task = await api.createFromDraft(draft);
+          await reload();
+          setOverlay({ type: 'task', id: task.id });
+        }}
+      />
+    ),
+  }[overlay.type]();
 
   return (
     <div className="app">
       {error && <div className="error" onClick={() => setError('')}>문제가 생겼어요: {error}</div>}
-      {openTaskId ? (
-        <TaskDetail
-          {...shared}
-          taskId={openTaskId}
-          onClose={() => { setOpenTaskId(null); reload(); }}
-        />
-      ) : (
+      {overlayView ?? (
         <>
           <main>
-            {tab === 'briefing' && <Briefing {...shared} tasks={tasks} onOpen={setOpenTaskId} />}
-            {tab === 'archive' && <Archive {...shared} onOpen={setOpenTaskId} />}
-            {tab === 'categories' && <Categories {...shared} />}
-            {tab === 'settings' && <Settings {...shared} onSaved={setSettings} />}
+            {tab === 'briefing' && <Briefing {...shared} inboxCount={inboxCount} />}
+            {tab === 'archive' && <Archive {...shared} />}
+            {tab === 'review' && <Review {...shared} />}
+            {tab === 'settings' && <Settings {...shared} />}
           </main>
           <nav className="tabs">
             {TABS.map((t) => (
