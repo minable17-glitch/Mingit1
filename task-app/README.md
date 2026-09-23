@@ -40,6 +40,23 @@ AI 원칙은 1단계와 같습니다. AI는 제안만 하고, 사용자가 확�
 - **아침 메일 브리핑**: 1단계 범위 밖(푸시 알림 제외 원칙과 같음). 2단계 위젯과 함께 검토.
 - **방치 계산**: 매일 예약 작업 대신 앱을 열 때 “마지막 활동일”로 바로 계산합니다. 결과는 같고 설정할 것이 줄어듭니다.
 
+## 새싹책방·다른 앱과 겹치지 않는 주소
+
+업무 챙김은 모든 주소를 새로 만들어 따로 씁니다. 새싹책방 쪽 설정은 어느 단계에서도 열거나 바꾸지 않습니다.
+
+| 구분 | 새싹책방 (그대로) | 업무 챙김 (새로 만듦) |
+| --- | --- | --- |
+| 앱 주소 | `minable17-glitch.github.io/Mingit1/` (GitHub Pages) | `task-keeper….vercel.app` (Vercel) |
+| 데이터 저장소 | Supabase 프로젝트 `ikljkokebcqaxpctcjpy` | Supabase 새 프로젝트 `task-keeper` (새 ID) |
+| 서버 기능 주소 | `ikljkokebcqaxpctcjpy.supabase.co/functions/...` | `<새 ID>.supabase.co/functions/...` |
+| 로그인 | 학생 PIN·카카오 | 구글 (새 구글 클라우드 프로젝트 `task-keeper`) |
+| 자동 배포 | `deploy.yml` (새싹책방 브랜치) | `task-app-functions.yml` (업무 챙김 브랜치), Vercel |
+| 코드 | 저장소 루트 | `task-app/` 폴더 안에만 |
+
+- 주소(도메인)가 다르므로 브라우저 저장공간·홈 화면 앱·오프라인 캐시도 서로 섞이지 않습니다.
+- Supabase 무료 요금제는 켜 둔 프로젝트가 2개까지입니다. 새 프로젝트가 안 만들어져도 **새싹책방 프로젝트를 일시 정지하거나 지우면 안 됩니다** (학생들이 쓰는 중). 그럴 땐 다른 안 쓰는 프로젝트를 정리하거나 문의하세요.
+- 새싹책방 Supabase의 인증 설정(Site URL, 카카오 로그인 등)은 건드리지 않습니다. 모든 설정은 `task-keeper` 프로젝트에서 합니다.
+
 ## 설치 순서 (처음 한 번, 모두 웹 브라우저에서)
 
 프로그램 설치 없이 웹사이트 5곳에서 설정합니다. 1시간 정도 걸립니다. 순서가 중요합니다(앞 단계에서 나온 값을 뒤에서 씀).
@@ -94,7 +111,8 @@ AI 원칙은 1단계와 같습니다. AI는 제안만 하고, 사용자가 확�
 ### 5단계 · 앱 화면 올리기 (Vercel, 무료)
 
 1. [vercel.com](https://vercel.com) → **GitHub으로 가입** → **Add New → Project** → `Mingit1` 저장소 **Import**
-2. **Root Directory**: `task-app` 선택
+2. **Project Name**: `task-keeper`로 바꾸기 (앱 주소가 `task-keeper….vercel.app`이 되어 새싹책방 주소와 헷갈리지 않음)
+   **Root Directory**: `task-app` 선택
 3. **Environment Variables**에 두 개 추가
    - `VITE_SUPABASE_URL` = `https://<PROJECT_REF>.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` = 1단계의 Publishable key
