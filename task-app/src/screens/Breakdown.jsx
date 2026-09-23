@@ -1,0 +1,171 @@
+// AI와 대화하며 업무 쪼개기. AI는 제안만 하고, "확정해서 저장"을 눌러야 저장됩니다.
+import { useEffect, useRef, useState } from 'react';
+import * as api from '../lib/api.js';
+
+export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
+  const [history, setHistory] = useState([]); // [{ role, content }]
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [draft, setDraft] = useState(null); // { steps: [{title, due_date}], next_action }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const started = useRef(false);
+
+  async function ask(nextHistory) {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.askBreakdown(task, categoryName, nextHistory);
+      if (res.kind === 'question') {
+        setQuestion(res.question);
+        setHistory([...nextHistory, { role: 'assistant', content: res.question }]);
+      } else {
+        setQuestion('');
+        setHistory(nextHistory);
+        setDraft({ steps: res.steps, next_action: res.next_action });
+      }
+    } catch (e) {
+      setError(e.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    ask([]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function sendAnswer(e) {
+    e.preventDefault();
+    if (!answer.trim()) return;
+    const next = [...history, { role: 'user', content: answer.trim() }];
+    setAnswer('');
+    ask(next);
+  }
+
+  function skipToProposal() {
+    ask([...history, { role: 'user', content: '더 묻지 말고 지금 정보로 바로 제안해 주세요.' }]);
+  }
+
+  function startManual() {
+    setDraft({
+      steps: task.steps.length
+        ? task.steps.map((s) => ({ title: s.title, due_date: s.due_date ?? '' }))
+        : [{ title: '', due_date: '' }],
+      next_action: '',
+    });
+  }
+
+  async function save() {
+    const steps = draft.steps.filter((s) => s.title.trim());
+    if (!steps.length) return alert('단계를 하나 이상 적어 주세요.');
+    if (task.steps.some((s) => s.done) && !confirm('이미 체크한 단계도 새 목록으로 바뀝니다. 계속할까요?')) return;
+    setSaving(true);
+    try {
+      await api.saveBreakdown(task, steps, draft.next_action);
+      await onSaved();
+    } catch (e) {
+      alert(`저장하지 못했어요: ${e.message}`);
+      setSaving(false);
+    }
+  }
+
+  const asked = history.filter((t) => t.role === 'assistant');
+
+  return (
+    <section className="detail">
+      <header className="page-head">
+        <button className="link" onClick={onCancel}>← 취소</button>
+        <span className="muted small">AI와 쪼개기</span>
+      </header>
+      <h1 className="title-plain">{task.title}</h1>
+
+      {!draft && (
+        <div className="chat">
+          {history.map((t, i) => (
+            <div key={i} className={`bubble ${t.role}`}>{t.content}</div>
+          ))}
+          {loading && <div className="bubble assistant muted">생각하는 중…</div>}
+          {error && (
+            <div className="error">
+              AI 호출에 실패했어요 ({error}).{' '}
+              <button className="link" onClick={() => ask(history)}>다시 시도</button>
+              {' 또는 '}
+              <button className="link" onClick={startManual}>직접 적기</button>
+            </div>
+          )}
+          {question && !loading && (
+            <form className="row" onSubmit={sendAnswer}>
+              <input className="grow" autoFocus value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="답하기" />
+              <button className="primary" disabled={!answer.trim()}>보내기</button>
+            </form>
+          )}
+          {question && !loading && (
+            <div className="row small">
+              <span className="muted">질문 {asked.length}/3</span>
+              <button className="link" onClick={skipToProposal}>그만 묻고 제안 받기</button>
+              <button className="link" onClick={startManual}>직접 적기</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {draft && (
+        <DraftEditor
+          draft={draft}
+          onChange={setDraft}
+          onSave={save}
+          saving={saving}
+          onRestart={() => { setDraft(null); setHistory([]); setQuestion(''); ask([]); }}
+        />
+      )}
+    </section>
+  );
+}
+
+function DraftEditor({ draft, onChange, onSave, saving, onRestart }) {
+  const setStep = (i, patch) =>
+    onChange({ ...draft, steps: draft.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
+  const move = (i, d) => {
+    const steps = [...draft.steps];
+    const j = i + d;
+    if (j < 0 || j >= steps.length) return;
+    [steps[i], steps[j]] = [steps[j], steps[i]];
+    onChange({ ...draft, steps });
+  };
+  const remove = (i) => onChange({ ...draft, steps: draft.steps.filter((_, j) => j !== i) });
+  const add = () => onChange({ ...draft, steps: [...draft.steps, { title: '', due_date: '' }] });
+
+  return (
+    <div className="block">
+      <p className="muted small">제안을 그대로 두거나 고친 뒤 확정하세요. 확정 전에는 아무것도 저장되지 않습니다.</p>
+      <ol className="draft-steps">
+        {draft.steps.map((s, i) => (
+          <li key={i}>
+            <input className="grow" value={s.title} placeholder="단계 이름" onChange={(e) => setStep(i, { title: e.target.value })} />
+            <input type="date" value={s.due_date ?? ''} onChange={(e) => setStep(i, { due_date: e.target.value })} />
+            <span className="step-tools">
+              <button type="button" onClick={() => move(i, -1)} aria-label="위로">↑</button>
+              <button type="button" onClick={() => move(i, 1)} aria-label="아래로">↓</button>
+              <button type="button" onClick={() => remove(i)} aria-label="삭제">✕</button>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <button type="button" className="link" onClick={add}>+ 단계 추가</button>
+
+      <label className="stack">
+        <span className="small muted">첫 다음 행동 (비우면 첫 단계 이름을 씁니다)</span>
+        <input value={draft.next_action} onChange={(e) => onChange({ ...draft, next_action: e.target.value })} />
+      </label>
+
+      <div className="actions">
+        <button className="primary" disabled={saving} onClick={onSave}>{saving ? '저장 중…' : '확정해서 저장'}</button>
+        <button className="link" onClick={onRestart}>AI와 처음부터 다시</button>
+      </div>
+    </div>
+  );
+}

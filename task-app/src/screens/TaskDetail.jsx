@@ -1,0 +1,253 @@
+import { useCallback, useEffect, useState } from 'react';
+import * as api from '../lib/api.js';
+import { dueLabel, formatShort, todayKST } from '../lib/date.js';
+import Breakdown from './Breakdown.jsx';
+
+const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료' };
+
+export default function TaskDetail({ taskId, categories, categoryById, onClose }) {
+  const [task, setTask] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [breaking, setBreaking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const today = todayKST();
+
+  const load = useCallback(async () => {
+    const [t, a] = await Promise.all([api.loadTask(taskId), api.loadActivity(taskId)]);
+    setTask(t);
+    setActivity(a);
+  }, [taskId]);
+
+  useEffect(() => {
+    Promise.all([api.loadTask(taskId), api.loadActivity(taskId)]).then(([t, a]) => {
+      setTask(t);
+      setActivity(a);
+    });
+  }, [taskId]);
+
+  if (!task) return <div className="center muted">불러오는 중…</div>;
+
+  const category = categoryById[task.category_id];
+  const active = task.status === 'active';
+
+  async function run(fn) {
+    setBusy(true);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      alert(`저장하지 못했어요: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (breaking) {
+    return (
+      <Breakdown
+        task={task}
+        categoryName={category?.name}
+        onCancel={() => setBreaking(false)}
+        onSaved={async () => { setBreaking(false); await load(); }}
+      />
+    );
+  }
+
+  return (
+    <section className="detail">
+      <header className="page-head">
+        <button className="link" onClick={onClose}>← 브리핑</button>
+        <span className="cat-tag" style={{ '--c': category?.color }}>{category?.name}</span>
+      </header>
+
+      {task.latest_note && (
+        <div className="latest-note">
+          <div className="small muted">마지막 메모</div>
+          {task.latest_note}
+        </div>
+      )}
+
+      <EditableTitle key={task.title} task={task} onSave={(title) => run(() => api.updateTask(task, { title }))} />
+
+      <div className="fields">
+        <label>
+          분류
+          <select
+            value={task.category_id}
+            onChange={(e) => run(() => api.updateTask(task, { category_id: e.target.value }))}
+          >
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label>
+          마감
+          <input
+            type="date"
+            value={task.due_date ?? ''}
+            onChange={(e) => run(() => api.updateTask(task, { due_date: e.target.value }))}
+          />
+          {task.due_date && <span className="muted small">{dueLabel(task.due_date, today)}</span>}
+        </label>
+      </div>
+
+      {active && (
+        <NextAction
+          key={task.next_action}
+          value={task.next_action}
+          onSave={(next_action) => run(() => api.updateTask(task, { next_action }))}
+        />
+      )}
+
+      <div className="block">
+        <div className="block-head">
+          <h2>단계</h2>
+          {active && (
+            <button onClick={() => setBreaking(true)}>
+              {task.steps.length ? '다시 쪼개기' : 'AI와 쪼개기'}
+            </button>
+          )}
+        </div>
+        {task.steps.length === 0 && <p className="muted small">아직 단계가 없습니다. AI와 대화하며 쪼개 보세요.</p>}
+        <ul className="steps">
+          {task.steps.map((s) => (
+            <li key={s.id} className={s.done ? 'done' : ''}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  disabled={busy || !active}
+                  onChange={() => run(async () => {
+                    const { completed } = await api.toggleStep(task, s);
+                    if (completed) alert('마지막 단계를 마쳐서 업무를 보관함으로 옮겼어요. 수고하셨어요!');
+                  })}
+                />
+                <span>{s.title}</span>
+              </label>
+              {s.due_date && (
+                <span className={!s.done && s.due_date < today ? 'badge danger' : 'badge'}>{formatShort(s.due_date)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {active && <NoteForm onSave={(note, next) => run(() => api.addNote(task, note, next))} />}
+
+      {active && <WorkBlockForm onSave={(v) => run(async () => {
+        await api.addWorkBlock(task, v);
+        alert('구글 캘린더에 작업 시간을 넣었어요.');
+      })} />}
+
+      <div className="block">
+        <h2>활동 기록</h2>
+        <ul className="activity">
+          {activity.map((a) => (
+            <li key={a.id}>
+              <span className="muted small">{new Date(a.at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              {' '}<b>{KIND_LABEL[a.kind]}</b> {a.content}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="actions">
+        {active ? (
+          <button disabled={busy} onClick={() => run(() => api.completeTask(task))}>완료로 보관</button>
+        ) : (
+          <button disabled={busy} onClick={() => run(() => api.reopenTask(task))}>다시 진행</button>
+        )}
+        <button
+          className="danger"
+          disabled={busy}
+          onClick={async () => {
+            if (!confirm(`“${task.title}” 업무를 완전히 지울까요? 캘린더 일정도 함께 지워집니다.`)) return;
+            await api.deleteTask(task);
+            onClose();
+          }}
+        >
+          삭제
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function EditableTitle({ task, onSave }) {
+  const [value, setValue] = useState(task.title);
+  return (
+    <input
+      className="title-input"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => value.trim() && value !== task.title && onSave(value.trim())}
+    />
+  );
+}
+
+function NextAction({ value, onSave }) {
+  const [draft, setDraft] = useState(value);
+  const changed = draft.trim() && draft.trim() !== value;
+  return (
+    <div className="next-action">
+      <div className="small muted">지금 할 다음 행동</div>
+      <div className="row">
+        <input className="grow" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        {changed && <button onClick={() => onSave(draft.trim())}>저장</button>}
+      </div>
+    </div>
+  );
+}
+
+function NoteForm({ onSave }) {
+  const [note, setNote] = useState('');
+  const [next, setNext] = useState('');
+  return (
+    <form
+      className="block"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!note.trim()) return;
+        onSave(note, next);
+        setNote('');
+        setNext('');
+      }}
+    >
+      <h2>멈추기 전에 한 줄</h2>
+      <input
+        placeholder="어디까지 했고, 다음엔 뭐부터? (예: 견적 1곳 받음, 나머지 1곳 전화부터)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <input
+        placeholder="다음 행동도 바꾸려면 입력 (선택)"
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+      />
+      <button className="primary" disabled={!note.trim()}>메모 남기기</button>
+    </form>
+  );
+}
+
+function WorkBlockForm({ onSave }) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(todayKST());
+  const [start, setStart] = useState('15:00');
+  const [minutes, setMinutes] = useState(50);
+  if (!open) {
+    return <button className="link" onClick={() => setOpen(true)}>+ 캘린더에 작업 시간 잡기</button>;
+  }
+  return (
+    <form
+      className="block row wrap"
+      onSubmit={(e) => { e.preventDefault(); onSave({ date, start, minutes: Number(minutes) }); setOpen(false); }}
+    >
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <input type="time" value={start} onChange={(e) => setStart(e.target.value)} required />
+      <select value={minutes} onChange={(e) => setMinutes(e.target.value)}>
+        {[25, 50, 90, 120].map((m) => <option key={m} value={m}>{m}분</option>)}
+      </select>
+      <button className="primary">캘린더에 넣기</button>
+      <button type="button" className="link" onClick={() => setOpen(false)}>취소</button>
+    </form>
+  );
+}
