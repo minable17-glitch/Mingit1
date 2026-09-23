@@ -50,6 +50,24 @@ jobs:
         with:
           version: latest
 
+      # 안전장치: 다른 앱(양궁 성장일지 등)의 서버 기능이 있는 프로젝트면 아무것도 바꾸지 않고 멈춤
+      - name: 업무 챙김 전용 프로젝트인지 확인
+        run: |
+          ours="ai-assist ai-breakdown calendar-sync gmail-import weekly-backup widget-summary"
+          if ! existing=$(supabase functions list --project-ref "$PROJECT_REF" -o json); then
+            echo "::error::프로젝트의 함수 목록을 읽지 못해 안전을 위해 멈춥니다. 프로젝트 ID와 토큰을 확인하세요."
+            exit 1
+          fi
+          others=""
+          for f in $(echo "$existing" | jq -r '.[] | (.slug // .name)'); do
+            case " $ours " in *" $f "*) ;; *) others="$others $f" ;; esac
+          done
+          if [ -n "$others" ]; then
+            echo "::error::다른 앱의 서버 기능이 있는 프로젝트입니다:$others — 업무 챙김용으로 새로 만든 프로젝트 ID를 넣어 주세요. 아무것도 바꾸지 않았습니다."
+            exit 1
+          fi
+          echo "업무 챙김 전용 프로젝트 확인됨"
+
       - name: 함수용 비밀값 설정
         env:
           ANTHROPIC_API_KEY: ${{ secrets.TASK_ANTHROPIC_API_KEY }}

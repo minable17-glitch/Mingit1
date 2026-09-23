@@ -1,11 +1,19 @@
 -- 업무 챙김 2단계 — schema.sql 을 실행한 뒤 이 파일을 SQL Editor 에서 한 번 실행합니다.
 -- 여러 번 실행해도 안전합니다.
 
--- 안전장치: 새싹책방 프로젝트에서 실수로 실행하면 아무것도 바꾸지 않고 멈춥니다.
+-- 안전장치: 업무 챙김 전용 프로젝트에서만 실행됩니다.
+-- 새싹책방·양궁 성장일지 등 다른 앱의 표가 하나라도 있는 프로젝트라면 아무것도 바꾸지 않고 멈춥니다.
+-- (업무 챙김이 만든 표에는 'task-keeper' 표시를 달아 두고, 표시 없는 표가 있으면 다른 앱으로 봅니다.
+--  이름이 같은 표가 우연히 있어도 표시가 없으므로 멈춥니다.)
 do $$
+declare others text;
 begin
-  if to_regclass('public.students') is not null or to_regclass('public.teachers') is not null then
-    raise exception '여기는 새싹책방 프로젝트입니다. 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에서 실행하세요. (아무것도 바뀌지 않았습니다)';
+  select string_agg(table_name, ', ' order by table_name) into others
+  from information_schema.tables
+  where table_schema = 'public'
+    and obj_description(format('public.%I', table_name)::regclass, 'pg_class') is distinct from 'task-keeper';
+  if others is not null then
+    raise exception '다른 앱이 쓰고 있는 프로젝트입니다 (이미 있는 표: %). 업무 챙김용으로 새로 만든 빈 프로젝트의 SQL Editor에서 실행하세요. 아무것도 바뀌지 않았습니다.', others;
   end if;
 end $$;
 
@@ -92,6 +100,7 @@ declare t text;
 begin
   foreach t in array array['templates', 'inbox', 'weekly_reviews']
   loop
+    execute format('comment on table public.%I is %L', t, 'task-keeper');
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists owner_all on public.%I', t);
     execute format(
