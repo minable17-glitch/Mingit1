@@ -1,6 +1,14 @@
 -- 업무 챙김 2단계 — schema.sql 을 실행한 뒤 이 파일을 SQL Editor 에서 한 번 실행합니다.
 -- 여러 번 실행해도 안전합니다.
 
+-- 안전장치: 새싹책방 프로젝트에서 실수로 실행하면 아무것도 바꾸지 않고 멈춥니다.
+do $$
+begin
+  if to_regclass('public.students') is not null or to_regclass('public.teachers') is not null then
+    raise exception '여기는 새싹책방 프로젝트입니다. 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에서 실행하세요. (아무것도 바뀌지 않았습니다)';
+  end if;
+end $$;
+
 -- ─────────────────────────────────────────────
 -- 1. 공 넘겨놓은 일 (결재·회신 대기)
 -- ─────────────────────────────────────────────

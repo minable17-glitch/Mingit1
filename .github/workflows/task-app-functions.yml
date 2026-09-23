@@ -40,6 +40,11 @@ jobs:
             echo "::error::TASK_SUPABASE_ACCESS_TOKEN 과 TASK_SUPABASE_PROJECT_REF 를 저장소 Secrets 에 먼저 넣어 주세요."
             exit 1
           fi
+          # 안전장치: 새싹책방(운영 중) 프로젝트에는 절대 올리지 않음
+          if [ "$PROJECT_REF" = "ikljkokebcqaxpctcjpy" ]; then
+            echo "::error::TASK_SUPABASE_PROJECT_REF 에 새싹책방 프로젝트 ID가 들어 있습니다. 업무 챙김용 새 프로젝트 ID로 바꿔 주세요."
+            exit 1
+          fi
 
       - uses: supabase/setup-cli@v1
         with:

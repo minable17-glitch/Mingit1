@@ -106,6 +106,8 @@ AI 원칙은 1단계와 같습니다. AI는 제안만 하고, 사용자가 확�
 4. **Deploy** → 끝나면 나오는 주소(예: `https://mingit1-xxxx.vercel.app`)를 적어 두기
 5. Vercel 프로젝트 **Settings → Git → Production Branch**를 `claude/new-session-oe1y4k`로 바꾸기
    (저장소 기본 브랜치는 새싹책방이라서, 이걸 안 바꾸면 업무 챙김 코드가 없는 브랜치를 올리려 함) → **Deployments**에서 다시 배포
+   - 같은 화면 **Ignored Build Step**에 아래를 넣으면 새싹책방 브랜치에 코드를 올릴 때 Vercel이 괜히 빌드하지 않습니다(안 넣어도 새싹책방에는 영향 없음):
+     `if [ "$VERCEL_GIT_COMMIT_REF" = "claude/new-session-oe1y4k" ]; then exit 1; else exit 0; fi`
 6. Supabase **Authentication → URL Configuration**
    - **Site URL**: Vercel 주소
    - **Redirect URLs**에도 Vercel 주소 추가

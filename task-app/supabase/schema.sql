@@ -2,6 +2,14 @@
 -- 새 Supabase 프로젝트의 SQL Editor에 이 파일 전체를 붙여넣고 한 번 실행합니다.
 -- 여러 번 실행해도 안전하도록 if not exists / or replace 를 씁니다.
 
+-- 안전장치: 새싹책방 프로젝트에서 실수로 실행하면 아무것도 바꾸지 않고 멈춥니다.
+do $$
+begin
+  if to_regclass('public.students') is not null or to_regclass('public.teachers') is not null then
+    raise exception '여기는 새싹책방 프로젝트입니다. 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에서 실행하세요. (아무것도 바뀌지 않았습니다)';
+  end if;
+end $$;
+
 alter database postgres set timezone to 'Asia/Seoul';
 
 -- ─────────────────────────────────────────────
