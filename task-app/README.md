@@ -40,87 +40,102 @@ AI 원칙은 1단계와 같습니다. AI는 제안만 하고, 사용자가 확�
 - **아침 메일 브리핑**: 1단계 범위 밖(푸시 알림 제외 원칙과 같음). 2단계 위젯과 함께 검토.
 - **방치 계산**: 매일 예약 작업 대신 앱을 열 때 “마지막 활동일”로 바로 계산합니다. 결과는 같고 설정할 것이 줄어듭니다.
 
-## 설치 순서 (처음 한 번)
+## 설치 순서 (처음 한 번, 모두 웹 브라우저에서)
 
-> 1단계를 이미 설치했다면 맨 아래 **“2단계 추가 설치”**만 하면 됩니다.
+프로그램 설치 없이 웹사이트 5곳에서 설정합니다. 1시간 정도 걸립니다. 순서가 중요합니다(앞 단계에서 나온 값을 뒤에서 씀).
 
-### 1. Supabase 새 프로젝트
+준비물: 구글 계정, GitHub 계정(이미 있음), 해외 결제 카드(Anthropic AI 사용료 선불 충전용, 최소 5달러).
 
-새싹책방과 **다른 프로젝트**를 새로 만드세요(무료 요금제는 2개까지).
+### 1단계 · Supabase 새 프로젝트 (데이터 저장소)
 
-1. [supabase.com](https://supabase.com) → New project
-2. **SQL Editor**에 `supabase/schema.sql` 전체를 붙여넣고 Run
-3. 같은 SQL Editor에서 본인 이메일 등록 (이 이메일로만 로그인 가능):
+1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project** (새싹책방과 **다른** 프로젝트. 무료 요금제는 2개까지)
+   - 이름: `task-keeper`, 지역: **Northeast Asia (Seoul)**, DB 비밀번호는 아무거나(따로 쓸 일 없음)
+2. 만들어지면 왼쪽 **SQL Editor** → `supabase/schema.sql` 전체 붙여넣기 → **Run**
+3. 이어서 `supabase/schema_phase2.sql` 전체 붙여넣기 → **Run**
+4. 이어서 아래 한 줄 실행 (이 이메일로만 로그인 가능):
    ```sql
    insert into public.allowed_emails (email) values ('minable17@gmail.com');
    ```
+5. 적어 둘 값 — **Project Settings → General**의 *Project ID*(영문 20자, 이하 PROJECT_REF), **Project Settings → API Keys**의 *Publishable key*
 
-### 2. 구글 클라우드 OAuth (로그인 + 캘린더 권한)
+### 2단계 · 구글 클라우드 (로그인 + 캘린더·Gmail 권한)
 
-1. [Google Cloud Console](https://console.cloud.google.com) → 새 프로젝트
-2. **API 및 서비스 → 라이브러리**에서 **Google Calendar API** 사용 설정
-3. **OAuth 동의 화면**: 외부(External), 앱 이름 입력, 범위에 `.../auth/calendar.events`와 `.../auth/gmail.readonly` 추가 (Gmail API도 라이브러리에서 사용 설정)
-4. **게시 상태를 “프로덕션”으로 전환** — 테스트 모드면 7일마다 캘린더 연결이 끊깁니다. 로그인할 때 “확인되지 않은 앱” 경고가 뜨면 *고급 → 이동*을 누르면 됩니다(본인 전용이라 괜찮음).
-5. **사용자 인증 정보 → OAuth 클라이언트 ID**(웹 애플리케이션)
+1. [console.cloud.google.com](https://console.cloud.google.com) → 상단 프로젝트 선택 → **새 프로젝트** (`task-keeper`)
+2. **API 및 서비스 → 라이브러리**: **Google Calendar API**, **Gmail API** 각각 검색해서 **사용**
+3. **API 및 서비스 → OAuth 동의 화면**(Google Auth Platform): 앱 이름 `업무 챙김`, 대상 **외부**, 연락처 이메일 입력
+   - **데이터 액세스 → 범위 추가**: `.../auth/calendar.events`, `.../auth/gmail.readonly`
+   - **대상 → 앱 게시**를 눌러 **프로덕션** 상태로 (테스트 상태면 7일마다 연결이 끊김)
+4. **클라이언트 → 클라이언트 만들기**: 유형 **웹 애플리케이션**
    - 승인된 리디렉션 URI: `https://<PROJECT_REF>.supabase.co/auth/v1/callback`
-6. 나온 **클라이언트 ID / 보안 비밀**을 Supabase 대시보드 **Authentication → Providers → Google**에 넣고 켜기
-7. Supabase **Authentication → URL Configuration**의 Site URL / Redirect URLs에 앱 주소(예: `https://내앱.vercel.app`, 개발 중엔 `http://localhost:5173`) 추가
+5. 나온 **클라이언트 ID**와 **클라이언트 보안 비밀번호**를 적어 두기
+6. Supabase로 돌아가 **Authentication → Sign In / Providers → Google** 켜고 위 두 값 붙여넣기 → Save
 
-### 3. Edge Function 배포
+로그인할 때 “Google에서 확인하지 않은 앱” 화면이 뜨면 **고급 → 업무 챙김(으)로 이동**을 누르면 됩니다. 본인 전용 앱이라 괜찮습니다.
 
-[Supabase CLI](https://supabase.com/docs/guides/cli) 설치 후 이 폴더에서:
+### 3단계 · Anthropic API 키 (AI 기능)
+
+1. [console.anthropic.com](https://console.anthropic.com) 가입 → **Billing**에서 5달러 충전
+2. **Limits**에서 월 사용 한도를 5~10달러로 걸어 두기 (넘으면 AI만 멈추고 앱은 계속 동작)
+3. **API Keys → Create Key** → 키를 복사해 두기 (한 번만 보여줌)
+
+### 4단계 · GitHub에 비밀값 넣기 → 서버 기능 자동 설치
+
+1. Supabase 오른쪽 위 계정 아이콘 → **Account preferences → Access Tokens → Generate new token** → 복사
+2. GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret**으로 아래를 하나씩 추가
+
+   | 이름 | 값 |
+   | --- | --- |
+   | `TASK_SUPABASE_ACCESS_TOKEN` | 방금 만든 Supabase 토큰 |
+   | `TASK_SUPABASE_PROJECT_REF` | 1단계의 Project ID |
+   | `TASK_ANTHROPIC_API_KEY` | 3단계 API 키 |
+   | `TASK_GOOGLE_CLIENT_ID` | 2단계 클라이언트 ID |
+   | `TASK_GOOGLE_CLIENT_SECRET` | 2단계 보안 비밀번호 |
+   | `TASK_CRON_SECRET` | (선택) 아무 긴 영문·숫자 — 메일 자동 확인용 |
+   | `TASK_BACKUP_SECRET` | (선택) 아무 긴 영문·숫자 — 주간 백업용 |
+
+3. 저장소 **Actions** 탭 → 왼쪽 **업무 챙김 서버 기능 배포** → 가장 최근 실행(빨간 ✕) 클릭 → 오른쪽 위 **Re-run all jobs**
+4. 초록 ✓가 되면 끝. Supabase **Edge Functions** 메뉴에 함수 6개가 보입니다.
+
+### 5단계 · 앱 화면 올리기 (Vercel, 무료)
+
+1. [vercel.com](https://vercel.com) → **GitHub으로 가입** → **Add New → Project** → `Mingit1` 저장소 **Import**
+2. **Root Directory**: `task-app` 선택
+3. **Environment Variables**에 두 개 추가
+   - `VITE_SUPABASE_URL` = `https://<PROJECT_REF>.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY` = 1단계의 Publishable key
+4. **Deploy** → 끝나면 나오는 주소(예: `https://mingit1-xxxx.vercel.app`)를 적어 두기
+5. Vercel 프로젝트 **Settings → Git → Production Branch**를 `claude/new-session-oe1y4k`로 바꾸기
+   (저장소 기본 브랜치는 새싹책방이라서, 이걸 안 바꾸면 업무 챙김 코드가 없는 브랜치를 올리려 함) → **Deployments**에서 다시 배포
+6. Supabase **Authentication → URL Configuration**
+   - **Site URL**: Vercel 주소
+   - **Redirect URLs**에도 Vercel 주소 추가
+
+### 6단계 · 첫 로그인
+
+Vercel 주소 접속 → **구글 계정으로 로그인** → 권한 허용(캘린더·Gmail 체크) → 브리핑 화면이 나오면 성공.
+폰에서는 브라우저 메뉴의 **홈 화면에 추가**로 앱처럼 쓸 수 있습니다.
+
+### 선택 기능
+
+- **Gmail 자동 확인(매시간)**, **주간 백업**: SQL Editor에서 `pg_cron`, `pg_net` 확장을 켜고 `schema_phase2.sql` 7번, `schema.sql` 8번 주석을 본인 값으로 바꿔 실행. 백업은 Storage에 `backups` 버킷(비공개)도 만들어야 합니다.
+- **위젯**: 앱 **설정 → 위젯 주소 만들기**
+  - 윈도우 **Lively Wallpaper**: 새 배경화면 → URL에 “HTML 주소”
+  - 맥 **Plash**: 웹사이트 추가에 “HTML 주소”
+  - 아이폰 **Scriptable**: `docs/widget-scriptable.js` 안내대로 “JSON 주소”
+  - 갤럭시 **KWGT**: 텍스트 항목에서 웹 가져오기(`wg`) 함수로 주소를 읽어 표시. 주소 끝 `format=json`을 `format=text`로 바꾸면 요약 전체를 글자 그대로 받을 수 있어 가장 쉽습니다.
+
+### (참고) 터미널로 설치하는 방법
+
+4단계 대신 [Supabase CLI](https://supabase.com/docs/guides/cli)로 직접 올려도 됩니다.
 
 ```bash
+cd task-app
 supabase login
-supabase link --project-ref <PROJECT_REF>
-
-supabase secrets set ANTHROPIC_API_KEY=<Anthropic 콘솔에서 받은 키>
-supabase secrets set GOOGLE_CLIENT_ID=<2단계 클라이언트 ID>
-supabase secrets set GOOGLE_CLIENT_SECRET=<2단계 보안 비밀>
-
-supabase functions deploy ai-breakdown
-supabase functions deploy calendar-sync
+supabase secrets set --project-ref <PROJECT_REF> ANTHROPIC_API_KEY=... GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+supabase functions deploy --project-ref <PROJECT_REF>   # config.toml 설정대로 전체 배포
 ```
 
-### 4. 앱 실행·배포
-
-```bash
-cp .env.example .env.local   # 값 채우기 (Project Settings → API)
-npm install
-npm run dev                  # http://localhost:5173
-```
-
-배포는 [Vercel](https://vercel.com)에서 이 저장소를 가져오고 **Root Directory를 `task-app`**, 환경변수 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 넣으면 됩니다. 배포 주소를 2-7단계 Redirect URLs에 추가하세요.
-
-### 5. (선택) 주 1회 자동 백업
-
-1. Supabase **Storage**에 `backups` 버킷(비공개) 만들기
-2. 아무 긴 문자열을 정해 `supabase secrets set BACKUP_SECRET=<문자열>`
-3. `supabase functions deploy weekly-backup --no-verify-jwt`
-4. `schema.sql` 맨 아래 8번 주석의 `cron.schedule(...)`을 본인 값으로 바꿔 실행
-
-Supabase 무료 요금제는 1주일간 활동이 없으면 일시 정지되는데, 매일 앱을 열면 문제없습니다.
-
-### 6. 2단계 추가 설치
-
-1. SQL Editor에서 `supabase/schema_phase2.sql` 실행 (실행 전에도 1단계 기능은 정상 동작)
-2. 구글 클라우드: **Gmail API** 사용 설정, OAuth 동의 화면 범위에 `.../auth/gmail.readonly` 추가
-3. 함수 배포:
-   ```bash
-   supabase functions deploy ai-assist
-   supabase functions deploy gmail-import --no-verify-jwt
-   supabase functions deploy widget-summary --no-verify-jwt
-   ```
-   (`--no-verify-jwt`는 예약 작업·위젯처럼 로그인 없이 부르는 주소라서 필요합니다. 두 함수는 각자 비밀값·위젯 키로 따로 확인합니다.)
-4. 앱 **설정 → 구글 다시 연결**을 한 번 눌러 Gmail 읽기 권한 허용
-5. (선택) 매시간 메일 자동 확인: `supabase secrets set CRON_SECRET=<긴 문자열>` 후 `schema_phase2.sql` 맨 아래 7번 주석을 본인 값으로 바꿔 실행
-6. (선택) 위젯: **설정 → 위젯 주소 만들기**
-   - 윈도우 **Lively Wallpaper**: 새 배경화면 → URL에 “HTML 주소” 붙여넣기
-   - 맥 **Plash**: 웹사이트 추가에 “HTML 주소” 붙여넣기
-   - 아이폰 **Scriptable**: `docs/widget-scriptable.js` 안내대로 “JSON 주소” 사용
-   - 갤럭시 **KWGT**: 텍스트 항목에서 웹 가져오기(`wg`) 함수로 “JSON 주소”를 읽어 표시. 주소 끝의 `format=json`을 `format=text`로 바꾸면 요약 전체를 글자 그대로 한 번에 받을 수 있어 설정이 가장 쉽습니다.
-
-Gmail 권한(`gmail.readonly`)은 구글이 “제한된 범위”로 분류해서 로그인 때 경고가 한 번 더 뜰 수 있습니다. 본인 전용이면 *고급 → 이동*으로 진행하면 됩니다.
+로컬 개발: `cp .env.example .env.local`에 값 채우고 `npm install && npm run dev` (Supabase Redirect URLs에 `http://localhost:5173` 추가).
 
 ## 폴더 구조
 

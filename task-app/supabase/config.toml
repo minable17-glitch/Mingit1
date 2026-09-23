@@ -1,0 +1,12 @@
+# Supabase CLI 설정 (함수 배포용). 로그인 없이 부르는 함수는 토큰 검사를 끕니다.
+# 이 함수들은 각자 비밀값(x-cron-secret, x-backup-secret)이나 위젯 키로 따로 확인합니다.
+project_id = "task-keeper"
+
+[functions.gmail-import]
+verify_jwt = false
+
+[functions.widget-summary]
+verify_jwt = false
+
+[functions.weekly-backup]
+verify_jwt = false

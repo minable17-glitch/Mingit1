@@ -1,0 +1,65 @@
+# 업무 챙김(task-app) 서버 기능을 Supabase에 올립니다. 새싹책방 배포와는 무관합니다.
+# 필요한 GitHub 저장소 Secrets (Settings → Secrets and variables → Actions):
+#   TASK_SUPABASE_ACCESS_TOKEN  Supabase 계정 → Access Tokens 에서 발급
+#   TASK_SUPABASE_PROJECT_REF   업무 챙김용 Supabase 프로젝트 ID
+#   TASK_ANTHROPIC_API_KEY      Anthropic 콘솔 API 키
+#   TASK_GOOGLE_CLIENT_ID       구글 OAuth 클라이언트 ID
+#   TASK_GOOGLE_CLIENT_SECRET   구글 OAuth 보안 비밀
+#   TASK_CRON_SECRET, TASK_BACKUP_SECRET  (선택) 예약 작업용 아무 긴 문자열
+# 비밀값을 넣은 뒤에는 Actions 탭에서 이 작업의 마지막 실행을 열고 "Re-run all jobs" 를 누르면 됩니다.
+name: 업무 챙김 서버 기능 배포
+
+on:
+  push:
+    branches:
+      - claude/new-session-oe1y4k
+    paths:
+      - task-app/supabase/**
+      - .github/workflows/task-app-functions.yml
+  workflow_dispatch:
+
+concurrency:
+  group: task-app-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: task-app
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.TASK_SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.TASK_SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 비밀값 확인
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
+            echo "::error::TASK_SUPABASE_ACCESS_TOKEN 과 TASK_SUPABASE_PROJECT_REF 를 저장소 Secrets 에 먼저 넣어 주세요."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: 함수용 비밀값 설정
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.TASK_ANTHROPIC_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.TASK_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.TASK_GOOGLE_CLIENT_SECRET }}
+          CRON_SECRET: ${{ secrets.TASK_CRON_SECRET }}
+          BACKUP_SECRET: ${{ secrets.TASK_BACKUP_SECRET }}
+        run: |
+          args=()
+          for name in ANTHROPIC_API_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET CRON_SECRET BACKUP_SECRET; do
+            if [ -n "${!name}" ]; then args+=("$name=${!name}"); fi
+          done
+          if [ ${#args[@]} -gt 0 ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
+          fi
+
+      - name: 함수 배포
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
