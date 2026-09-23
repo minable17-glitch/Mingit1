@@ -50,13 +50,8 @@ AI 원칙은 1단계와 같습니다. AI는 제안만 하고, 사용자가 확�
 
 1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project** (새싹책방과 **다른** 프로젝트. 무료 요금제는 2개까지)
    - 이름: `task-keeper`, 지역: **Northeast Asia (Seoul)**, DB 비밀번호는 아무거나(따로 쓸 일 없음)
-2. 만들어지면 왼쪽 **SQL Editor** → `supabase/schema.sql` 전체 붙여넣기 → **Run**
-3. 이어서 `supabase/schema_phase2.sql` 전체 붙여넣기 → **Run**
-4. 이어서 아래 한 줄 실행 (이 이메일로만 로그인 가능):
-   ```sql
-   insert into public.allowed_emails (email) values ('minable17@gmail.com');
-   ```
-5. 적어 둘 값 — **Project Settings → General**의 *Project ID*(영문 20자, 이하 PROJECT_REF), **Project Settings → API Keys**의 *Publishable key*
+2. 만들어지면 왼쪽 **SQL Editor** → `supabase/install_all.sql` 전체 붙여넣기 → **Run** (테이블 생성 + 2단계 + 본인 이메일 등록이 한 번에 됨. 다른 이메일을 쓰려면 파일 맨 아래 줄만 고치기)
+3. 적어 둘 값 — **Project Settings → General**의 *Project ID*(영문 20자, 이하 PROJECT_REF), **Project Settings → API Keys**의 *Publishable key*
 
 ### 2단계 · 구글 클라우드 (로그인 + 캘린더·Gmail 권한)
 
