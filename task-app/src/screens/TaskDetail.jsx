@@ -5,10 +5,10 @@ import Breakdown from './Breakdown.jsx';
 
 const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
-export default function TaskDetail({ taskId, categories, categoryById, onClose }) {
+export default function TaskDetail({ taskId, categories, categoryById, templates, features, onClose }) {
   const [task, setTask] = useState(null);
   const [activity, setActivity] = useState([]);
-  const [breaking, setBreaking] = useState(false);
+  const [breaking, setBreaking] = useState(null); // null | 'manual' | 'ai'
   const [busy, setBusy] = useState(false);
   const today = todayKST();
 
@@ -47,8 +47,10 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
       <Breakdown
         task={task}
         categoryName={category?.name}
-        onCancel={() => setBreaking(false)}
-        onSaved={async () => { setBreaking(false); await load(); }}
+        templates={templates}
+        useAi={breaking === 'ai'}
+        onCancel={() => setBreaking(null)}
+        onSaved={async () => { setBreaking(null); await load(); }}
       />
     );
   }
@@ -111,12 +113,13 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
         <div className="block-head">
           <h2>단계</h2>
           {active && (
-            <button onClick={() => setBreaking(true)}>
-              {task.steps.length ? '다시 쪼개기' : 'AI와 쪼개기'}
-            </button>
+            <span className="row">
+              <button onClick={() => setBreaking('manual')}>{task.steps.length ? '단계 고치기' : '단계 정하기'}</button>
+              {features?.ai_enabled && <button onClick={() => setBreaking('ai')}>AI와 쪼개기</button>}
+            </span>
           )}
         </div>
-        {task.steps.length === 0 && <p className="muted small">아직 단계가 없습니다. AI와 대화하며 쪼개 보세요.</p>}
+        {task.steps.length === 0 && <p className="muted small">아직 단계가 없습니다. “단계 정하기”에서 템플릿이나 기본 단계로 쉽게 시작할 수 있어요.</p>}
         <ul className="steps">
           {task.steps.map((s) => (
             <li key={s.id} className={s.done ? 'done' : ''}>
@@ -142,7 +145,7 @@ export default function TaskDetail({ taskId, categories, categoryById, onClose }
 
       {active && <NoteForm onSave={(note, next) => run(() => api.addNote(task, note, next))} />}
 
-      {active && <WorkBlockForm onSave={(v) => run(async () => {
+      {active && features?.google_advanced && <WorkBlockForm onSave={(v) => run(async () => {
         await api.addWorkBlock(task, v);
         alert('구글 캘린더에 작업 시간을 넣었어요.');
       })} />}

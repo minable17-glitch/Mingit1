@@ -106,8 +106,17 @@ Deno.serve(async (req) => {
     if (cronSecret && req.headers.get("x-cron-secret") === cronSecret) {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: tokens } = await admin.from("google_tokens").select("user_id, refresh_token");
+      // 고급 구글 연동이 허락된 사람(관리자 또는 관리자가 켜 준 사용자)만 처리
+      const { data: admins } = await admin.from("allowed_emails").select("email");
+      const { data: profiles } = await admin.from("profiles").select("user_id, email, google_advanced");
+      const adminEmails = new Set((admins ?? []).map((a) => a.email.toLowerCase()));
+      const permitted = new Set((profiles ?? [])
+        .filter((p) => p.google_advanced || adminEmails.has(p.email.toLowerCase()))
+        .map((p) => p.user_id));
       const results = [];
-      for (const t of tokens ?? []) results.push(await importFor(admin, t.user_id, t.refresh_token));
+      for (const t of tokens ?? []) {
+        if (permitted.has(t.user_id)) results.push(await importFor(admin, t.user_id, t.refresh_token));
+      }
       return json({ results });
     }
 
@@ -118,7 +127,7 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
     );
     const { data: { user } } = await db.auth.getUser();
-    const { data: allowed } = await db.rpc("is_allowed");
+    const { data: allowed } = await db.rpc("google_advanced_allowed");
     if (!user || !allowed) return json({ error: "not_allowed" }, 403);
 
     const { data: tokenRow } = await db.from("google_tokens").select("refresh_token").maybeSingle();

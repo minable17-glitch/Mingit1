@@ -54,6 +54,10 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
 
+    // 즉시 반영 캘린더 연동은 관리자 또는 관리자가 켜 준 사용자만 (구글 심사 전 단계)
+    const { data: advanced } = await supabase.rpc("google_advanced_allowed");
+    if (!advanced) return json({ error: "google_advanced_not_enabled" }, 403);
+
     const { data: tokenRow } = await supabase.from("google_tokens").select("refresh_token").maybeSingle();
     if (!tokenRow) return json({ error: "no_google_token" }, 400);
     const token = await getGoogleAccessToken(tokenRow.refresh_token);

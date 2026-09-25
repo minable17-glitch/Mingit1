@@ -53,7 +53,7 @@ jobs:
       # 안전장치: 다른 앱(양궁 성장일지 등)의 서버 기능이 있는 프로젝트면 아무것도 바꾸지 않고 멈춤
       - name: 업무 챙김 전용 프로젝트인지 확인
         run: |
-          ours="ai-assist ai-breakdown calendar-sync gmail-import weekly-backup widget-summary"
+          ours="ai-assist ai-breakdown calendar-feed calendar-sync delete-account gmail-import weekly-backup widget-summary"
           if ! existing=$(supabase functions list --project-ref "$PROJECT_REF" -o json); then
             echo "::error::프로젝트의 함수 목록을 읽지 못해 안전을 위해 멈춥니다. 프로젝트 ID와 토큰을 확인하세요."
             exit 1

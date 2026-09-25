@@ -161,8 +161,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const supabase = userClient(req);
-  const { data: allowed } = await supabase.rpc("is_allowed");
-  if (!allowed) return json({ error: "not_allowed" }, 403);
+  // AI는 관리자 또는 관리자가 켜 준 사용자만 (API 비용 보호)
+  const { data: allowed } = await supabase.rpc("ai_allowed");
+  if (!allowed) return json({ error: "ai_not_enabled" }, 403);
 
   try {
     const body = await req.json();

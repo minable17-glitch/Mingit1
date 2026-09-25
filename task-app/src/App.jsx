@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = 확인 중
-  const [allowed, setAllowed] = useState(null);
+  const [profile, setProfile] = useState(null); // { allowed, is_admin, ai_enabled, google_advanced }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -44,35 +44,46 @@ export default function App() {
   const userId = session?.user?.id;
   useEffect(() => {
     if (!userId) return;
-    api.isAllowed().then(setAllowed).catch(() => setAllowed(false));
+    api.myProfile()
+      .then((p) => { api.setFeatures(p); setProfile(p); })
+      .catch(() => setProfile({ allowed: false }));
   }, [userId]);
 
   if (session === undefined) return <div className="center muted">불러오는 중…</div>;
   if (!session) return <Login />;
-  if (allowed === null) return <div className="center muted">확인 중…</div>;
-  if (!allowed) {
+  if (profile === null) return <div className="center muted">확인 중…</div>;
+  if (!profile.allowed) {
     return (
       <div className="center stack">
-        <p>이 계정({session.user.email})은 사용 허가가 없습니다.</p>
-        <p className="muted small">README의 “본인 이메일 등록” 단계를 확인하세요.</p>
+        <p>지금은 새로 가입을 받지 않고 있어요.</p>
+        <p className="muted small">({session.user.email}) 나중에 다시 시도해 주세요.</p>
         <button onClick={api.signOut}>로그아웃</button>
       </div>
     );
   }
-  return <Main userId={userId} />;
+  return <Main userId={userId} features={profile} />;
 }
 
 function Login() {
   return (
-    <div className="center stack">
+    <div className="center stack login">
       <h1>업무 챙김</h1>
-      <p className="muted">진행 중인 모든 업무를 하루 한 번 훑어보세요.</p>
-      <button className="primary" onClick={api.signInWithGoogle}>구글 계정으로 로그인</button>
+      <p>여러 업무를 동시에 맡은 선생님을 위한 업무 놓침 방지 앱</p>
+      <ul className="muted small intro">
+        <li>매일 아침 모든 업무를 한 화면에서 훑어보기</li>
+        <li>업무마다 “지금 할 다음 행동” 하나</li>
+        <li>며칠 손대지 않은 업무·결재 대기 업무 알림</li>
+      </ul>
+      <button className="primary" onClick={api.signInWithGoogle}>구글 계정으로 시작하기</button>
+      <p className="muted small">
+        로그인에는 이름과 이메일만 사용합니다.<br />
+        <a href="/privacy.html">개인정보처리방침</a> · <a href="/terms.html">이용약관</a>
+      </p>
     </div>
   );
 }
 
-function Main({ userId }) {
+function Main({ userId, features }) {
   const [tab, setTab] = useState('briefing');
   // 탭 위에 겹쳐 여는 화면: { type: 'task', id } | { type: 'inbox' } | { type: 'draft', draft, source }
   //   | { type: 'review' } | { type: 'categories' } | { type: 'templates' } | { type: 'timetable' }
@@ -89,8 +100,9 @@ function Main({ userId }) {
     try {
       const [cats, active, st, tpls, inbox] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
-        // 2단계 SQL을 아직 실행하지 않았어도 1단계 기능은 그대로 쓰이도록
-        api.loadTemplates().catch(() => []), api.loadInbox().catch(() => []),
+        api.loadTemplates().catch(() => []),
+        // 받은 제안함(Gmail)은 고급 구글 연동 사용자만
+        features.google_advanced ? api.loadInbox().catch(() => []) : [],
       ]);
       setCategories(cats);
       setTasks(active);
@@ -103,7 +115,7 @@ function Main({ userId }) {
       setError(e.message ?? String(e));
       return [];
     }
-  }, []);
+  }, [features.google_advanced]);
 
   // 첫 실행 준비(기본 분류·템플릿)는 한 번만 (개발 모드에서 effect가 두 번 돌아도 중복 생성 없게)
   const initStarted = useRef(false);
@@ -137,7 +149,7 @@ function Main({ userId }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates,
+    categories, categoryById, settings, reload, userId, tasks, templates, features,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 

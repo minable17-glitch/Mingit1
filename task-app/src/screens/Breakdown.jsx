@@ -1,12 +1,22 @@
-// AI와 대화하며 업무 쪼개기. AI는 제안만 하고, "확정해서 저장"을 눌러야 저장됩니다.
+// 업무 쪼개기. 기본은 직접 적기(템플릿·기본 단계로 시작 가능),
+// AI가 켜진 사용자는 AI와 대화하며 쪼갤 수 있음. 어느 쪽이든 "확정해서 저장"을 눌러야 저장됩니다.
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
+import { todayKST } from '../lib/date.js';
+import { defaultSteps } from '../lib/rules.js';
+import { stepsFromTemplate } from '../lib/templates.js';
 
-export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
+export default function Breakdown({ task, categoryName, templates = [], useAi = false, onCancel, onSaved }) {
   const [history, setHistory] = useState([]); // [{ role, content }]
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
-  const [draft, setDraft] = useState(null); // { steps: [{title, due_date}], next_action }
+  // { steps: [{title, due_date}], next_action } — AI를 안 쓰면 바로 직접 적기로 시작
+  const [draft, setDraft] = useState(() => (useAi ? null : {
+    steps: task.steps.length
+      ? task.steps.map((s) => ({ title: s.title, due_date: s.due_date ?? '' }))
+      : [{ title: '', due_date: '' }],
+    next_action: '',
+  }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -33,7 +43,7 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
   }
 
   useEffect(() => {
-    if (started.current) return;
+    if (started.current || !useAi) return;
     started.current = true;
     ask([]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -79,7 +89,7 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
     <section className="detail">
       <header className="page-head">
         <button className="link" onClick={onCancel}>← 취소</button>
-        <span className="muted small">AI와 쪼개기</span>
+        <span className="muted small">{useAi ? 'AI와 쪼개기' : '단계 정하기'}</span>
       </header>
       <h1 className="title-plain">{task.title}</h1>
 
@@ -114,15 +124,48 @@ export default function Breakdown({ task, categoryName, onCancel, onSaved }) {
       )}
 
       {draft && (
+        <StepStarters
+          templates={templates}
+          dueDate={task.due_date}
+          onPick={(steps, nextAction) => {
+            const hasContent = draft.steps.some((s) => s.title.trim());
+            if (hasContent && !confirm('지금 적은 단계를 바꿀까요?')) return;
+            setDraft({ steps, next_action: nextAction ?? draft.next_action });
+          }}
+        />
+      )}
+      {draft && (
         <DraftEditor
           draft={draft}
           onChange={setDraft}
           onSave={save}
           saving={saving}
-          onRestart={() => { setDraft(null); setHistory([]); setQuestion(''); ask([]); }}
+          onRestart={useAi ? () => { setDraft(null); setHistory([]); setQuestion(''); ask([]); } : undefined}
         />
       )}
     </section>
+  );
+}
+
+// 빈칸에서 시작하기 어려울 때: 템플릿이나 기본 단계로 채우기
+function StepStarters({ templates, dueDate, onPick }) {
+  return (
+    <div className="row wrap starters">
+      <span className="small muted">빠르게 시작:</span>
+      {templates.length > 0 && (
+        <select
+          value=""
+          onChange={(e) => {
+            const t = templates.find((x) => x.id === e.target.value);
+            if (t) onPick(stepsFromTemplate(t, dueDate), t.next_action);
+          }}
+        >
+          <option value="">📋 템플릿에서 가져오기</option>
+          {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      )}
+      <button type="button" onClick={() => onPick(defaultSteps(dueDate, todayKST()))}>기본 단계 넣기</button>
+    </div>
   );
 }
 
@@ -141,7 +184,7 @@ export function DraftEditor({ draft, onChange, onSave, saving, onRestart }) {
 
   return (
     <div className="block">
-      <p className="muted small">제안을 그대로 두거나 고친 뒤 확정하세요. 확정 전에는 아무것도 저장되지 않습니다.</p>
+      <p className="muted small">단계를 고친 뒤 확정하세요. 확정 전에는 아무것도 저장되지 않습니다.</p>
       <ol className="draft-steps">
         {draft.steps.map((s, i) => (
           <li key={i}>

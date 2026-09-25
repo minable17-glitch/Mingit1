@@ -3,7 +3,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { json } from "../_shared/common.ts";
 
-const TABLES = ["categories", "tasks", "steps", "activity_log", "settings"];
+const TABLES = ["categories", "tasks", "steps", "activity_log", "settings", "templates", "weekly_reviews", "profiles"];
+const KEEP_DAYS = 35; // 개인정보처리방침: 백업은 최대 5주 보관
 
 Deno.serve(async (req) => {
   if (req.headers.get("x-backup-secret") !== Deno.env.get("BACKUP_SECRET")) {
@@ -29,5 +30,13 @@ Deno.serve(async (req) => {
     { upsert: true },
   );
   if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, file: name });
+
+  // 오래된 백업 삭제 (탈퇴한 사람의 데이터가 백업에 오래 남지 않도록)
+  const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString().slice(0, 10);
+  const { data: files } = await admin.storage.from("backups").list("", { limit: 1000 });
+  const old = (files ?? [])
+    .map((f) => f.name)
+    .filter((n) => /^backup-\d{4}-\d{2}-\d{2}\.json$/.test(n) && n.slice(7, 17) < cutoff);
+  if (old.length) await admin.storage.from("backups").remove(old);
+  return json({ ok: true, file: name, removed: old.length });
 });

@@ -47,8 +47,9 @@ Deno.serve(async (req) => {
 
   // 로그인한 허용 사용자만 AI를 부를 수 있게 확인 (AI 비용 보호)
   const supabase = userClient(req);
-  const { data: allowed } = await supabase.rpc("is_allowed");
-  if (!allowed) return json({ error: "not_allowed" }, 403);
+  // AI는 관리자 또는 관리자가 켜 준 사용자만 (API 비용 보호)
+  const { data: allowed } = await supabase.rpc("ai_allowed");
+  if (!allowed) return json({ error: "ai_not_enabled" }, 403);
 
   try {
     const { task, history = [], today } = await req.json() as {

@@ -11,7 +11,13 @@ export const DEFAULT_CATEGORIES = [
   { name: '개인 일정', color: '#a855f7' },
 ];
 
-export const PLACEHOLDER_NEXT_ACTION = '첫 단계 정하기 (AI와 쪼개기)';
+export const PLACEHOLDER_NEXT_ACTION = '첫 단계 정하기';
+
+// 로그인한 사용자가 쓸 수 있는 부가 기능 (관리자가 켜 줌). App 이 로그인 후 채움.
+let features = { is_admin: false, ai_enabled: false, google_advanced: false };
+export function setFeatures(f) {
+  features = { ...features, ...f };
+}
 
 function check({ data, error }) {
   if (error) throw error;
@@ -20,13 +26,22 @@ function check({ data, error }) {
 
 // ── 로그인 ───────────────────────────────────
 
+// 기본 로그인: 이름·이메일만 요청 (구글 심사가 필요 없는 기본 권한)
 export function signInWithGoogle() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+}
+
+// 고급 구글 연동: 캘린더 즉시 반영·Gmail 가져오기. 관리자가 허락한 사용자만 화면에 버튼이 보임.
+export function connectGoogleAdvanced() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       scopes: [
         'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/gmail.readonly', // 2단계: 라벨 메일 가져오기
+        'https://www.googleapis.com/auth/gmail.readonly',
       ].join(' '),
       // 갱신 토큰을 받으려면 offline + consent 가 필요
       queryParams: { access_type: 'offline', prompt: 'consent' },
@@ -50,8 +65,16 @@ export async function saveGoogleRefreshToken(session) {
   }));
 }
 
-export async function isAllowed() {
-  return check(await supabase.rpc('is_allowed'));
+// 가입 처리 + 내 권한: { allowed, is_admin, ai_enabled, google_advanced }
+export async function myProfile() {
+  return check(await supabase.rpc('my_profile'));
+}
+
+export async function deleteAccount() {
+  const { data, error } = await supabase.functions.invoke('delete-account', { body: { confirm: '탈퇴' } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  await supabase.auth.signOut();
 }
 
 // ── 처음 실행 시 기본값 ─────────────────────────
@@ -304,6 +327,7 @@ export async function askBreakdown(task, categoryName, history) {
 
 // 실패해도 앱 사용은 막지 않음. calendar_dirty 가 남아 다음 실행 때 다시 시도함.
 export async function syncCalendar(taskId) {
+  if (!features.google_advanced) return false; // 일반 사용자는 캘린더 구독 링크로 보임
   const { data, error } = await supabase.functions.invoke('calendar-sync', {
     body: { action: 'sync', task_id: taskId },
   });
@@ -315,10 +339,12 @@ export async function syncCalendar(taskId) {
 }
 
 export async function retryDirtyCalendar(tasks) {
+  if (!features.google_advanced) return;
   for (const t of tasks.filter((x) => x.calendar_dirty)) await syncCalendar(t.id);
 }
 
 async function deleteCalendarEvents(eventIds) {
+  if (!features.google_advanced) return;
   const { error } = await supabase.functions.invoke('calendar-sync', {
     body: { action: 'delete', event_ids: eventIds },
   });
@@ -367,20 +393,36 @@ const categoryIdByName = (categories, name) =>
   categories.find((c) => c.name === name)?.id ?? categories[0]?.id;
 
 // 던져넣기 제안을 확정해서 반영
-export async function applyTriage(result, tasks, categories) {
-  if (result.kind === 'attach') {
-    const task = tasks.find((t) => t.id === result.task_id);
+// proposal: { task_id, attach_as: 'step'|'note'|'next_action'|'new', content, due_date, category_id }
+export async function applyTriage(proposal, tasks) {
+  if (proposal.attach_as !== 'new') {
+    const task = tasks.find((t) => t.id === proposal.task_id);
     if (!task) throw new Error('붙일 업무를 찾지 못했어요');
-    if (result.attach_as === 'step') return addStep(task, result.content);
-    if (result.attach_as === 'next_action') return updateTask(task, { next_action: result.content });
-    return addNote(task, result.content);
+    if (proposal.attach_as === 'step') return addStep(task, proposal.content, proposal.due_date);
+    if (proposal.attach_as === 'next_action') return updateTask(task, { next_action: proposal.content });
+    return addNote(task, proposal.content);
   }
   return createTask({
-    title: result.new_title || result.content,
-    categoryId: categoryIdByName(categories, result.category_name),
-    dueDate: result.due_date,
-    nextAction: result.content,
+    title: proposal.new_title || proposal.content,
+    categoryId: proposal.category_id,
+    dueDate: proposal.due_date,
+    nextAction: proposal.next_action,
   });
+}
+
+// AI 던져넣기 결과 → 공통 형태
+export function proposalFromAi(r, categories) {
+  if (r.kind === 'attach') return { task_id: r.task_id, attach_as: r.attach_as || 'note', content: r.content, due_date: '', reason: r.reason };
+  return {
+    task_id: '',
+    attach_as: 'new',
+    content: r.content,
+    new_title: r.new_title || r.content,
+    next_action: r.content,
+    category_id: categoryIdByName(categories, r.category_name),
+    due_date: r.due_date,
+    reason: r.reason,
+  };
 }
 
 export function extractDocument(text, categories) {
@@ -553,4 +595,31 @@ export async function createWidgetToken(userId) {
 
 export function widgetUrl(token, format = 'html') {
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-summary?key=${token}&format=${format}`;
+}
+
+// ── 캘린더 구독 링크 (모든 사용자) ─────────────────
+
+export async function createCalendarToken(userId) {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  await updateSettings(userId, { calendar_token: token });
+  return token;
+}
+
+export function calendarFeedUrl(token) {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calendar-feed?token=${token}`;
+}
+
+// ── 관리자 ──────────────────────────────────
+
+export async function adminOverview() {
+  return check(await supabase.rpc('admin_overview'));
+}
+
+export async function adminSetSignupOpen(open) {
+  check(await supabase.rpc('admin_set_signup_open', { open }));
+}
+
+export async function adminSetUserFlags(email, { ai, advanced }) {
+  check(await supabase.rpc('admin_set_user_flags', { target_email: email, ai, advanced }));
 }
