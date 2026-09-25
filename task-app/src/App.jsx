@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = 확인 중
-  const [profile, setProfile] = useState(null); // { allowed, is_admin, ai_enabled, google_advanced }
+  const [profile, setProfile] = useState(null); // { allowed, is_admin, google_advanced }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -165,6 +165,7 @@ function Main({ userId, features }) {
         initial={overlay.draft}
         categories={categories}
         source={overlay.source}
+        sourceText={overlay.sourceText}
         onCancel={close}
         onConfirm={async (draft) => {
           const task = await api.createFromDraft(draft);

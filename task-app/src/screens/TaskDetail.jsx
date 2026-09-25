@@ -8,7 +8,7 @@ const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '�
 export default function TaskDetail({ taskId, categories, categoryById, templates, features, onClose }) {
   const [task, setTask] = useState(null);
   const [activity, setActivity] = useState([]);
-  const [breaking, setBreaking] = useState(null); // null | 'manual' | 'ai'
+  const [breaking, setBreaking] = useState(false);
   const [busy, setBusy] = useState(false);
   const today = todayKST();
 
@@ -48,9 +48,8 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
         task={task}
         categoryName={category?.name}
         templates={templates}
-        useAi={breaking === 'ai'}
-        onCancel={() => setBreaking(null)}
-        onSaved={async () => { setBreaking(null); await load(); }}
+        onCancel={() => setBreaking(false)}
+        onSaved={async () => { setBreaking(false); await load(); }}
       />
     );
   }
@@ -113,13 +112,10 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
         <div className="block-head">
           <h2>단계</h2>
           {active && (
-            <span className="row">
-              <button onClick={() => setBreaking('manual')}>{task.steps.length ? '단계 고치기' : '단계 정하기'}</button>
-              {features?.ai_enabled && <button onClick={() => setBreaking('ai')}>AI와 쪼개기</button>}
-            </span>
+            <button onClick={() => setBreaking(true)}>{task.steps.length ? '단계 고치기' : '단계 정하기'}</button>
           )}
         </div>
-        {task.steps.length === 0 && <p className="muted small">아직 단계가 없습니다. “단계 정하기”에서 템플릿이나 기본 단계로 쉽게 시작할 수 있어요.</p>}
+        {task.steps.length === 0 && <p className="muted small">아직 단계가 없습니다. “단계 정하기”에서 템플릿·기본 단계·AI 도움받기로 쉽게 시작할 수 있어요.</p>}
         <ul className="steps">
           {task.steps.map((s) => (
             <li key={s.id} className={s.done ? 'done' : ''}>

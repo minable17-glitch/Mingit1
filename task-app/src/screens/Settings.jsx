@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
+import { AI_MODELS, AI_SITES, askWithOwnKey, loadAiSettings, saveAiSettings } from '../lib/ai.js';
 
 export default function Settings({ settings, userId, features, onSaved, onOpenScreen }) {
   const [form, setForm] = useState({
@@ -65,6 +66,7 @@ export default function Settings({ settings, userId, features, onSaved, onOpenSc
       </form>
 
       <CalendarFeed settings={settings} userId={userId} onSaved={onSaved} />
+      <AiSettings />
       {features?.google_advanced && <GoogleAdvanced />}
       <Widget settings={settings} userId={userId} onSaved={onSaved} />
       {features?.is_admin && <Admin />}
@@ -126,6 +128,75 @@ function CalendarFeed({ settings, userId, onSaved }) {
   );
 }
 
+// AI 도움받기: 기본은 질문 복사 → 쓰는 AI에 붙여넣기. 원하면 자기 API 키로 바로 받기(이 기기에만 저장).
+function AiSettings() {
+  const [ai, setAi] = useState(loadAiSettings);
+  const [keyDraft, setKeyDraft] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [msg, setMsg] = useState('');
+  const update = (patch) => setAi(saveAiSettings(patch));
+
+  async function saveKey() {
+    const key = keyDraft.trim();
+    setTesting(true);
+    setMsg('');
+    try {
+      await askWithOwnKey('연결 확인입니다. "확인"이라고만 답해 주세요.', { ...ai, apiKey: key });
+      update({ apiKey: key });
+      setKeyDraft('');
+      setMsg('연결됐어요. 이제 AI 도움받기에서 “내 API 키로 바로 받기”를 쓸 수 있어요.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="block stack">
+      <h2>AI 도움받기</h2>
+      <p className="muted small">
+        업무 쪼개기·공문 정리·회고에서 “AI 도움받기”를 누르면 질문을 복사해 드려요. 평소 쓰는 AI에 붙여넣고 답을 다시 붙여넣으면 앱에 반영돼요.
+      </p>
+      <label className="row">
+        <span className="grow">열어 줄 AI 사이트</span>
+        <select value={ai.site} onChange={(e) => update({ site: e.target.value })}>
+          {AI_SITES.map((x) => <option key={x.key} value={x.key}>{x.name}</option>)}
+        </select>
+      </label>
+
+      <details>
+        <summary className="small">고급: 내 API 키로 바로 받기 (선택)</summary>
+        <div className="stack" style={{ marginTop: 8 }}>
+          <p className="muted small">
+            Anthropic(Claude) API 키가 있으면 복사·붙여넣기 없이 바로 답을 받아요. 요금은 키 주인에게 청구됩니다.
+            키는 <b>이 기기의 브라우저에만</b> 저장되고, 업무 챙김 서버를 거치지 않고 Anthropic으로 직접 보내져요.
+            공용 PC에서는 넣지 마세요.
+          </p>
+          <label className="row">
+            <span className="grow">모델</span>
+            <select value={ai.model} onChange={(e) => update({ model: e.target.value })}>
+              {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </label>
+          {ai.apiKey ? (
+            <div className="row wrap">
+              <span className="grow">API 키 저장됨 (…{ai.apiKey.slice(-4)})</span>
+              <button className="link danger-text" onClick={() => { update({ apiKey: '' }); setMsg('이 기기에서 API 키를 지웠어요.'); }}>키 지우기</button>
+            </div>
+          ) : (
+            <div className="row">
+              <input className="grow" type="password" autoComplete="off" placeholder="sk-ant-…" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} />
+              <button disabled={testing || keyDraft.trim().length < 20} onClick={saveKey}>{testing ? '확인 중…' : '연결 확인 후 저장'}</button>
+            </div>
+          )}
+          {msg && <p className="small">{msg}</p>}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 // 관리자가 허락한 사용자만: 캘린더 즉시 반영·작업 시간 블록·Gmail 가져오기
 function GoogleAdvanced() {
   const [google, setGoogle] = useState(null);
@@ -164,7 +235,7 @@ function Widget({ settings, userId, onSaved }) {
   );
 }
 
-// 관리자: 가입 열기/닫기, 사용자별 AI·고급 구글 연동 켜기
+// 관리자: 가입 열기/닫기, 사용자별 고급 구글 연동 켜기
 function Admin() {
   const [data, setData] = useState(null);
   const load = () => api.adminOverview().then(setData).catch((e) => alert(e.message));
@@ -191,22 +262,18 @@ function Admin() {
         />
         <span>새 가입 받기 (끄면 이미 가입한 사람만 사용)</span>
       </label>
-      <p className="small muted">사용자 {data.users.length}명 · AI와 고급 구글 연동은 켜 준 사람만 쓸 수 있어요 (관리자는 항상 사용).</p>
+      <p className="small muted">사용자 {data.users.length}명 · 고급 구글 연동(캘린더 즉시 반영·Gmail)은 켜 준 사람만 쓸 수 있어요 (관리자는 항상 사용).</p>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>이메일</th><th>업무</th><th>AI</th><th>고급 연동</th></tr></thead>
+          <thead><tr><th>이메일</th><th>업무</th><th>고급 연동</th></tr></thead>
           <tbody>
             {data.users.map((u) => (
               <tr key={u.email}>
                 <td className="small">{u.email}</td>
                 <td>{u.active_tasks}</td>
                 <td>
-                  <input type="checkbox" checked={u.ai_enabled}
-                    onChange={(e) => toggle(() => api.adminSetUserFlags(u.email, { ai: e.target.checked, advanced: u.google_advanced }))} />
-                </td>
-                <td>
                   <input type="checkbox" checked={u.google_advanced}
-                    onChange={(e) => toggle(() => api.adminSetUserFlags(u.email, { ai: u.ai_enabled, advanced: e.target.checked }))} />
+                    onChange={(e) => toggle(() => api.adminSetUserFlags(u.email, { advanced: e.target.checked }))} />
                 </td>
               </tr>
             ))}

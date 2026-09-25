@@ -2,7 +2,6 @@
 # 필요한 GitHub 저장소 Secrets (Settings → Secrets and variables → Actions):
 #   TASK_SUPABASE_ACCESS_TOKEN  Supabase 계정 → Access Tokens 에서 발급
 #   TASK_SUPABASE_PROJECT_REF   업무 챙김용 Supabase 프로젝트 ID
-#   TASK_ANTHROPIC_API_KEY      Anthropic 콘솔 API 키
 #   TASK_GOOGLE_CLIENT_ID       구글 OAuth 클라이언트 ID
 #   TASK_GOOGLE_CLIENT_SECRET   구글 OAuth 보안 비밀
 #   TASK_CRON_SECRET, TASK_BACKUP_SECRET  (선택) 예약 작업용 아무 긴 문자열
@@ -53,7 +52,7 @@ jobs:
       # 안전장치: 다른 앱(양궁 성장일지 등)의 서버 기능이 있는 프로젝트면 아무것도 바꾸지 않고 멈춤
       - name: 업무 챙김 전용 프로젝트인지 확인
         run: |
-          ours="ai-assist ai-breakdown calendar-feed calendar-sync delete-account gmail-import weekly-backup widget-summary"
+          ours="calendar-feed calendar-sync delete-account gmail-import weekly-backup widget-summary"
           if ! existing=$(supabase functions list --project-ref "$PROJECT_REF" -o json); then
             echo "::error::프로젝트의 함수 목록을 읽지 못해 안전을 위해 멈춥니다. 프로젝트 ID와 토큰을 확인하세요."
             exit 1
@@ -70,14 +69,13 @@ jobs:
 
       - name: 함수용 비밀값 설정
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.TASK_ANTHROPIC_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.TASK_GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.TASK_GOOGLE_CLIENT_SECRET }}
           CRON_SECRET: ${{ secrets.TASK_CRON_SECRET }}
           BACKUP_SECRET: ${{ secrets.TASK_BACKUP_SECRET }}
         run: |
           args=()
-          for name in ANTHROPIC_API_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET CRON_SECRET BACKUP_SECRET; do
+          for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET CRON_SECRET BACKUP_SECRET; do
             if [ -n "${!name}" ]; then args+=("$name=${!name}"); fi
           done
           if [ ${#args[@]} -gt 0 ]; then

@@ -1,7 +1,8 @@
 -- 업무 챙김 3 — 범용 배포용 (schema.sql, schema_phase2.sql 다음에 실행). 여러 번 실행해도 안전합니다.
 --  · 누구나 구글 로그인으로 가입 (관리자가 가입을 닫을 수도 있음)
 --  · allowed_emails 는 이제 '관리자 이메일' 목록
---  · AI 기능과 고급 구글 연동(캘린더 즉시 반영·Gmail)은 관리자 또는 관리자가 켜 준 사용자만
+--  · 서버는 AI를 부르지 않음 (AI 도움받기는 사용자가 복사·붙여넣기, 또는 자기 API 키로 자기 기기에서)
+--  · 고급 구글 연동(캘린더 즉시 반영·Gmail)은 관리자 또는 관리자가 켜 준 사용자만
 --  · 캘린더 구독 링크(구글 심사 없이 마감을 구글 캘린더에 표시)
 
 -- 안전장치: 업무 챙김 전용 프로젝트에서만 실행 (schema.sql 과 같은 규칙)
@@ -35,7 +36,6 @@ alter table public.app_config enable row level security;
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text not null,
-  ai_enabled boolean not null default false,
   google_advanced boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -46,6 +46,14 @@ create policy own_read on public.profiles for select using (user_id = auth.uid()
 -- 쓰기 정책 없음: 사용자가 자기 권한을 스스로 켤 수 없음 (아래 함수로만 변경)
 
 alter table public.settings add column if not exists calendar_token text unique;
+
+-- 받은 제안함: 메일 본문 보관 (초안은 앱에서 만듦)
+alter table public.inbox add column if not exists body text;
+
+-- 예전 버전(서버 AI) 정리
+alter table public.profiles drop column if exists ai_enabled;
+drop function if exists public.ai_allowed();
+drop function if exists public.admin_set_user_flags(text, boolean, boolean);
 
 -- ─────────────────────────────────────────────
 -- 3. 권한 판단 함수
@@ -70,12 +78,6 @@ returns boolean language sql stable security definer set search_path = public as
     );
 $$;
 
-create or replace function public.ai_allowed()
-returns boolean language sql stable security definer set search_path = public as $$
-  select public.is_admin()
-    or exists (select 1 from public.profiles where user_id = auth.uid() and ai_enabled);
-$$;
-
 create or replace function public.google_advanced_allowed()
 returns boolean language sql stable security definer set search_path = public as $$
   select public.is_admin()
@@ -97,7 +99,6 @@ begin
   return json_build_object(
     'allowed', true,
     'is_admin', public.is_admin(),
-    'ai_enabled', public.ai_allowed(),
     'google_advanced', public.google_advanced_allowed()
   );
 end $$;
@@ -113,7 +114,7 @@ begin
     'signup_open', (select signup_open from public.app_config where id = 1),
     'users', coalesce((
       select json_agg(json_build_object(
-        'email', p.email, 'ai_enabled', p.ai_enabled, 'google_advanced', p.google_advanced,
+        'email', p.email, 'google_advanced', p.google_advanced,
         'created_at', p.created_at,
         'active_tasks', (select count(*) from public.tasks t where t.user_id = p.user_id and t.status = 'active')
       ) order by p.created_at desc)
@@ -128,18 +129,18 @@ begin
   update public.app_config set signup_open = open where id = 1;
 end $$;
 
-create or replace function public.admin_set_user_flags(target_email text, ai boolean, advanced boolean)
+create or replace function public.admin_set_user_flags(target_email text, advanced boolean)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if not public.is_admin() then raise exception 'not_admin'; end if;
-  update public.profiles set ai_enabled = ai, google_advanced = advanced
+  update public.profiles set google_advanced = advanced
   where lower(email) = lower(target_email);
 end $$;
 
 -- 관리자 함수는 로그인 사용자만 부를 수 있게 (함수 안에서 관리자인지 다시 확인)
 revoke execute on function public.admin_overview() from public, anon;
 revoke execute on function public.admin_set_signup_open(boolean) from public, anon;
-revoke execute on function public.admin_set_user_flags(text, boolean, boolean) from public, anon;
+revoke execute on function public.admin_set_user_flags(text, boolean) from public, anon;
 grant execute on function public.admin_overview() to authenticated;
 grant execute on function public.admin_set_signup_open(boolean) to authenticated;
-grant execute on function public.admin_set_user_flags(text, boolean, boolean) to authenticated;
+grant execute on function public.admin_set_user_flags(text, boolean) to authenticated;

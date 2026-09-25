@@ -6,7 +6,7 @@ import { freeSlotNow, kstClock } from '../lib/timetable.js';
 import { extractFromDocument, guessCategoryId, triageText } from '../lib/rules.js';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, features,
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen,
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -55,7 +55,7 @@ export default function Briefing({
         </button>
       )}
       {slot && tasks.length > 0 && (
-        <SpareTime slot={slot} tasks={tasks} categoryById={categoryById} settings={settings} onOpen={onOpen} features={features} />
+        <SpareTime slot={slot} tasks={tasks} settings={settings} onOpen={onOpen} />
       )}
 
       <InputArea
@@ -64,7 +64,6 @@ export default function Briefing({
         categoryById={categoryById}
         settings={settings}
         templates={templates}
-        features={features}
         onAdded={reload}
         onOpenScreen={onOpenScreen}
       />
@@ -230,8 +229,8 @@ const ATTACH_OPTIONS = [
   { key: 'next_action', label: '다음 행동으로' },
 ];
 
-// 던져넣기: 규칙으로 어느 업무 것인지 추측 → 사용자가 고쳐서 반영. AI가 켜진 사용자는 AI에게 맡길 수도 있음.
-function ThrowIn({ tasks, categories, categoryById, settings, features, onAdded }) {
+// 던져넣기: 규칙으로 어느 업무 것인지 추측 → 사용자가 고쳐서 반영.
+function ThrowIn({ tasks, categories, onAdded }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposal, setProposal] = useState(null);
@@ -240,18 +239,6 @@ function ThrowIn({ tasks, categories, categoryById, settings, features, onAdded 
     e.preventDefault();
     if (!text.trim()) return;
     setProposal(triageText(text.trim(), tasks, categories, todayKST()));
-  }
-
-  async function askAi() {
-    setBusy(true);
-    try {
-      const briefs = tasks.map((t) => api.briefTask(t, categoryById, settings));
-      setProposal(api.proposalFromAi(await api.triage(text.trim(), briefs, categories), categories));
-    } catch (err) {
-      alert(`AI가 판단하지 못했어요: ${err.message}`);
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function confirm() {
@@ -287,9 +274,6 @@ function ThrowIn({ tasks, categories, categoryById, settings, features, onAdded 
           onChange={(e) => { setText(e.target.value); setProposal(null); }}
         />
         <button className="primary" disabled={!text.trim()}>정리하기</button>
-        {features?.ai_enabled && (
-          <button type="button" disabled={busy || !text.trim()} onClick={askAi}>{busy && !proposal ? '생각 중…' : 'AI에게 맡기기'}</button>
-        )}
       </form>
       {proposal && (
         <div className="proposal stack">
@@ -324,7 +308,6 @@ function ThrowIn({ tasks, categories, categoryById, settings, features, onAdded 
             </div>
           )}
           <input value={proposal.content} onChange={(e) => set({ content: e.target.value })} />
-          {proposal.reason && <p className="muted small">{proposal.reason}</p>}
           <div className="row">
             <button className="primary" disabled={busy || !proposal.content.trim()} onClick={confirm}>반영</button>
             <button className="link" onClick={() => setProposal(null)}>취소</button>
@@ -335,32 +318,14 @@ function ThrowIn({ tasks, categories, categoryById, settings, features, onAdded 
   );
 }
 
-// 공문 붙여넣기: 규칙으로 제목·기한·제출물을 뽑아 초안 → 사용자가 고쳐서 확정
-function PasteDocument({ categories, features, onOpenScreen }) {
+// 공문 붙여넣기: 규칙으로 제목·기한·제출물을 뽑아 초안 → 초안 화면에서 AI 도움받기로 다듬거나 직접 고쳐서 확정
+function PasteDocument({ categories, onOpenScreen }) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
 
   function analyze() {
     const draft = extractFromDocument(text, categories, todayKST());
-    onOpenScreen({ type: 'draft', draft, source: '공문' });
+    onOpenScreen({ type: 'draft', draft, source: '공문', sourceText: text });
     setText('');
-  }
-
-  async function analyzeWithAi() {
-    setBusy(true);
-    try {
-      const ex = await api.extractDocument(text, categories);
-      if (!ex.is_task) {
-        alert('AI가 이 문서에서 할 일을 찾지 못했어요. “업무로 만들기”로 직접 정리해 보세요.');
-        return;
-      }
-      onOpenScreen({ type: 'draft', draft: api.draftFromExtraction(ex, categories), source: '공문(AI)' });
-      setText('');
-    } catch (err) {
-      alert(`분석하지 못했어요: ${err.message}`);
-    } finally {
-      setBusy(false);
-    }
   }
 
   return (
@@ -372,12 +337,7 @@ function PasteDocument({ categories, features, onOpenScreen }) {
         onChange={(e) => setText(e.target.value)}
       />
       <p className="muted small">⚠️ 학생 이름 등 개인정보가 들어 있으면 지우고 붙여넣어 주세요.</p>
-      <div className="row">
-        <button className="primary grow" disabled={text.trim().length < 10} onClick={analyze}>업무로 만들기</button>
-        {features?.ai_enabled && (
-          <button disabled={busy || text.trim().length < 20} onClick={analyzeWithAi}>{busy ? 'AI가 읽는 중…' : 'AI로 정리'}</button>
-        )}
-      </div>
+      <button className="primary" disabled={text.trim().length < 10} onClick={analyze}>업무로 만들기</button>
     </div>
   );
 }
@@ -391,43 +351,25 @@ function spareSuggestions(tasks, settings) {
     .map(({ task }) => ({
       task_id: task.id,
       action: task.waiting_on ? `${task.waiting_on}에 진행 상황 확인하기` : task.next_action,
-      minutes: null,
     }));
 }
 
-function SpareTime({ slot, tasks, categoryById, settings, features, onOpen }) {
+function SpareTime({ slot, tasks, settings, onOpen }) {
   const [items, setItems] = useState(null);
-  const [busy, setBusy] = useState(false);
   const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
-
-  async function recommendWithAi() {
-    setBusy(true);
-    try {
-      const briefs = tasks.map((t) => api.briefTask(t, categoryById, settings));
-      const res = await api.smallActions(slot.minutesLeft, briefs);
-      setItems(res.items.filter((i) => byId[i.task_id]));
-    } catch {
-      setItems(spareSuggestions(tasks, settings));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="banner static">
       <div className="row wrap">
         <span className="grow">☕ 지금 {slot.period}교시 공강 · <b>{slot.minutesLeft}분</b> 남음</span>
         {!items && <button onClick={() => setItems(spareSuggestions(tasks, settings))}>지금 할 일 보기</button>}
-        {!items && features?.ai_enabled && (
-          <button disabled={busy} onClick={recommendWithAi}>{busy ? '고르는 중…' : 'AI 추천'}</button>
-        )}
       </div>
       {items && (
         <ul className="spare-list">
           {items.map((i, n) => (
             <li key={n} onClick={() => onOpen(i.task_id)}>
               <span>{i.action}</span>
-              <span className="muted small"> · {byId[i.task_id]?.title}{i.minutes ? ` · ${i.minutes}분` : ''}</span>
+              <span className="muted small"> · {byId[i.task_id]?.title}</span>
             </li>
           ))}
         </ul>

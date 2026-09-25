@@ -3,24 +3,29 @@
 PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 구글 계정으로 가입해 쓰는 범용 배포** 구조로 만든 앱입니다.
 새싹책방 앱과는 **완전히 별개**이고, 이 폴더(`task-app/`) 안에서만 동작합니다.
 
-## 기본 원칙: AI·구글 심사 없이 모든 기능이 동작
+## 기본 원칙: 서버에 AI API 없음, 구글 심사 없이 모든 기능 동작
 
-| 구분 | 일반 사용자 (누구나 가입) | 관리자가 켜 준 사용자·관리자 |
+| 구분 | 모든 사용자 (누구나 가입) | 관리자·관리자가 켜 준 사용자 |
 | --- | --- | --- |
 | 가입·로그인 | 구글 로그인 (이름·이메일만, 구글 심사 불필요) | 같음 |
-| 업무 쪼개기 | **단계 정하기**: 템플릿·기본 단계로 시작해 고치기 | + **AI와 쪼개기** |
-| 빠른 던져넣기 | 규칙으로 관련 업무를 추측 → 고쳐서 반영 | + AI에게 맡기기 |
-| 공문 붙여넣기 | 규칙으로 제목·기한·붙임(제출물) 추출 → 초안 | + AI로 정리 |
-| 주간 회고 | 이번 주 숫자 + 멈춘 업무 바로 손보기 + 질문 3개 | + AI와 대화하며 회고 |
-| 짜투리 모드 | 급한 순서대로 다음 행동 보기 | + AI 추천 |
+| 단계 정하기 | 템플릿·기본 단계로 시작해 고치기 + **AI 도움받기** | 같음 |
+| 빠른 던져넣기 | 규칙으로 관련 업무를 추측 → 고쳐서 반영 | 같음 |
+| 공문 붙여넣기 | 규칙으로 제목·기한·붙임(제출물) 추출 → 초안 + **AI 도움받기**로 다듬기 | 같음 |
+| 주간 회고 | 이번 주 숫자 + 멈춘 업무 바로 손보기 + 질문 3개 + **AI 도움받기**로 조언 | 같음 |
+| 짜투리 모드 | 급한 순서대로 다음 행동 보기 | 같음 |
 | 구글 캘린더 | **구독 주소**를 한 번 추가하면 마감이 캘린더에 표시 (몇 시간 간격 반영) | + 즉시 반영·작업 시간 블록 (고급 연동) |
 | Gmail | — (공문 붙여넣기로 대신) | 라벨 메일 → 받은 제안함 (고급 연동) |
-| 브리핑·다음 행동·메모·방치·무응답·템플릿·시간표·위젯 | 모두 사용 | 모두 사용 |
 
-- **관리자**: `allowed_emails` 표에 들어 있는 이메일 (설치 때 `minable7@gmail.com`). 설정 화면 맨 아래 **관리자** 칸에서 새 가입 열기/닫기, 사용자별 AI·고급 연동 켜기를 합니다.
-- **AI 비용**: AI는 관리자와 관리자가 켜 준 사람만 부를 수 있어서, 일반 사용자 수가 늘어도 API 비용이 늘지 않습니다. Anthropic 키를 아예 넣지 않아도 앱은 전부 동작합니다(AI 버튼만 실패).
-- **구글 심사**: 일반 사용자는 기본 로그인 권한만 요청하므로 “확인되지 않은 앱” 경고 없이 쓸 수 있습니다. 캘린더·Gmail 권한은 고급 연동을 켜 준 사람이 직접 연결할 때만 요청합니다.
-- **개인정보**: 개인정보처리방침(`/privacy.html`)·이용약관(`/terms.html`) 페이지, 회원 탈퇴(즉시 전체 삭제), 학생 개인정보 입력 금지 안내가 들어 있습니다. 두 문서의 “(운영자 문의 이메일)”은 배포 전에 채워야 하며, 법률 검토를 받은 문서가 아니므로 공개 전에 한 번 검토받기를 권합니다.
+**AI 도움받기** (업무 쪼개기·공문 정리·회고):
+1. 앱이 상황에 맞는 질문을 만들어 줌 → **질문 복사하기**
+2. 평소 쓰는 AI(ChatGPT·Claude·Gemini·뤼튼 등)에 붙여넣기
+3. AI의 답을 앱에 붙여넣고 **답 반영하기** → 단계·마감·다음 행동이 채워짐 (형식이 조금 달라도 읽어 냄)
+- **고급(선택)**: 설정에서 자기 Anthropic API 키를 넣으면 “내 API 키로 바로 받기” 버튼으로 한 번에. 키는 그 기기 브라우저에만 저장되고 우리 서버를 거치지 않으며, 요금은 키 주인에게 청구됩니다.
+- 운영 측(서버)은 AI를 전혀 부르지 않으므로 **AI 비용이 0원**입니다.
+
+- **관리자**: `allowed_emails` 표의 이메일 (설치 때 `minable7@gmail.com`). 설정 맨 아래 **관리자** 칸에서 새 가입 열기/닫기, 사용자별 고급 구글 연동 켜기.
+- **구글 심사**: 일반 사용자는 기본 로그인 권한만 요청하므로 “확인되지 않은 앱” 경고가 없습니다. 캘린더·Gmail 권한은 고급 연동을 켜 준 사람이 직접 연결할 때만 요청합니다.
+- **개인정보**: 개인정보처리방침(`/privacy.html`)·이용약관(`/terms.html`), 회원 탈퇴(즉시 전체 삭제), 학생 개인정보 입력 금지 안내 포함. 두 문서의 “(운영자 문의 이메일)”은 배포 전에 채워야 하며, 법률 검토를 받은 문서가 아니므로 공개 전 검토를 권합니다.
 
 ## 기능 목록
 
@@ -58,7 +63,7 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 
 프로그램 설치 없이 웹사이트 5곳에서 설정합니다. 1시간 정도 걸립니다. 순서가 중요합니다(앞 단계에서 나온 값을 뒤에서 씀).
 
-준비물: 구글 계정, GitHub 계정(이미 있음), 해외 결제 카드(Anthropic AI 사용료 선불 충전용, 최소 5달러).
+준비물: 구글 계정, GitHub 계정(이미 있음). 유료 결제는 필요 없습니다.
 
 ### 1단계 · Supabase 새 프로젝트 (데이터 저장소)
 
@@ -82,15 +87,7 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 
 로그인할 때 “Google에서 확인하지 않은 앱” 화면이 뜨면 **고급 → 업무 챙김(으)로 이동**을 누르면 됩니다. 본인 전용 앱이라 괜찮습니다.
 
-### 3단계 · Anthropic API 키 (AI 기능, 선택)
-
-AI는 관리자와 관리자가 켜 준 사람만 씁니다. 건너뛰어도 앱은 전부 동작합니다.
-
-1. [console.anthropic.com](https://console.anthropic.com) 가입 → **Billing**에서 5달러 충전
-2. **Limits**에서 월 사용 한도를 5~10달러로 걸어 두기 (넘으면 AI만 멈추고 앱은 계속 동작)
-3. **API Keys → Create Key** → 키를 복사해 두기 (한 번만 보여줌)
-
-### 4단계 · GitHub에 비밀값 넣기 → 서버 기능 자동 설치
+### 3단계 · GitHub에 비밀값 넣기 → 서버 기능 자동 설치
 
 1. Supabase 오른쪽 위 계정 아이콘 → **Account preferences → Access Tokens → Generate new token** → 복사
 2. GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret**으로 아래를 하나씩 추가
@@ -99,16 +96,15 @@ AI는 관리자와 관리자가 켜 준 사람만 씁니다. 건너뛰어도 앱
    | --- | --- |
    | `TASK_SUPABASE_ACCESS_TOKEN` | 방금 만든 Supabase 토큰 |
    | `TASK_SUPABASE_PROJECT_REF` | 1단계의 Project ID |
-   | `TASK_ANTHROPIC_API_KEY` | (선택) 3단계 API 키 |
    | `TASK_GOOGLE_CLIENT_ID` | 2단계 클라이언트 ID |
    | `TASK_GOOGLE_CLIENT_SECRET` | 2단계 보안 비밀번호 |
    | `TASK_CRON_SECRET` | (선택) 아무 긴 영문·숫자 — 고급 연동 사용자의 메일 자동 확인용 |
    | `TASK_BACKUP_SECRET` | (선택) 아무 긴 영문·숫자 — 주간 백업용 |
 
 3. 저장소 **Actions** 탭 → 왼쪽 **업무 챙김 서버 기능 배포** → 가장 최근 실행(빨간 ✕) 클릭 → 오른쪽 위 **Re-run all jobs**
-4. 초록 ✓가 되면 끝. Supabase **Edge Functions** 메뉴에 함수 8개가 보입니다.
+4. 초록 ✓가 되면 끝. Supabase **Edge Functions** 메뉴에 함수 6개가 보입니다.
 
-### 5단계 · 앱 화면 올리기 (Vercel, 무료)
+### 4단계 · 앱 화면 올리기 (Vercel, 무료)
 
 1. [vercel.com](https://vercel.com) → **GitHub으로 가입** → **Add New → Project** → `Mingit1` 저장소 **Import**
 2. **Project Name**: `task-keeper`로 바꾸기 (앱 주소가 `task-keeper….vercel.app`이 되어 새싹책방 주소와 헷갈리지 않음)
@@ -125,13 +121,13 @@ AI는 관리자와 관리자가 켜 준 사람만 씁니다. 건너뛰어도 앱
    - **Site URL**: Vercel 주소
    - **Redirect URLs**에도 Vercel 주소 추가
 
-### 6단계 · 공개 전 확인
+### 5단계 · 공개 전 확인
 
 - `public/privacy.html`, `public/terms.html`의 “(운영자 문의 이메일)”을 실제 문의 주소로 바꾸기
 - 구글 클라우드 **Google 인증 플랫폼 → 브랜딩**에 앱 홈페이지(Vercel 주소), 개인정보처리방침(`…/privacy.html`), 서비스 약관(`…/terms.html`) 주소 넣기
 - 가입을 잠시 막고 싶으면: 앱 **설정 → 관리자 → 새 가입 받기** 끄기
 
-### 7단계 · 첫 로그인
+### 6단계 · 첫 로그인
 
 Vercel 주소 접속 → **구글 계정으로 시작하기** → 브리핑 화면이 나오면 성공.
 관리자는 **설정 → 고급 구글 연동 → 구글 캘린더·Gmail 연결**을 한 번 눌러 캘린더 즉시 반영·Gmail 가져오기를 켭니다.
@@ -148,12 +144,12 @@ Vercel 주소 접속 → **구글 계정으로 시작하기** → 브리핑 화�
 
 ### (참고) 터미널로 설치하는 방법
 
-4단계 대신 [Supabase CLI](https://supabase.com/docs/guides/cli)로 직접 올려도 됩니다.
+3단계 대신 [Supabase CLI](https://supabase.com/docs/guides/cli)로 직접 올려도 됩니다.
 
 ```bash
 cd task-app
 supabase login
-supabase secrets set --project-ref <PROJECT_REF> ANTHROPIC_API_KEY=... GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+supabase secrets set --project-ref <PROJECT_REF> GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
 supabase functions deploy --project-ref <PROJECT_REF>   # config.toml 설정대로 전체 배포
 ```
 
@@ -165,7 +161,7 @@ supabase functions deploy --project-ref <PROJECT_REF>   # config.toml 설정대�
 task-app/
   src/
     App.jsx               로그인·탭 전환·데이터 불러오기
-    screens/              브리핑, 업무 상세, AI 쪼개기, 보관함, 회고, 받은 제안함,
+    screens/              브리핑, 업무 상세, 단계 정하기, AI 도움받기, 보관함, 회고, 받은 제안함,
                           공문 초안, 분류, 템플릿, 시간표, 설정
     lib/api.js            DB·Edge Function 호출 모음
     lib/briefing.js       브리핑 정렬·방치/마감 판단 (테스트 있음)
@@ -173,16 +169,16 @@ task-app/
     lib/timetable.js      공강 시간 계산 (짜투리 모드)
     lib/templates.js      템플릿 날짜 계산, 기본 템플릿
     lib/rules.js          AI 없이 동작하는 규칙: 공문 읽기, 던져넣기 분류, 기본 단계 (테스트 있음)
+    lib/aiPrompts.js      AI 도움받기: 질문 만들기, 붙여넣은 답 읽기 (테스트 있음)
+    lib/ai.js             AI 사이트 선택, 자기 API 키로 바로 묻기 (키는 브라우저에만)
   supabase/
     schema.sql            테이블·보안 규칙 (SQL Editor에서 수동 실행)
     schema_phase2.sql     2단계 추가 테이블·열
     schema_public.sql     범용 배포: 누구나 가입, 관리자·사용자별 기능 켜기, 캘린더 구독
     install_all.sql       위 세 파일 + 관리자 이메일을 한 번에
-    functions/ai-breakdown    AI 쪼개기 (Claude 호출, 저장 안 함)
     functions/calendar-sync   구글 캘린더 일정 생성·수정·삭제
     functions/weekly-backup   주 1회 JSON 백업
-    functions/ai-assist       던져넣기·공문 분석·주간 회고·짜투리 추천 (저장 안 함)
-    functions/gmail-import    Gmail 라벨 메일 → 받은 제안함
+    functions/gmail-import    Gmail 라벨 메일 → 받은 제안함 (AI 없음)
     functions/widget-summary  위젯용 읽기 전용 요약
     functions/calendar-feed   캘린더 구독 주소 (.ics, 모든 사용자)
     functions/delete-account  회원 탈퇴 (계정·데이터 전체 삭제)

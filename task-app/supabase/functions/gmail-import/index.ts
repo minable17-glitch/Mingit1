@@ -1,17 +1,15 @@
-// Gmail 라벨(기본 "업무")이 붙은 메일을 읽어 AI가 업무 제안을 만들고 '받은 제안함'에 넣습니다.
-// 업무 생성은 사용자가 앱에서 확정할 때만 합니다.
+// Gmail 라벨(기본 "업무")이 붙은 메일의 제목·보낸 사람·본문을 '받은 제안함'에 모아 둡니다.
+// 업무 초안은 앱에서 메일을 열 때 만들고(규칙 + 원하면 AI 도움받기), 확정할 때만 업무가 됩니다. 서버는 AI를 부르지 않습니다.
 //  - 앱에서 "메일 확인" 버튼: 로그인 사용자 권한으로 실행
 //  - pg_cron 예약: x-cron-secret 헤더로 실행 (schema_phase2.sql 7번)
 // 배포: supabase functions deploy gmail-import --no-verify-jwt  (예약 호출에는 로그인 토큰이 없어서)
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/common.ts";
 import { getGoogleAccessToken } from "../_shared/google.ts";
-import { aiErrorResponse } from "../_shared/claude.ts";
-import { extractTask } from "../_shared/extract.ts";
 
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
-const MAX_NEW_PER_RUN = 10; // 한 번에 AI로 분석할 최대 메일 수 (비용 보호)
-const MAX_BODY_CHARS = 30000; // 아주 긴 메일(뉴스레터 등)은 앞부분만 분석
+const MAX_NEW_PER_RUN = 20; // 한 번에 가져올 최대 메일 수
+const MAX_BODY_CHARS = 30000; // 아주 긴 메일(뉴스레터 등)은 앞부분만 보관
 
 type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[] };
 
@@ -38,13 +36,9 @@ function bodyText(payload: Part) {
   return html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
 }
 
-const todayKST = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
-
 async function importFor(db: SupabaseClient, userId: string, refreshToken: string) {
   const { data: settings } = await db.from("settings").select("gmail_label").eq("user_id", userId).maybeSingle();
   const labelName = settings?.gmail_label || "업무";
-  const { data: cats } = await db.from("categories").select("name").eq("user_id", userId).order("sort_order");
-  const categoryNames = (cats ?? []).map((c) => c.name);
 
   const token = await getGoogleAccessToken(refreshToken);
   const gmail = async (path: string) => {
@@ -75,12 +69,6 @@ async function importFor(db: SupabaseClient, userId: string, refreshToken: strin
     const sender = header("from");
     const body = (bodyText(msg.payload ?? {}) || msg.snippet || "").slice(0, MAX_BODY_CHARS);
 
-    const proposal = await extractTask(
-      `제목: ${subject}\n보낸 사람: ${sender}\n\n${body}`,
-      categoryNames,
-      todayKST(),
-      "업무 메일",
-    );
     const { error } = await db.from("inbox").insert({
       user_id: userId,
       source: "gmail",
@@ -88,11 +76,10 @@ async function importFor(db: SupabaseClient, userId: string, refreshToken: strin
       subject,
       sender,
       received_at: new Date(Number(msg.internalDate)).toISOString(),
-      proposal,
-      // 할 일이 없는 안내 메일은 제안함에 띄우지 않되, 다시 분석하지 않도록 기록은 남김
-      status: proposal.is_task ? "pending" : "dismissed",
+      body,
+      status: "pending",
     });
-    if (!error && proposal.is_task) imported++;
+    if (!error) imported++;
   }
   return { imported };
 }
@@ -134,6 +121,6 @@ Deno.serve(async (req) => {
     if (!tokenRow) return json({ error: "no_google_token" }, 400);
     return json(await importFor(db, user.id, tokenRow.refresh_token));
   } catch (e) {
-    return aiErrorResponse(e);
+    return json({ error: String(e instanceof Error ? e.message : e) }, 500);
   }
 });

@@ -14,7 +14,7 @@ export const DEFAULT_CATEGORIES = [
 export const PLACEHOLDER_NEXT_ACTION = '첫 단계 정하기';
 
 // 로그인한 사용자가 쓸 수 있는 부가 기능 (관리자가 켜 줌). App 이 로그인 후 채움.
-let features = { is_admin: false, ai_enabled: false, google_advanced: false };
+let features = { is_admin: false, google_advanced: false };
 export function setFeatures(f) {
   features = { ...features, ...f };
 }
@@ -65,7 +65,7 @@ export async function saveGoogleRefreshToken(session) {
   }));
 }
 
-// 가입 처리 + 내 권한: { allowed, is_admin, ai_enabled, google_advanced }
+// 가입 처리 + 내 권한: { allowed, is_admin, google_advanced }
 export async function myProfile() {
   return check(await supabase.rpc('my_profile'));
 }
@@ -307,22 +307,6 @@ export async function updateSettings(userId, patch) {
   check(await supabase.from('settings').upsert({ user_id: userId, ...patch }));
 }
 
-// ── AI 쪼개기 ────────────────────────────────
-
-// history: [{ role: 'assistant' | 'user', content }]
-export async function askBreakdown(task, categoryName, history) {
-  const { data, error } = await supabase.functions.invoke('ai-breakdown', {
-    body: {
-      task: { title: task.title, due_date: task.due_date, category: categoryName },
-      history,
-      today: todayKST(),
-    },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
-}
-
 // ── 구글 캘린더 ──────────────────────────────
 
 // 실패해도 앱 사용은 막지 않음. calendar_dirty 가 남아 다음 실행 때 다시 시도함.
@@ -360,16 +344,7 @@ export async function addWorkBlock(task, { date, start, minutes }) {
   check(await supabase.from('tasks').update({ last_activity_at: now() }).eq('id', task.id));
 }
 
-// ── 2단계: AI 도움 (던져넣기·공문·회고·짜투리) ─────────
-
-async function assist(mode, body) {
-  const { data, error } = await supabase.functions.invoke('ai-assist', {
-    body: { mode, today: todayKST(), ...body },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
-}
+// ── 업무 요약·초안 ──────────────────────────
 
 // AI에게 넘길 업무 요약 한 줄
 export function briefTask(task, categoryById, settings, today = todayKST()) {
@@ -384,13 +359,6 @@ export function briefTask(task, categoryById, settings, today = todayKST()) {
     waiting_on: task.waiting_on ?? null,
   };
 }
-
-export function triage(text, briefs, categories) {
-  return assist('triage', { text, tasks: briefs, categories: categories.map((c) => c.name) });
-}
-
-const categoryIdByName = (categories, name) =>
-  categories.find((c) => c.name === name)?.id ?? categories[0]?.id;
 
 // 던져넣기 제안을 확정해서 반영
 // proposal: { task_id, attach_as: 'step'|'note'|'next_action'|'new', content, due_date, category_id }
@@ -410,25 +378,6 @@ export async function applyTriage(proposal, tasks) {
   });
 }
 
-// AI 던져넣기 결과 → 공통 형태
-export function proposalFromAi(r, categories) {
-  if (r.kind === 'attach') return { task_id: r.task_id, attach_as: r.attach_as || 'note', content: r.content, due_date: '', reason: r.reason };
-  return {
-    task_id: '',
-    attach_as: 'new',
-    content: r.content,
-    new_title: r.new_title || r.content,
-    next_action: r.content,
-    category_id: categoryIdByName(categories, r.category_name),
-    due_date: r.due_date,
-    reason: r.reason,
-  };
-}
-
-export function extractDocument(text, categories) {
-  return assist('extract', { text, categories: categories.map((c) => c.name) });
-}
-
 // 공문·메일 제안(사용자가 고친 것)을 업무로 만들기
 // draft: { title, category_id, due_date, steps: [{title, due_date}], next_action, note }
 export async function createFromDraft(draft) {
@@ -445,27 +394,6 @@ export async function createFromDraft(draft) {
   }
   if (draft.note?.trim()) await addNote(task, draft.note);
   return task;
-}
-
-// AI 추출 결과 → 편집용 초안
-export function draftFromExtraction(ex, categories) {
-  const deliverables = ex.deliverables?.length ? `제출물: ${ex.deliverables.join(', ')}` : '';
-  return {
-    title: ex.title,
-    category_id: categoryIdByName(categories, ex.category_name),
-    due_date: ex.due_date || '',
-    steps: ex.steps ?? [],
-    next_action: ex.next_action ?? '',
-    note: [ex.summary, deliverables].filter(Boolean).join(' / '),
-  };
-}
-
-export function askReview(history, week) {
-  return assist('review', { history, week });
-}
-
-export function smallActions(minutes, briefs) {
-  return assist('small', { minutes, tasks: briefs });
 }
 
 // ── 주간 회고 ────────────────────────────────
@@ -497,12 +425,6 @@ export async function saveReview(summary) {
 
 export async function loadReviews() {
   return check(await supabase.from('weekly_reviews').select('*').order('week_start', { ascending: false }).limit(20));
-}
-
-export async function applySuggestion(task, suggestion) {
-  if (suggestion.change === 'complete') return completeTask(task);
-  if (suggestion.change === 'due_date') return updateTask(task, { due_date: suggestion.value });
-  return updateTask(task, { next_action: suggestion.value });
 }
 
 // ── 템플릿 ───────────────────────────────────
@@ -620,6 +542,6 @@ export async function adminSetSignupOpen(open) {
   check(await supabase.rpc('admin_set_signup_open', { open }));
 }
 
-export async function adminSetUserFlags(email, { ai, advanced }) {
-  check(await supabase.rpc('admin_set_user_flags', { target_email: email, ai, advanced }));
+export async function adminSetUserFlags(email, { advanced }) {
+  check(await supabase.rpc('admin_set_user_flags', { target_email: email, advanced }));
 }
