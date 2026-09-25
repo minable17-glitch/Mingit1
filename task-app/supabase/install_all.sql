@@ -295,4 +295,4 @@ end $$;
 -- );
 
 -- 본인 이메일 등록 (이 이메일로 로그인한 사람만 앱을 쓸 수 있음)
-insert into public.allowed_emails (email) values ('minable17@gmail.com') on conflict do nothing;
+insert into public.allowed_emails (email) values ('minable7@gmail.com') on conflict do nothing;
