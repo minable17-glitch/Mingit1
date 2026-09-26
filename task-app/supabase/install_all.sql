@@ -442,4 +442,4 @@ grant execute on function public.admin_set_signup_open(boolean) to authenticated
 grant execute on function public.admin_set_user_flags(text, boolean) to authenticated;
 
 -- 관리자 이메일 등록 (관리자는 가입 열기/닫기와 사용자별 고급 구글 연동을 관리)
-insert into public.allowed_emails (email) values ('minable7@gmail.com') on conflict do nothing;
+insert into public.allowed_emails (email) values ('minable7@gmail.com'), ('minable17@gmail.com') on conflict do nothing;
