@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>영조를 설득하라 · 1762</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b0908;
+    --panel: #1b1713;
+    --panel-2: #26201a;
+    --gold: #d9a441;
+    --gold-soft: #f0c96b;
+    --text: #f3ece0;
+    --muted: #a99f90;
+    --red: #7c1f22;
+    --red-2: #9d2a2d;
+    --paper: #efe6d4;
+    --paper-2: #f6efe2;
+    --ink: #2b2118;
+    --line: #d8ccb3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans KR", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  .frame {
+    max-width: 1180px;
+    min-height: 100vh;
+    margin: 0 auto;
+    border-left: 2px solid var(--gold);
+    border-right: 2px solid var(--gold);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+  }
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+  .hidden { display: none !important; }
+
+  /* ---------- 1. API 키 화면 ---------- */
+  #screen-key { background: radial-gradient(ellipse at top, #3a1d17 0%, var(--panel) 60%); padding: 48px 20px 60px; align-items: center; }
+  .key-wrap { width: 100%; max-width: 720px; }
+  .title-kicker { color: var(--gold); letter-spacing: .3em; font-size: 14px; text-align: center; margin-bottom: 8px; }
+  .title-main { font-family: "Noto Serif KR", serif; font-weight: 900; font-size: clamp(34px, 6vw, 56px); text-align: center; margin: 0 0 10px; color: var(--gold-soft); text-shadow: 0 2px 20px rgba(217,164,65,.25); }
+  .title-sub { text-align: center; color: var(--muted); line-height: 1.7; margin: 0 0 32px; }
+  .story { background: rgba(0,0,0,.35); border: 1px solid rgba(217,164,65,.35); border-radius: 12px; padding: 18px 22px; line-height: 1.8; margin-bottom: 28px; font-family: "Noto Serif KR", serif; }
+  .story b { color: var(--gold-soft); }
+  .card { background: var(--panel-2); border: 1px solid #3a3129; border-radius: 14px; padding: 24px; }
+  .card h2 { margin: 0 0 14px; font-size: 19px; color: var(--gold-soft); display: flex; align-items: center; gap: 8px; }
+  .steps { margin: 0 0 20px; padding-left: 0; list-style: none; counter-reset: s; }
+  .steps li { counter-increment: s; position: relative; padding: 8px 0 8px 40px; line-height: 1.65; color: #e6dccb; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 8px; width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+  .steps a { color: var(--gold-soft); }
+  .steps code { background: #0003; padding: 1px 6px; border-radius: 4px; color: var(--gold-soft); }
+  .key-row { display: flex; gap: 8px; }
+  .input {
+    flex: 1; min-width: 0; background: #332b24; border: 1px solid #4a3f35; color: var(--text);
+    border-radius: 8px; padding: 14px 16px; font-size: 16px; font-family: inherit; outline: none;
+  }
+  .input:focus { border-color: var(--gold); }
+  .input::placeholder { color: #8d8274; }
+  .btn { border: 0; border-radius: 8px; padding: 14px 22px; font-size: 16px; font-weight: 700; white-space: nowrap; transition: filter .15s, transform .05s; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-gold { background: var(--gold); color: #2a1a05; }
+  .btn-gold:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-gray { background: #4a423a; color: var(--text); }
+  .btn-gray:hover:not(:disabled) { filter: brightness(1.15); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover:not(:disabled) { background: var(--red-2); }
+  .btn-outline { background: #fbf7ef; color: var(--ink); border: 1px solid var(--line); }
+  .btn-outline:hover { background: #fff; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid #4a3f35; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+  .key-opts { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+  .key-opts label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .msg { margin-top: 12px; font-size: 14px; min-height: 20px; line-height: 1.6; }
+  .msg.err { color: #ff9b8f; }
+  .msg.ok { color: #9fe0a5; }
+  .start-btn { width: 100%; margin-top: 18px; padding: 18px; font-size: 19px; font-family: "Noto Serif KR", serif; }
+  .note { font-size: 13px; color: var(--muted); line-height: 1.7; margin-top: 18px; }
+
+  /* ---------- 2. 게임 화면 ---------- */
+  .stage { position: relative; aspect-ratio: 16 / 7.4; background: #120c09; overflow: hidden; }
+  .stage video, .stage img.king-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hud { position: absolute; top: 14px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: center; z-index: 5; pointer-events: none; }
+  .hud span { font-weight: 700; font-size: 17px; text-shadow: 0 1px 6px #000, 0 0 2px #000; }
+  .hud .turns { color: #efe6d4; }
+  .hud .power { color: var(--gold-soft); }
+  .hud .right { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+  .icon-btn { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.15); border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; font-size: 16px; color: var(--gold-soft); }
+  .narration {
+    position: absolute; inset: 0; z-index: 6; background: rgba(8,5,3,.82); display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; font-family: "Noto Serif KR", serif; font-size: clamp(16px, 2.2vw, 22px); line-height: 2; color: #eadfcb;
+    transition: opacity .8s;
+  }
+  .narration.fade { opacity: 0; pointer-events: none; }
+  .narration small { display: block; color: var(--gold); letter-spacing: .25em; font-size: 14px; margin-bottom: 12px; }
+
+  .dialog { padding: 26px 28px 30px; flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .speaker-row { display: flex; align-items: center; gap: 22px; margin-bottom: 12px; font-size: 14px; }
+  .speaker { color: var(--gold); font-weight: 900; font-size: 19px; font-family: "Noto Serif KR", serif; }
+  .link-btn { background: none; border: 0; color: var(--gold); font-size: 14px; padding: 4px; display: inline-flex; gap: 4px; align-items: center; }
+  .link-btn:hover { color: var(--gold-soft); }
+  .line {
+    text-align: center; font-size: clamp(18px, 2.2vw, 23px); line-height: 1.65; font-weight: 500; min-height: 40px;
+    max-width: 900px; white-space: pre-line; word-break: keep-all;
+  }
+  .line.thinking { color: var(--muted); font-style: italic; }
+  .dots::after { content: ''; animation: dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+  .input-area { width: 100%; margin-top: 30px; }
+  .input-row { display: flex; align-items: center; gap: 12px; }
+  .mic {
+    width: 66px; height: 66px; flex: none; border-radius: 50%; border: 2px solid var(--gold); background: var(--red);
+    display: grid; place-items: center; color: #fff; font-size: 26px; transition: transform .15s;
+  }
+  .mic:hover { transform: scale(1.05); }
+  .mic.on { background: #d33; animation: pulse 1.2s infinite; }
+  .mic:disabled { opacity: .45; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(221,51,51,.6); } 100% { box-shadow: 0 0 0 18px rgba(221,51,51,0); } }
+  .hint { text-align: center; color: var(--muted); font-size: 14px; margin-top: 14px; }
+  .after-row { display: flex; justify-content: center; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
+  .after-row .btn { min-width: 200px; font-family: "Noto Serif KR", serif; font-size: 17px; }
+
+  /* ---------- 3. 결과 화면 ---------- */
+  #screen-result, #screen-ending { background: var(--paper); color: var(--ink); padding: 56px 20px 70px; align-items: center; }
+  .result-wrap { width: 100%; max-width: 1030px; }
+  .r-title { font-family: "Noto Serif KR", serif; text-align: center; color: var(--red); font-size: clamp(28px, 4vw, 36px); font-weight: 900; margin: 0 0 18px; }
+  .r-sub { text-align: center; font-size: 18px; margin-bottom: 36px; }
+  .r-sub b { font-weight: 900; }
+  .bar-row { display: grid; grid-template-columns: 90px 1fr 60px; align-items: center; gap: 16px; margin-bottom: 12px; font-size: 16px; }
+  .bar { height: 18px; border-radius: 10px; background: #e1d4b8; border: 1px solid #cdbd9c; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #9d2a2d, #d9a441); border-radius: 10px; transition: width 1s ease-out; }
+  .bar-row .pt { text-align: right; font-weight: 900; }
+  .turn-card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 6px; padding: 20px 20px 16px; margin-top: 28px; line-height: 1.75; }
+  .turn-card + .turn-card { margin-top: 16px; }
+  .tc-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 900; }
+  .tc-head .t { color: var(--red); font-size: 17px; }
+  .tc-head .s { font-size: 15px; }
+  .tc-me b { color: #1f3a4d; }
+  .tc-king b { color: var(--red); }
+  .tc-advice { border-top: 1px dashed #cdbd9c; margin-top: 10px; padding-top: 10px; font-size: 14.5px; color: #5d5140; }
+  .r-buttons { display: flex; justify-content: center; gap: 16px; margin-top: 32px; flex-wrap: wrap; }
+  .r-buttons .btn { min-width: 244px; padding: 20px 24px; font-size: 20px; font-weight: 900; border-radius: 2px; }
+
+  /* ---------- 4. 엔딩 화면 ---------- */
+  .ending-badge { text-align: center; font-size: 56px; margin-bottom: 4px; }
+  .ending-text { font-family: "Noto Serif KR", serif; font-size: 18px; line-height: 2.05; background: var(--paper-2); border: 1px solid var(--line); padding: 26px 30px; white-space: pre-line; word-break: keep-all; }
+  .history { margin-top: 20px; background: #e6dbc4; border-left: 4px solid var(--red); padding: 16px 20px; font-size: 15px; line-height: 1.8; }
+  .history b { color: var(--red); }
+
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #2a211a; color: #fff; padding: 12px 20px; border-radius: 10px; border: 1px solid var(--gold); z-index: 50; font-size: 15px; max-width: calc(100% - 32px); text-align: center; }
+
+  @media (max-width: 640px) {
+    .frame { border: 0; }
+    .stage { aspect-ratio: 4 / 3.3; }
+    .dialog { padding: 20px 16px 26px; }
+    .mic { width: 54px; height: 54px; font-size: 22px; }
+    .input-row { gap: 8px; }
+    .input-row .btn { padding: 14px 14px; }
+    .key-row { flex-direction: column; }
+    .bar-row { grid-template-columns: 64px 1fr 44px; gap: 10px; font-size: 14px; }
+    .r-buttons .btn { min-width: 0; width: 100%; }
+    .after-row .btn { min-width: 0; flex: 1; }
+    .ending-text { padding: 20px 18px; font-size: 16px; }
+    #screen-result, #screen-ending { padding: 36px 16px 50px; }
+    .hud span { font-size: 15px; }
+    .narration { font-size: 14px; line-height: 1.8; padding: 50px 16px 16px; }
+    .narration small { font-size: 12px; margin-bottom: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- =========================== 1. API 키 입력 =========================== -->
+  <section id="screen-key" class="screen active">
+    <div class="key-wrap">
+      <div class="title-kicker">1762 · 임오년 윤5월</div>
+      <h1 class="title-main">영조를 설득하라</h1>
+      <p class="title-sub">당신은 열한 살 세손 <b>이산</b>입니다.<br/>뒤주에 갇힌 아버지를 구하기 위해 할아버지 영조 앞에 섰습니다.</p>
+
+      <div class="story">
+        창경궁 휘령전 앞마당. 임금께서 세자에게 <b>뒤주에 들어가라</b> 명하셨습니다.<br/>
+        누구도 감히 입을 열지 못하는 그때, 세손이 앞으로 나아갑니다.<br/>
+        기회는 단 <b>세 번</b>. 예를 갖추고, 근거를 들고, 진심을 담아 간청하세요.
+      </div>
+
+      <div class="card">
+        <h2>🔑 시작 전에: 제미나이(Gemini) API 키 넣기</h2>
+        <ol class="steps">
+          <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio (aistudio.google.com/apikey)</a>에 접속해 구글 계정으로 로그인해요.</li>
+          <li>처음이라면 약관에 동의하고, <code>Create API key</code>(API 키 만들기) 버튼을 눌러요.</li>
+          <li>만들어진 키(<code>AIza…</code>로 시작하는 긴 글자)를 <b>복사</b>해요.</li>
+          <li>아래 칸에 붙여넣고 <b>확인</b>을 누른 뒤, 게임을 시작해요.</li>
+        </ol>
+        <div class="key-row">
+          <input id="key-input" class="input" type="password" autocomplete="off" spellcheck="false" placeholder="AIza로 시작하는 API 키를 붙여넣으세요" />
+          <button id="key-toggle" class="btn btn-gray" type="button">보기</button>
+          <button id="key-check" class="btn btn-gold" type="button">확인</button>
+        </div>
+        <div class="key-opts">
+          <label><input type="checkbox" id="key-remember" checked /> 이 기기에 키 기억하기</label>
+          <button id="key-forget" class="btn btn-ghost hidden" type="button">저장된 키 지우기</button>
+        </div>
+        <div id="key-msg" class="msg"></div>
+        <button id="start-btn" class="btn btn-red start-btn" type="button" disabled>어전에 나아가기</button>
+        <p class="note">
+          · 키는 이 브라우저 안에만 저장되고, 구글 서버와 직접 주고받을 때만 쓰여요. 이 페이지 운영자에게는 전달되지 않아요.<br/>
+          · 여러 사람이 함께 쓰는 컴퓨터라면 “이 기기에 키 기억하기”를 끄고 사용하세요.<br/>
+          · 음성으로 말하기는 크롬·엣지·사파리에서 마이크 권한을 허용해야 쓸 수 있어요.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== 2. 게임 =========================== -->
+  <section id="screen-game" class="screen">
+    <div class="stage" id="stage">
+      <!-- 실제 AI 영상/이미지가 있으면 여기에 들어가고, 없으면 아래 SVG 임금이 표시됩니다 -->
+      <video id="king-video" class="hidden" muted playsinline loop preload="auto"></video>
+      <video id="king-video-talk" class="hidden" muted playsinline loop preload="auto"></video>
+      <img id="king-img" class="king-img hidden" alt="영조" />
+      <svg id="king-svg" viewBox="0 0 1600 740" preserveAspectRatio="xMidYMid slice" aria-label="영조">
+        <defs>
+          <radialGradient id="g-bg" cx="50%" cy="35%" r="75%">
+            <stop offset="0" stop-color="#4a2a1a" />
+            <stop offset=".6" stop-color="#23130c" />
+            <stop offset="1" stop-color="#0d0705" />
+          </radialGradient>
+          <radialGradient id="g-flame" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#ffe7a3" stop-opacity=".95" />
+            <stop offset=".35" stop-color="#ffb347" stop-opacity=".5" />
+            <stop offset="1" stop-color="#ff8a00" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="g-robe" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#b3282b" />
+            <stop offset="1" stop-color="#6d1215" />
+          </linearGradient>
+          <linearGradient id="g-gold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#f6d27a" />
+            <stop offset=".5" stop-color="#c8912f" />
+            <stop offset="1" stop-color="#8a5a18" />
+          </linearGradient>
+          <linearGradient id="g-skin" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#e2b48c" />
+            <stop offset="1" stop-color="#c08e68" />
+          </linearGradient>
+          <pattern id="p-lattice" width="40" height="40" patternUnits="userSpaceOnUse">
+            <rect width="40" height="40" fill="#2a170e" />
+            <path d="M0 20H40M20 0V40" stroke="#6b4428" stroke-width="3" />
+            <rect x="8" y="8" width="24" height="24" fill="none" stroke="#5a3820" stroke-width="2" />
+          </pattern>
+        </defs>
+        <rect width="1600" height="740" fill="url(#g-bg)" />
+        <!-- 창살 -->
+        <rect x="90" y="40" width="300" height="520" fill="url(#p-lattice)" opacity=".55" />
+        <rect x="1210" y="40" width="300" height="520" fill="url(#p-lattice)" opacity=".55" />
+        <!-- 일월오봉도 느낌의 병풍 -->
+        <g opacity=".5">
+          <rect x="480" y="40" width="640" height="420" fill="#1f2a22" />
+          <path d="M480 420 L580 250 L660 330 L800 170 L940 330 L1020 250 L1120 420 Z" fill="#2d4a36" />
+          <path d="M480 460 Q800 380 1120 460 Z" fill="#23394a" />
+          <circle cx="600" cy="120" r="34" fill="#c8492f" />
+          <circle cx="1000" cy="120" r="30" fill="#e6e0cf" />
+        </g>
+        <!-- 촛불 -->
+        <g id="candles">
+          <g transform="translate(260 300)"><rect x="-14" y="0" width="28" height="120" fill="#efe2c8" /><rect x="-30" y="120" width="60" height="16" fill="#3a2718" /><ellipse class="flame" cx="0" cy="-16" rx="12" ry="24" fill="#ffd27a" /><circle cx="0" cy="-10" r="90" fill="url(#g-flame)" /></g>
+          <g transform="translate(1340 300)"><rect x="-14" y="0" width="28" height="120" fill="#efe2c8" /><rect x="-30" y="120" width="60" height="16" fill="#3a2718" /><ellipse class="flame" cx="0" cy="-16" rx="12" ry="24" fill="#ffd27a" /><circle cx="0" cy="-10" r="90" fill="url(#g-flame)" /></g>
+          <g transform="translate(130 420) scale(.7)"><rect x="-14" y="0" width="28" height="120" fill="#efe2c8" /><ellipse class="flame" cx="0" cy="-16" rx="12" ry="24" fill="#ffd27a" /><circle cx="0" cy="-10" r="90" fill="url(#g-flame)" /></g>
+          <g transform="translate(1470 420) scale(.7)"><rect x="-14" y="0" width="28" height="120" fill="#efe2c8" /><ellipse class="flame" cx="0" cy="-16" rx="12" ry="24" fill="#ffd27a" /><circle cx="0" cy="-10" r="90" fill="url(#g-flame)" /></g>
+        </g>
+        <!-- 어좌 -->
+        <path d="M440 740 L470 330 Q800 270 1130 330 L1160 740 Z" fill="#3b2213" stroke="#7a5230" stroke-width="6" />
+        <path d="M470 330 Q800 270 1130 330" fill="none" stroke="url(#g-gold)" stroke-width="10" />
+        <circle cx="490" cy="330" r="26" fill="url(#g-gold)" /><circle cx="1110" cy="330" r="26" fill="url(#g-gold)" />
+
+        <g id="king" transform="translate(800 0)">
+          <!-- 몸통 (곤룡포) -->
+          <path d="M-330 740 Q-320 480 -170 430 L-60 400 L60 400 L170 430 Q320 480 330 740 Z" fill="url(#g-robe)" />
+          <path d="M-60 400 L0 520 L60 400" fill="#f2eee6" />
+          <path d="M-60 400 L0 520 L60 400" fill="none" stroke="#5a0f12" stroke-width="6" />
+          <!-- 흉배 (용 보) -->
+          <circle cx="0" cy="620" r="120" fill="url(#g-gold)" />
+          <circle cx="0" cy="620" r="102" fill="#8e1a1d" />
+          <path d="M-70 620 Q-40 560 0 590 Q40 620 70 570 M-60 650 Q-10 690 40 650 Q70 630 60 600" stroke="url(#g-gold)" stroke-width="12" fill="none" stroke-linecap="round" />
+          <circle cx="45" cy="572" r="10" fill="url(#g-gold)" />
+          <!-- 어깨 보 -->
+          <circle cx="-215" cy="500" r="52" fill="url(#g-gold)" opacity=".85" />
+          <circle cx="215" cy="500" r="52" fill="url(#g-gold)" opacity=".85" />
+          <!-- 목 -->
+          <rect x="-40" y="330" width="80" height="80" fill="#c08e68" />
+          <!-- 귀 -->
+          <ellipse cx="-102" cy="250" rx="16" ry="30" fill="#c99670" />
+          <ellipse cx="102" cy="250" rx="16" ry="30" fill="#c99670" />
+          <!-- 얼굴 -->
+          <path d="M-100 190 Q-100 360 0 380 Q100 360 100 190 Q100 120 0 115 Q-100 120 -100 190 Z" fill="url(#g-skin)" />
+          <!-- 주름 -->
+          <path d="M-60 175 Q0 165 60 175" stroke="#9b6d4f" stroke-width="3" fill="none" opacity=".6" />
+          <path d="M-58 300 Q-70 270 -48 250 M58 300 Q70 270 48 250" stroke="#9b6d4f" stroke-width="3" fill="none" opacity=".6" />
+          <!-- 눈썹 (감정에 따라 움직임) -->
+          <g id="brows">
+            <path id="brow-l" d="M-78 208 Q-50 196 -22 206" stroke="#e8e4dc" stroke-width="11" fill="none" stroke-linecap="round" />
+            <path id="brow-r" d="M22 206 Q50 196 78 208" stroke="#e8e4dc" stroke-width="11" fill="none" stroke-linecap="round" />
+          </g>
+          <!-- 눈 -->
+          <g id="eyes">
+            <ellipse cx="-48" cy="232" rx="17" ry="8" fill="#fff" /><circle cx="-48" cy="232" r="7" fill="#1b120c" />
+            <ellipse cx="48" cy="232" rx="17" ry="8" fill="#fff" /><circle cx="48" cy="232" r="7" fill="#1b120c" />
+          </g>
+          <!-- 코 -->
+          <path d="M0 238 L-14 290 Q0 298 14 290" stroke="#9b6d4f" stroke-width="4" fill="none" />
+          <!-- 입 -->
+          <ellipse id="mouth" cx="0" cy="318" rx="22" ry="3" fill="#4a1a14" />
+          <!-- 콧수염 -->
+          <path d="M-8 302 Q-40 296 -62 318 M8 302 Q40 296 62 318" stroke="#e8e4dc" stroke-width="10" fill="none" stroke-linecap="round" />
+          <!-- 턱수염 -->
+          <path id="beard" d="M-34 332 Q0 350 34 332 Q30 420 0 470 Q-30 420 -34 332 Z" fill="#e8e4dc" />
+          <!-- 익선관 -->
+          <path d="M-108 175 Q-108 70 0 60 Q108 70 108 175 Z" fill="#141010" />
+          <rect x="-112" y="160" width="224" height="26" rx="6" fill="#0c0909" />
+          <path d="M-60 60 Q0 20 60 60" fill="#141010" />
+          <ellipse cx="-120" cy="80" rx="40" ry="18" fill="#141010" transform="rotate(-25 -120 80)" />
+          <ellipse cx="120" cy="80" rx="40" ry="18" fill="#141010" transform="rotate(25 120 80)" />
+        </g>
+      </svg>
+
+      <div class="hud">
+        <span class="turns" id="hud-turns">간청 0 / 3</span>
+        <div class="right">
+          <span class="power" id="hud-power">설득력 누적 0</span>
+          <button class="icon-btn" id="hud-key" title="API 키 바꾸기">🔑</button>
+        </div>
+      </div>
+
+      <div class="narration" id="narration">
+        <div>
+          <small>1762 · 임오년 윤5월 13일</small>
+          임금의 불호령에 세자가 뒤주 안에 갇혔습니다.<br/>
+          신하들은 모두 고개를 숙였고, 마당은 숨소리조차 들리지 않습니다.<br/>
+          열한 살 세손이 떨리는 걸음으로 임금 앞에 엎드립니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog">
+      <div class="speaker-row">
+        <span class="speaker">영조</span>
+        <button class="link-btn" id="replay-btn" title="다시 듣기">🔊</button>
+        <button class="link-btn" id="voice-toggle" title="제미나이 음성으로 더 실감나게 듣기">🎭 실감음성 OFF</button>
+      </div>
+      <div class="line" id="king-line"></div>
+
+      <div class="input-area" id="input-area">
+        <div class="input-row">
+          <button class="mic" id="mic-btn" title="말로 하기">🎤</button>
+          <input class="input" id="user-input" type="text" maxlength="400" placeholder="여기에 직접 입력하거나, 마이크를 눌러 말해보세요…" />
+          <button class="btn btn-gray" id="send-btn">전달하기</button>
+        </div>
+        <div class="hint" id="hint">마이크 버튼을 누르고 말하거나, 위 칸에 직접 타이핑해서 전달해도 돼요.</div>
+      </div>
+
+      <div class="after-row hidden" id="after-row">
+        <button class="btn btn-red" id="next-btn">다시 간청하기</button>
+        <button class="btn btn-gold" id="result-btn">결과 보기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== 3. 결과 =========================== -->
+  <section id="screen-result" class="screen">
+    <div class="result-wrap">
+      <h2 class="r-title">세손의 설득 기록</h2>
+      <div class="r-sub" id="r-sub"></div>
+      <div id="r-bars"></div>
+      <div id="r-cards"></div>
+      <div class="r-buttons">
+        <button class="btn btn-red" id="ending-btn">엔딩 보러 가기</button>
+        <button class="btn btn-outline" id="restart-btn">처음부터 다시하기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== 4. 엔딩 =========================== -->
+  <section id="screen-ending" class="screen">
+    <div class="result-wrap">
+      <div class="ending-badge" id="e-badge"></div>
+      <h2 class="r-title" id="e-title"></h2>
+      <div class="r-sub" id="e-sub"></div>
+      <div class="ending-text" id="e-text"></div>
+      <div class="history">
+        <b>실제 역사에서는?</b><br/>
+        1762년(영조 38년) 윤5월 13일, 영조는 세자를 뒤주에 가두었고 세자는 8일 만에 세상을 떠났습니다(임오화변).
+        《한중록》 등에는 어린 세손이 할아버지께 아버지를 살려 달라고 애원했다는 기록이 전해집니다.
+        뒷날 왕위에 오른 정조는 즉위식에서 “과인은 사도세자의 아들이다”라고 말하며 아버지의 명예를 되살리려 애썼습니다.
+      </div>
+      <div class="r-buttons">
+        <button class="btn btn-outline" id="back-result-btn">기록 다시 보기</button>
+        <button class="btn btn-red" id="restart-btn-2">처음부터 다시하기</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(() => {
+  // ======================================================================
+  //  설정 — 여기만 바꾸면 인물/시나리오/영상을 쉽게 바꿀 수 있어요.
+  // ======================================================================
+  const CONFIG = {
+    maxTurns: 3,
+    // AI로 만든 영상/이미지를 쓰려면 이 HTML 옆 yeongjo-assets 폴더에 넣으세요.
+    //  - idle.mp4 : 가만히 있는(눈 깜빡이는) 영상
+    //  - talk.mp4 : 말하는 영상 (대사가 나오는 동안 재생)
+    //  - king.jpg : 영상이 없을 때 쓸 정지 이미지
+    // 파일이 없으면 자동으로 그림(SVG) 임금이 나옵니다.
+    media: {
+      idle: 'yeongjo-assets/idle.mp4',
+      talk: 'yeongjo-assets/talk.mp4',
+      image: 'yeongjo-assets/king.jpg',
+    },
+    openingLine: '과인 앞에 무슨 낯으로 나타났느냐. 어디 말해 보아라.',
+    // 위에서부터 차례로 시도합니다 (앞 모델이 안 되면 다음 모델로).
+    textModels: ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'],
+    ttsModels: ['gemini-2.5-flash-preview-tts', 'gemini-2.5-pro-preview-tts'],
+    ttsVoice: 'Charon',
+    // 설득력 합계 기준 엔딩
+    endings: [
+      {
+        min: 210, badge: '🕊️', title: '뒤주의 문이 열리다',
+        sub: '임금의 마음을 돌린 세손',
+        text: '긴 침묵 끝에 영조가 눈을 감았습니다.\n“…열어라. 세손의 청이 과인의 노여움보다 무겁구나.”\n\n내관들이 떨리는 손으로 뒤주의 빗장을 풀었고, 세자는 아들의 부축을 받으며 햇빛 아래로 나왔습니다.\n역사는 이날 다른 길로 접어들었습니다. 세손의 용기와 예, 그리고 진심이 한 나라의 운명을 바꾼 것입니다.\n\n※ 이 엔딩은 실제 역사와 다른 “만약에” 이야기입니다.',
+      },
+      {
+        min: 120, badge: '🕯️', title: '흔들린 임금의 마음',
+        sub: '끝내 뜻을 이루지는 못했지만…',
+        text: '영조는 한참 동안 세손을 내려다보았습니다. 굳게 다문 입가가 잠시 떨렸지만, 끝내 명을 거두지는 않았습니다.\n“물러가 있거라. …네 마음은 과인이 안다.”\n\n세손은 내관에게 안겨 물러났습니다. 그러나 이날 할아버지의 눈빛이 잠시 흔들렸다는 것을, 세손은 평생 잊지 않았습니다.\n그 기억은 훗날 아버지의 이름을 되찾으려는 정조의 긴 여정의 시작이 되었습니다.',
+      },
+      {
+        min: -Infinity, badge: '🌑', title: '닫힌 뒤주, 닫힌 마음',
+        sub: '실제 역사와 같은 결말',
+        text: '“세손을 데리고 나가라!”\n영조의 불호령에 세손은 끌려 나가듯 마당을 떠났습니다.\n\n뒤주의 문은 끝내 열리지 않았고, 여드레 뒤 세자는 세상을 떠났습니다.\n어린 세손은 아버지를 지키지 못한 그날을 가슴에 새기고, 훗날 조선의 임금 정조가 되었습니다.\n\n다시 도전해 보세요. 예를 갖추고, 임금이 받아들일 만한 근거와 진심을 담으면 결말이 달라질지도 몰라요.',
+      },
+    ],
+  };
+
+  const SYSTEM_PROMPT = `너는 1762년(영조 38년) 윤5월, 창경궁 휘령전 앞마당의 조선 임금 영조(당시 69세)다.
+방금 너는 아들 사도세자를 뒤주에 가두라 명했다. 이때 열한 살 손자인 세손(훗날 정조, 이산)이 네 앞에 엎드려 아버지를 살려 달라고 간청한다.
+사용자는 세손 역할을 맡은 학생이다. 학생의 말에 영조로서 반응하고, 설득력을 채점하라.
+
+[영조의 말투와 성격]
+- 사극 어투로 말한다 (예: "~느냐", "~하거라", "~이니라", 스스로를 "과인", 세손을 "세손" 또는 "네"라고 부른다).
+- 노여움이 크고 완고하다. 쉽게 마음을 바꾸지 않지만, 세손을 아끼는 할아버지의 마음도 있다.
+- 세자에 대한 실망(학문 소홀, 비행, 종묘사직에 대한 걱정)을 근거로 반박할 수 있다.
+- 설득력이 높을수록 노여움이 누그러지고 마음이 흔들리는 반응을, 낮을수록 꾸짖는 반응을 보인다.
+- 대사는 1~3문장, 문장마다 줄바꿈(\\n)으로 나눈다. 한 문장은 짧고 힘 있게.
+- 학생이 장난, 무의미한 글자, 무례한 말, 게임과 상관없는 말을 하면 엄하게 꾸짖는다.
+- 폭력적이거나 부적절한 내용은 따라 하지 말고 임금답게 꾸짖기만 한다.
+
+[채점 기준: score 0~100]
+- 예의와 태도(임금 앞에서의 예법, 공손한 말씨): 25점
+- 설득의 근거(효, 종묘사직, 백성, 세손 자신의 처지, 할아버지의 정 등 임금이 받아들일 만한 이유): 35점
+- 진심과 감정 표현: 25점
+- 이전 대화에서 영조가 한 말에 제대로 대응했는지: 15점
+- 무의미하거나 장난스러운 입력은 0~10점. 대부분의 평범한 간청은 30~70점, 정말 훌륭하면 80점 이상.
+
+[advice: 첨삭]
+- 학생에게 하는 선생님의 짧은 조언(1~2문장, 해요체). 잘한 점 하나, 더 나아지려면 어떻게 말하면 좋을지 구체적으로.
+
+[emotion]
+- angry(분노), stern(엄함), thinking(고민), moved(마음이 움직임) 중 하나.`;
+
+  // ======================================================================
+  //  상태
+  // ======================================================================
+  const LS_KEY = 'yeongjo1762.apiKey';
+  const LS_VOICE = 'yeongjo1762.realVoice';
+  const state = {
+    apiKey: '',
+    turns: [], // { user, reply, score, advice, emotion }
+    currentLine: CONFIG.openingLine,
+    busy: false,
+    realVoice: false,
+    workingModel: null,
+    workingTtsModel: null,
+    ttsCache: new Map(),
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const safeGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 무시 */ } };
+  const safeDel = (k) => { try { localStorage.removeItem(k); } catch { /* 무시 */ } };
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === id));
+    window.scrollTo(0, 0);
+  }
+
+  let toastTimer;
+  function toast(msg, ms = 3200) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add('hidden'), ms);
+  }
+
+  // ======================================================================
+  //  1. API 키 화면
+  // ======================================================================
+  const keyInput = $('key-input');
+  const keyMsg = $('key-msg');
+  const startBtn = $('start-btn');
+
+  function setKeyMsg(text, type) {
+    keyMsg.textContent = text;
+    keyMsg.className = 'msg' + (type ? ' ' + type : '');
+  }
+
+  const saved = safeGet(LS_KEY);
+  if (saved) {
+    keyInput.value = saved;
+    $('key-forget').classList.remove('hidden');
+    setKeyMsg('저장된 키를 불러왔어요. 확인을 누르거나 바로 시작하세요.', 'ok');
+    startBtn.disabled = false;
+  }
+  state.realVoice = safeGet(LS_VOICE) === '1';
+
+  $('key-toggle').onclick = () => {
+    const show = keyInput.type === 'password';
+    keyInput.type = show ? 'text' : 'password';
+    $('key-toggle').textContent = show ? '숨기기' : '보기';
+  };
+  keyInput.addEventListener('input', () => {
+    startBtn.disabled = keyInput.value.trim().length < 20;
+    setKeyMsg('');
+  });
+  keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('key-check').click(); });
+
+  $('key-forget').onclick = () => {
+    safeDel(LS_KEY);
+    keyInput.value = '';
+    startBtn.disabled = true;
+    $('key-forget').classList.add('hidden');
+    setKeyMsg('저장된 키를 지웠어요.', 'ok');
+  };
+
+  async function validateKey(key) {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', {
+      headers: { 'x-goog-api-key': key },
+    });
+    if (res.ok) return true;
+    let detail = '';
+    try { detail = (await res.json()).error?.message || ''; } catch { /* 무시 */ }
+    throw new Error(res.status === 400 || res.status === 403
+      ? '키가 올바르지 않아요. 복사할 때 앞뒤가 빠지지 않았는지 확인해 주세요.'
+      : `확인 중 문제가 생겼어요 (${res.status}) ${detail}`);
+  }
+
+  $('key-check').onclick = async () => {
+    const key = keyInput.value.trim();
+    if (!key) { setKeyMsg('API 키를 먼저 붙여넣어 주세요.', 'err'); return; }
+    setKeyMsg('키를 확인하는 중…');
+    $('key-check').disabled = true;
+    try {
+      await validateKey(key);
+      setKeyMsg('✅ 사용할 수 있는 키예요! “어전에 나아가기”를 눌러 시작하세요.', 'ok');
+      startBtn.disabled = false;
+    } catch (e) {
+      setKeyMsg('❌ ' + (e.message || '인터넷 연결을 확인해 주세요.'), 'err');
+    } finally {
+      $('key-check').disabled = false;
+    }
+  };
+
+  startBtn.onclick = () => {
+    const key = keyInput.value.trim();
+    if (!key) return;
+    state.apiKey = key;
+    if ($('key-remember').checked) { safeSet(LS_KEY, key); $('key-forget').classList.remove('hidden'); }
+    else safeDel(LS_KEY);
+    unlockAudio();
+    startGame();
+  };
+
+  $('hud-key').onclick = () => {
+    stopSpeaking();
+    if (confirm('API 키를 바꾸러 첫 화면으로 갈까요? (지금까지의 진행은 사라져요)')) {
+      showScreen('screen-key');
+    }
+  };
+
+  // ======================================================================
+  //  임금 화면 (영상 → 이미지 → SVG 순으로 자동 선택)
+  // ======================================================================
+  const vIdle = $('king-video');
+  const vTalk = $('king-video-talk');
+  const kImg = $('king-img');
+  const kSvg = $('king-svg');
+  let mediaMode = 'svg';
+
+  function probeVideo(el, src) {
+    return new Promise((resolve) => {
+      const done = (ok) => { el.onloadeddata = el.onerror = null; resolve(ok); };
+      el.onloadeddata = () => done(true);
+      el.onerror = () => done(false);
+      el.src = src;
+      el.load();
+      setTimeout(() => done(false), 6000);
+    });
+  }
+  function probeImage(src) {
+    return new Promise((resolve) => {
+      kImg.onload = () => resolve(true);
+      kImg.onerror = () => resolve(false);
+      kImg.src = src;
+    });
+  }
+
+  async function setupMedia() {
+    if (await probeVideo(vIdle, CONFIG.media.idle)) {
+      mediaMode = 'video';
+      kSvg.classList.add('hidden');
+      vIdle.classList.remove('hidden');
+      vIdle.play().catch(() => {});
+      if (!(await probeVideo(vTalk, CONFIG.media.talk))) vTalk.removeAttribute('src');
+      return;
+    }
+    if (await probeImage(CONFIG.media.image)) {
+      mediaMode = 'image';
+      kSvg.classList.add('hidden');
+      kImg.classList.remove('hidden');
+    }
+  }
+  setupMedia();
+
+  // SVG 촛불 흔들림
+  const flames = [...document.querySelectorAll('#king-svg .flame')];
+  (function flicker() {
+    flames.forEach((f) => {
+      f.setAttribute('ry', 22 + Math.random() * 6);
+      f.setAttribute('rx', 11 + Math.random() * 2.5);
+    });
+    setTimeout(flicker, 110);
+  })();
+
+  // SVG 표정
+  const BROWS = {
+    stern:    ['M-78 208 Q-50 196 -22 206', 'M22 206 Q50 196 78 208'],
+    angry:    ['M-80 196 Q-50 204 -20 218', 'M20 218 Q50 204 80 196'],
+    thinking: ['M-78 204 Q-50 192 -22 210', 'M22 202 Q50 186 78 196'],
+    moved:    ['M-78 212 Q-50 196 -22 198', 'M22 198 Q50 196 78 212'],
+  };
+  function setEmotion(emotion) {
+    const b = BROWS[emotion] || BROWS.stern;
+    $('brow-l').setAttribute('d', b[0]);
+    $('brow-r').setAttribute('d', b[1]);
+  }
+
+  // 말하는 동안 입 움직임 / 말하는 영상
+  let mouthTimer = null;
+  function setTalking(on) {
+    if (mediaMode === 'video' && vTalk.getAttribute('src')) {
+      if (on) { vIdle.classList.add('hidden'); vTalk.classList.remove('hidden'); vTalk.currentTime = 0; vTalk.play().catch(() => {}); }
+      else { vTalk.pause(); vTalk.classList.add('hidden'); vIdle.classList.remove('hidden'); vIdle.play().catch(() => {}); }
+    }
+    const mouth = $('mouth');
+    clearInterval(mouthTimer);
+    if (on) {
+      mouthTimer = setInterval(() => mouth.setAttribute('ry', 2 + Math.random() * 11), 110);
+    } else {
+      mouth.setAttribute('ry', 3);
+    }
+  }
+
+  // ======================================================================
+  //  음성 출력 (브라우저 음성 / 제미나이 실감음성)
+  // ======================================================================
+  let audioCtx = null;
+  let currentSource = null;
+  let speakToken = 0;
+
+  function unlockAudio() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch { /* 무시 */ }
+  }
+
+  function updateVoiceToggle() {
+    $('voice-toggle').textContent = '🎭 실감음성 ' + (state.realVoice ? 'ON' : 'OFF');
+  }
+  updateVoiceToggle();
+  $('voice-toggle').onclick = () => {
+    state.realVoice = !state.realVoice;
+    safeSet(LS_VOICE, state.realVoice ? '1' : '0');
+    updateVoiceToggle();
+    toast(state.realVoice ? '제미나이 음성으로 들려드려요. (조금 더 느리고 사용량이 늘어요)' : '브라우저 기본 음성으로 들려드려요.');
+    unlockAudio();
+    speak(state.currentLine);
+  };
+  $('replay-btn').onclick = () => { unlockAudio(); speak(state.currentLine); };
+
+  function stopSpeaking() {
+    speakToken++;
+    try { window.speechSynthesis && speechSynthesis.cancel(); } catch { /* 무시 */ }
+    try { currentSource && currentSource.stop(); } catch { /* 무시 */ }
+    currentSource = null;
+    setTalking(false);
+  }
+
+  function pickKoreanVoice() {
+    const voices = speechSynthesis.getVoices().filter((v) => /^ko/i.test(v.lang));
+    return voices.find((v) => /male|남|InJoon|Hyunsu|Minsu/i.test(v.name) && !/female|여/i.test(v.name))
+      || voices.find((v) => /Google/i.test(v.name))
+      || voices[0] || null;
+  }
+
+  function speakBrowser(text, token) {
+    return new Promise((resolve) => {
+      if (!('speechSynthesis' in window)) return resolve();
+      const u = new SpeechSynthesisUtterance(text.replace(/\n/g, ' '));
+      u.lang = 'ko-KR';
+      const v = pickKoreanVoice();
+      if (v) u.voice = v;
+      u.rate = 0.88;
+      u.pitch = 0.55;
+      u.onstart = () => { if (token === speakToken) setTalking(true); };
+      u.onend = u.onerror = () => { if (token === speakToken) setTalking(false); resolve(); };
+      speechSynthesis.speak(u);
+    });
+  }
+
+  function pcm16ToBuffer(b64, sampleRate = 24000) {
+    const bin = atob(b64);
+    const len = bin.length / 2;
+    const buf = audioCtx.createBuffer(1, len, sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      let s = bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8);
+      if (s >= 32768) s -= 65536;
+      ch[i] = s / 32768;
+    }
+    return buf;
+  }
+
+  async function fetchGeminiTts(text) {
+    if (state.ttsCache.has(text)) return state.ttsCache.get(text);
+    const models = state.workingTtsModel ? [state.workingTtsModel] : CONFIG.ttsModels;
+    let lastErr;
+    for (const model of models) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `나이 든 조선 임금이 노여움을 억누르며 낮고 무겁고 위엄 있는 목소리로, 천천히 말한다: ${text.replace(/\n/g, ' ')}` }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: CONFIG.ttsVoice } } },
+            },
+          }),
+        });
+        if (!res.ok) throw new Error('TTS ' + res.status);
+        const data = await res.json();
+        const part = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+        if (!part) throw new Error('음성 데이터 없음');
+        const rate = Number((part.inlineData.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
+        const result = { b64: part.inlineData.data, rate };
+        state.workingTtsModel = model;
+        state.ttsCache.set(text, result);
+        return result;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr;
+  }
+
+  async function speak(text) {
+    if (!text) return;
+    stopSpeaking();
+    const token = speakToken;
+    if (state.realVoice && state.apiKey) {
+      try {
+        unlockAudio();
+        const { b64, rate } = await fetchGeminiTts(text);
+        if (token !== speakToken) return;
+        const src = audioCtx.createBufferSource();
+        src.buffer = pcm16ToBuffer(b64, rate);
+        src.connect(audioCtx.destination);
+        src.onended = () => { if (token === speakToken) setTalking(false); };
+        currentSource = src;
+        setTalking(true);
+        src.start();
+        return;
+      } catch (e) {
+        console.warn(e);
+        toast('실감음성을 불러오지 못해서 기본 음성으로 들려드려요.');
+      }
+    }
+    if (token !== speakToken) return;
+    await speakBrowser(text, token);
+  }
+
+  // 일부 브라우저는 목소리 목록을 늦게 불러와요
+  if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
+
+  // ======================================================================
+  //  음성 인식 (마이크)
+  // ======================================================================
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $('mic-btn');
+  const userInput = $('user-input');
+  let recog = null;
+  let listening = false;
+
+  if (!SR) {
+    micBtn.disabled = true;
+    micBtn.title = '이 브라우저는 음성 인식을 지원하지 않아요';
+    $('hint').textContent = '이 브라우저에서는 음성 인식이 안 돼요. 크롬이나 엣지에서 열거나, 칸에 직접 입력해 주세요.';
+  }
+
+  function startListening() {
+    if (!SR || state.busy) return;
+    stopSpeaking();
+    recog = new SR();
+    recog.lang = 'ko-KR';
+    recog.interimResults = true;
+    recog.continuous = false;
+    const base = userInput.value.trim() ? userInput.value.trim() + ' ' : '';
+    recog.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      userInput.value = base + txt;
+    };
+    recog.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('마이크 권한이 막혀 있어요. 주소창 왼쪽 자물쇠 아이콘에서 마이크를 허용해 주세요.', 5000);
+      else if (e.error === 'no-speech') toast('목소리가 들리지 않았어요. 다시 눌러서 말해 보세요.');
+      else if (e.error !== 'aborted') toast('음성 인식 오류: ' + e.error);
+    };
+    recog.onend = () => {
+      listening = false;
+      micBtn.classList.remove('on');
+      micBtn.textContent = '🎤';
+      $('hint').textContent = userInput.value.trim()
+        ? '말한 내용이 맞는지 확인하고 “전달하기”를 눌러 주세요. 고칠 부분은 직접 고쳐도 돼요.'
+        : '마이크 버튼을 누르고 말하거나, 위 칸에 직접 타이핑해서 전달해도 돼요.';
+    };
+    try {
+      recog.start();
+      listening = true;
+      micBtn.classList.add('on');
+      micBtn.textContent = '■';
+      $('hint').textContent = '듣고 있어요… 다 말했으면 버튼을 한 번 더 누르세요.';
+    } catch { /* 이미 실행 중 */ }
+  }
+  micBtn.onclick = () => {
+    unlockAudio();
+    if (listening) recog && recog.stop();
+    else startListening();
+  };
+
+  // ======================================================================
+  //  제미나이 호출
+  // ======================================================================
+  class KeyError extends Error {}
+  class QuotaError extends Error {}
+
+  const RESPONSE_SCHEMA = {
+    type: 'OBJECT',
+    properties: {
+      reply: { type: 'STRING', description: '영조의 대사 (1~3문장, 문장마다 \\n)' },
+      score: { type: 'INTEGER', description: '이번 간청의 설득력 0~100' },
+      emotion: { type: 'STRING', enum: ['angry', 'stern', 'thinking', 'moved'] },
+      advice: { type: 'STRING', description: '학생을 위한 첨삭 (해요체 1~2문장)' },
+    },
+    required: ['reply', 'score', 'emotion', 'advice'],
+  };
+
+  function buildUserPrompt(userText) {
+    const lines = [`영조: ${CONFIG.openingLine}`];
+    state.turns.forEach((t) => {
+      lines.push(`세손: ${t.user}`);
+      lines.push(`영조: ${t.reply.replace(/\n/g, ' ')}`);
+    });
+    const n = state.turns.length + 1;
+    return `[지금까지의 대화]\n${lines.join('\n')}\n\n[세손의 ${n}번째 간청 (전체 ${CONFIG.maxTurns}번 중)]\n세손: ${userText}\n\n`
+      + `위 간청에 대해 영조로서 반응하고, 규칙에 따라 JSON으로만 답하라.`
+      + (n === CONFIG.maxTurns ? ' 이번이 마지막 간청이다. 마음의 결론이 드러나도록 말하라.' : '');
+  }
+
+  async function callGemini(userText) {
+    const models = state.workingModel ? [state.workingModel, ...CONFIG.textModels.filter((m) => m !== state.workingModel)] : CONFIG.textModels;
+    let lastErr;
+    for (const model of models) {
+      const generationConfig = {
+        temperature: 0.9,
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA,
+      };
+      if (model.startsWith('gemini-2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      let res;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents: [{ role: 'user', parts: [{ text: buildUserPrompt(userText) }] }],
+            generationConfig,
+          }),
+        });
+      } catch (e) {
+        throw new Error('인터넷 연결을 확인해 주세요.');
+      }
+      if (!res.ok) {
+        let msg = '';
+        try { msg = (await res.json()).error?.message || ''; } catch { /* 무시 */ }
+        if (/API key/i.test(msg) || res.status === 401 || res.status === 403) throw new KeyError('API 키가 올바르지 않거나 권한이 없어요.');
+        if (res.status === 429) throw new QuotaError('무료 사용량을 잠시 다 썼어요. 1분쯤 뒤에 다시 시도해 주세요.');
+        lastErr = new Error(`${model}: ${res.status} ${msg}`);
+        continue; // 다른 모델로 시도
+      }
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+      try {
+        const obj = JSON.parse(text.replace(/^```json\s*|```$/g, '').trim());
+        state.workingModel = model;
+        return {
+          reply: String(obj.reply || '…').trim(),
+          score: Math.max(0, Math.min(100, Math.round(Number(obj.score) || 0))),
+          emotion: ['angry', 'stern', 'thinking', 'moved'].includes(obj.emotion) ? obj.emotion : 'stern',
+          advice: String(obj.advice || '').trim(),
+        };
+      } catch {
+        lastErr = new Error('답변을 해석하지 못했어요.');
+      }
+    }
+    throw lastErr || new Error('답변을 받지 못했어요.');
+  }
+
+  // ======================================================================
+  //  2. 게임 진행
+  // ======================================================================
+  const kingLine = $('king-line');
+
+  function updateHud() {
+    const total = state.turns.reduce((a, t) => a + t.score, 0);
+    $('hud-turns').textContent = `간청 ${state.turns.length} / ${CONFIG.maxTurns}`;
+    $('hud-power').textContent = `설득력 누적 ${total}`;
+  }
+
+  function showKingLine(text) {
+    state.currentLine = text;
+    kingLine.classList.remove('thinking');
+    kingLine.textContent = text;
+  }
+
+  function setInputMode(mode) {
+    // mode: 'input' | 'after' | 'busy'
+    $('input-area').classList.toggle('hidden', mode === 'after');
+    $('after-row').classList.toggle('hidden', mode !== 'after');
+    const busy = mode === 'busy';
+    userInput.disabled = busy;
+    $('send-btn').disabled = busy;
+    micBtn.disabled = busy || !SR;
+    if (mode === 'after') {
+      const left = CONFIG.maxTurns - state.turns.length;
+      $('next-btn').classList.toggle('hidden', left <= 0);
+      $('next-btn').textContent = `다시 간청하기 (${left}번 남음)`;
+    }
+  }
+
+  function startGame() {
+    stopSpeaking();
+    state.turns = [];
+    state.busy = false;
+    updateHud();
+    setEmotion('stern');
+    userInput.value = '';
+    kingLine.textContent = '';
+    $('hint').textContent = SR
+      ? '마이크 버튼을 누르고 말하거나, 위 칸에 직접 타이핑해서 전달해도 돼요.'
+      : '이 브라우저에서는 음성 인식이 안 돼요. 크롬이나 엣지에서 열거나, 칸에 직접 입력해 주세요.';
+    setInputMode('input');
+    showScreen('screen-game');
+    const nar = $('narration');
+    nar.classList.remove('fade');
+    setTimeout(() => {
+      nar.classList.add('fade');
+      showKingLine(CONFIG.openingLine);
+      speak(CONFIG.openingLine);
+      userInput.focus();
+    }, 4200);
+    nar.onclick = () => nar.classList.add('fade');
+  }
+
+  async function send() {
+    const text = userInput.value.trim();
+    if (!text || state.busy) {
+      if (!text) toast('할 말을 먼저 입력하거나 마이크로 말해 주세요.');
+      return;
+    }
+    if (listening && recog) recog.stop();
+    $('narration').classList.add('fade');
+    stopSpeaking();
+    state.busy = true;
+    setInputMode('busy');
+    kingLine.classList.add('thinking');
+    kingLine.innerHTML = '영조가 세손을 노려보고 있다<span class="dots"></span>';
+    setEmotion('thinking');
+    try {
+      const r = await callGemini(text);
+      state.turns.push({ user: text, ...r });
+      userInput.value = '';
+      updateHud();
+      setEmotion(r.emotion);
+      showKingLine(r.reply);
+      setInputMode('after');
+      speak(r.reply);
+    } catch (e) {
+      kingLine.classList.remove('thinking');
+      showKingLine(state.turns.length ? state.turns[state.turns.length - 1].reply : CONFIG.openingLine);
+      setEmotion('stern');
+      setInputMode('input');
+      if (e instanceof KeyError) {
+        toast(e.message + ' 첫 화면에서 키를 다시 확인해 주세요.', 5000);
+        setTimeout(() => showScreen('screen-key'), 1200);
+      } else {
+        toast(e.message || '잠시 후 다시 시도해 주세요.', 5000);
+      }
+      console.error(e);
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  $('send-btn').onclick = () => { unlockAudio(); send(); };
+  userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { unlockAudio(); send(); } });
+
+  $('next-btn').onclick = () => {
+    stopSpeaking();
+    setInputMode('input');
+    $('hint').textContent = '할아버지의 말에 대답하듯, 다시 간청해 보세요.';
+    userInput.focus();
+  };
+  $('result-btn').onclick = () => { stopSpeaking(); renderResult(); };
+
+  // ======================================================================
+  //  3. 결과 화면
+  // ======================================================================
+  function renderResult() {
+    const n = state.turns.length;
+    const total = state.turns.reduce((a, t) => a + t.score, 0);
+    const avg = n ? Math.round(total / n) : 0;
+    $('r-sub').innerHTML = `총 <b>${n}</b>번 간청 · 평균 설득력 <b>${avg}</b>점`;
+
+    $('r-bars').innerHTML = n
+      ? state.turns.map((t, i) => `
+        <div class="bar-row">
+          <span>${i + 1}차 간청</span>
+          <div class="bar"><i data-w="${t.score}"></i></div>
+          <span class="pt">${t.score}점</span>
+        </div>`).join('')
+      : '<p style="text-align:center">아직 간청한 기록이 없어요.</p>';
+
+    $('r-cards').innerHTML = state.turns.map((t, i) => `
+      <div class="turn-card">
+        <div class="tc-head"><span class="t">${i + 1}차 간청</span><span class="s">설득력 ${t.score}점</span></div>
+        <div class="tc-me"><b>나:</b> ${escapeHtml(t.user)}</div>
+        <div class="tc-king"><b>영조:</b> ${escapeHtml(t.reply.replace(/\n/g, ' '))}</div>
+        ${t.advice ? `<div class="tc-advice">💡 첨삭: ${escapeHtml(t.advice)}</div>` : ''}
+      </div>`).join('');
+
+    $('ending-btn').disabled = n === 0;
+    showScreen('screen-result');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelectorAll('#r-bars .bar i').forEach((el) => { el.style.width = el.dataset.w + '%'; });
+    }));
+  }
+
+  // ======================================================================
+  //  4. 엔딩 화면
+  // ======================================================================
+  function renderEnding() {
+    const total = state.turns.reduce((a, t) => a + t.score, 0);
+    const e = CONFIG.endings.find((x) => total >= x.min);
+    $('e-badge').textContent = e.badge;
+    $('e-title').textContent = e.title;
+    $('e-sub').innerHTML = `${escapeHtml(e.sub)} · 설득력 합계 <b>${total}</b>점`;
+    $('e-text').textContent = e.text;
+    showScreen('screen-ending');
+  }
+
+  $('ending-btn').onclick = renderEnding;
+  $('back-result-btn').onclick = () => showScreen('screen-result');
+  $('restart-btn').onclick = startGame;
+  $('restart-btn-2').onclick = startGame;
+})();
+</script>
+</body>
+</html>
