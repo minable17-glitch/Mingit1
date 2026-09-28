@@ -6,6 +6,7 @@
 // 배포: config.toml 에서 토큰 검사 끔 (AI 채팅 서버가 로그인 없이 부르므로 연결 키로 확인)
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { assess, rank, todayKST, type Task } from "../_shared/briefing.ts";
+import { getGoogleAccessToken } from "../_shared/google.ts";
 
 const SUPPORTED = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const PLACEHOLDER_NEXT_ACTION = "첫 단계 정하기";
@@ -19,6 +20,8 @@ const cors = {
 const INSTRUCTIONS = `업무 챙김은 교사의 업무 목록 앱입니다. 업무(task) 아래에 순서가 있는 단계(step)가 있고, 업무마다 '지금 할 다음 행동' 하나와 마감일이 있습니다.
 - 사용자가 대화에서 정리한 계획을 등록해 달라고 하면 add_task 로 업무 하나를 만들고, 할 일을 이야기한 순서대로 steps 에 넣으세요. 업무 이름은 짧게(40자 이내), 원문이나 긴 설명은 note 에 넣으세요.
 - 이미 있는 업무와 관련된 내용이면 먼저 list_tasks 로 확인하고 add_to_task 로 붙이세요. 같은 업무를 두 번 만들지 마세요.
+- "업무 정리해 줘"라고 하면 list_tasks 로 전체를 보고, 무엇을 어떻게 바꿀지 목록으로 먼저 보여 준 뒤 update_task 로 고치세요(긴 이름 줄이기, 알맞은 분류로 옮기기, 마감 채우기, 단계 새로 짜기). 원문이 이름에 들어 있으면 note 로 옮기세요.
+- 겹치는 업무는 한쪽에 단계·메모를 옮긴 뒤 다른 쪽을 archive_task 로 완료 보관하세요. 지우는 기능은 없습니다. 끝나지 않은 업무를 보관할 때는 꼭 사용자에게 먼저 물어보세요.
 - 날짜는 YYYY-MM-DD, 한국 시간 기준입니다. 연도가 없으면 가까운 미래로 보세요.
 - 등록하기 전에 무엇을 등록할지 사용자에게 짧게 보여 주고 확인받으면 좋습니다.
 - 학생 이름 등 개인정보는 업무에 넣지 마세요.`;
@@ -89,6 +92,48 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: "update_task",
+    title: "업무 고치기",
+    description: "이미 있는 업무의 이름·분류·마감·다음 행동·메모를 바꾸거나 단계를 통째로 새로 짭니다. 바꿀 것만 넣으세요. steps 를 넣으면 기존 단계 목록 전체가 그 순서로 바뀝니다(끝낸 단계는 done: true 로 유지). due_date 를 빈 문자열로 주면 마감을 지웁니다. task_id 는 list_tasks 에서.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        title: { type: "string", description: "짧은 업무 이름 (40자 이내)", maxLength: 80 },
+        category: { type: "string", description: "옮길 분류 이름 (없는 이름이면 기타)" },
+        due_date: { type: "string", description: "YYYY-MM-DD, 빈 문자열이면 마감 지우기" },
+        next_action: { type: "string", description: "지금 바로 할 한 가지" },
+        note: { type: "string", description: "메모 (원문·요약 등)" },
+        steps: {
+          type: "array",
+          description: "새 단계 목록 전체 (순서대로)",
+          items: {
+            type: "object",
+            properties: { title: { type: "string", maxLength: 120 }, due_date: DATE, done: { type: "boolean" } },
+            required: ["title"],
+            additionalProperties: false,
+          },
+          maxItems: 30,
+        },
+      },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "archive_task",
+    title: "완료로 보관",
+    description: "업무를 완료 처리해 보관함으로 옮깁니다(지우지 않음, 앱의 보관함에서 되살릴 수 있음). 끝난 업무나, 다른 업무로 내용을 합친 뒤 남은 쪽에 쓰세요. note 로 이유를 남기세요.",
+    inputSchema: {
+      type: "object",
+      properties: { task_id: { type: "string" }, note: { type: "string", description: "보관 이유 (예: '○○ 업무로 합침')" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "check_step",
@@ -184,17 +229,38 @@ async function listTasks(c: Ctx, args: { search?: string }) {
   return JSON.stringify(out, null, 1);
 }
 
-async function addTask(c: Ctx, a: { title: string; category?: string; due_date?: string; steps?: { title: string; due_date?: string }[]; next_action?: string; note?: string }) {
-  const title = a.title?.trim();
-  if (!title) throw new ToolError("업무 이름(title)이 비어 있어요.");
+// 분류 이름 → 분류. 비었거나 맞는 게 없으면 '기타' (없으면 만듦)
+async function pickCategory(c: Ctx, name?: string) {
   const cats = check(await c.db.from("categories").select("id, name, sort_order").eq("user_id", c.userId).order("sort_order")) as { id: string; name: string; sort_order: number }[];
-  const want = a.category?.replace(/\s/g, "");
-  // 분류를 안 정했거나 맞는 분류가 없으면 '기타' (없으면 만듦)
-  const cat = (want && (cats.find((x) => x.name.replace(/\s/g, "") === want) ?? cats.find((x) => x.name.includes(want) || want.includes(x.name))))
+  const want = name?.replace(/\s/g, "");
+  return (want && (cats.find((x) => x.name.replace(/\s/g, "") === want) ?? cats.find((x) => x.name.includes(want) || want.includes(x.name))))
     || cats.find((x) => x.name.trim() === "기타")
     || check(await c.db.from("categories").insert({
       user_id: c.userId, name: "기타", color: "#94a3b8", sort_order: cats.reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1) + 1,
     }).select("id, name").single()) as { id: string; name: string };
+}
+
+// 없어지는 단계에 딸린 구글 캘린더 일정 지우기 (고급 연동 사용자만, 실패해도 업무 수정은 계속)
+async function deleteCalendarEvents(c: Ctx, eventIds: string[]) {
+  if (!eventIds.length) return;
+  try {
+    const { data: row } = await c.db.from("google_tokens").select("refresh_token").eq("user_id", c.userId).maybeSingle();
+    if (!row) return;
+    const token = await getGoogleAccessToken(row.refresh_token);
+    for (const id of eventIds) {
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  } catch (e) {
+    console.warn("calendar delete failed", (e as Error).message);
+  }
+}
+
+async function addTask(c: Ctx, a: { title: string; category?: string; due_date?: string; steps?: { title: string; due_date?: string }[]; next_action?: string; note?: string }) {
+  const title = a.title?.trim();
+  if (!title) throw new ToolError("업무 이름(title)이 비어 있어요.");
+  const cat = await pickCategory(c, a.category);
   const steps = (a.steps ?? []).map((s) => ({ title: s.title?.trim(), due_date: validDate(s.due_date) })).filter((s) => s.title);
   const due = validDate(a.due_date);
   const nextAction = a.next_action?.trim() || steps[0]?.title || PLACEHOLDER_NEXT_ACTION;
@@ -244,6 +310,77 @@ async function addToTask(c: Ctx, a: { task_id: string; kind: string; content: st
   throw new ToolError("kind 는 step, note, next_action 중 하나여야 해요.");
 }
 
+async function updateTask(c: Ctx, a: {
+  task_id: string; title?: string; category?: string; due_date?: string; next_action?: string; note?: string;
+  steps?: { title: string; due_date?: string; done?: boolean }[];
+}) {
+  const t = await ownedTask(c, a.task_id);
+  const patch: Record<string, unknown> = { last_activity_at: now() };
+  const changed: string[] = [];
+  if (a.title?.trim() && a.title.trim() !== t.title) { patch.title = a.title.trim().slice(0, 80); changed.push(`이름 → ${patch.title}`); }
+  if (a.category?.trim()) {
+    const cat = await pickCategory(c, a.category);
+    if (cat.id !== t.category_id) { patch.category_id = cat.id; changed.push(`분류 → ${cat.name}`); }
+  }
+  if (a.due_date !== undefined) {
+    const due = a.due_date.trim() ? validDate(a.due_date) : null;
+    if (a.due_date.trim() && !due) throw new ToolError("마감은 YYYY-MM-DD 형식이어야 해요.");
+    if (due !== t.due_date) { patch.due_date = due; changed.push(due ? `마감 → ${due}` : "마감 지움"); }
+  }
+  if (a.note?.trim()) { patch.latest_note = a.note.trim(); changed.push("메모"); }
+
+  let steps = t.steps;
+  if (a.steps) {
+    const wanted = a.steps.map((s) => ({ title: s.title?.trim().slice(0, 120), due_date: validDate(s.due_date), done: s.done })).filter((s) => s.title);
+    const old = t.steps as (Step & { calendar_event_id?: string | null })[];
+    const oldFull = check(await c.db.from("steps").select("id, title, done, calendar_event_id").eq("user_id", c.userId).eq("task_id", t.id)) as { id: string; title: string; done: boolean; calendar_event_id: string | null }[];
+    const doneBefore = new Set(oldFull.filter((s) => s.done).map((s) => s.title.replace(/\s/g, "")));
+    const next: Step[] = [];
+    // 기존 단계 줄을 순서대로 재사용 (캘린더 일정이 이어짐), 남는 줄은 지우고 모자라면 추가
+    for (let i = 0; i < wanted.length; i++) {
+      const w = wanted[i];
+      const done = w.done ?? doneBefore.has(w.title.replace(/\s/g, ""));
+      const row = { position: i, title: w.title, due_date: w.due_date, done, done_at: done ? now() : null };
+      if (old[i]) {
+        // 완료 여부가 그대로면 완료 시각은 건드리지 않음
+        const { done_at, ...keep } = row;
+        check(await c.db.from("steps").update(old[i].done === done ? keep : { ...keep, done_at }).eq("id", old[i].id).eq("user_id", c.userId));
+        next.push({ ...row, id: old[i].id });
+      } else {
+        const ins = check(await c.db.from("steps").insert({ ...row, user_id: c.userId, task_id: t.id }).select("id").single()) as { id: string };
+        next.push({ ...row, id: ins.id });
+      }
+    }
+    const removed = old.slice(wanted.length).map((s) => s.id);
+    if (removed.length) {
+      await deleteCalendarEvents(c, oldFull.filter((s) => removed.includes(s.id) && s.calendar_event_id).map((s) => s.calendar_event_id!));
+      for (const id of removed) check(await c.db.from("steps").delete().eq("id", id).eq("user_id", c.userId));
+    }
+    steps = next;
+    changed.push(`단계 ${wanted.length}개로 새로 짬`);
+  }
+  if (a.next_action?.trim()) { patch.next_action = a.next_action.trim().slice(0, 200); changed.push(`다음 행동 → ${patch.next_action}`); }
+  else if (a.steps) patch.next_action = steps.find((s) => !s.done)?.title ?? (t.next_action || PLACEHOLDER_NEXT_ACTION);
+
+  if (!changed.length) return `"${t.title}"에서 바뀐 게 없어요.`;
+  if ("title" in patch || "due_date" in patch || a.steps) patch.calendar_dirty = true;
+  check(await c.db.from("tasks").update(patch).eq("id", t.id).eq("user_id", c.userId));
+  await log(c, t.id, "edit", changed.join(", "));
+  if (a.note?.trim()) await log(c, t.id, "note", a.note.trim());
+  return `"${(patch.title as string) ?? t.title}" 업무를 고쳤어요: ${changed.join(" / ")}`;
+}
+
+async function archiveTask(c: Ctx, a: { task_id: string; note?: string }) {
+  const t = await ownedTask(c, a.task_id);
+  if ((t as unknown as { status?: string }).status === "done") return `"${t.title}"은(는) 이미 보관함에 있어요.`;
+  check(await c.db.from("tasks").update({
+    status: "done", completed_at: now(), last_activity_at: now(), ...(a.note?.trim() ? { latest_note: a.note.trim() } : {}),
+  }).eq("id", t.id).eq("user_id", c.userId));
+  if (a.note?.trim()) await log(c, t.id, "note", a.note.trim());
+  await log(c, t.id, "complete", t.title);
+  return `"${t.title}"을(를) 완료로 보관했어요. 앱의 보관함에서 다시 꺼낼 수 있어요.`;
+}
+
 async function checkStep(c: Ctx, a: { step_id: string; done?: boolean }) {
   const step = check(await c.db.from("steps").select("id, task_id, title").eq("user_id", c.userId).eq("id", a.step_id).maybeSingle()) as { id: string; task_id: string; title: string } | null;
   if (!step) throw new ToolError("그 단계를 찾지 못했어요. list_tasks 로 step id를 다시 확인하세요.");
@@ -267,6 +404,8 @@ async function callTool(c: Ctx, name: string, args: Record<string, unknown>) {
     case "list_tasks": return await listTasks(c, args as { search?: string });
     case "add_task": return await addTask(c, args as Parameters<typeof addTask>[1]);
     case "add_to_task": return await addToTask(c, args as Parameters<typeof addToTask>[1]);
+    case "update_task": return await updateTask(c, args as Parameters<typeof updateTask>[1]);
+    case "archive_task": return await archiveTask(c, args as Parameters<typeof archiveTask>[1]);
     case "check_step": return await checkStep(c, args as Parameters<typeof checkStep>[1]);
     default: throw new ToolError(`모르는 도구: ${name}`);
   }
