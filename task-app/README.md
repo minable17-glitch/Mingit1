@@ -42,6 +42,8 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 | 보관함 | 마지막 단계를 체크하거나 완료로 보관한 업무 |
 | 꼭지 펼치기 | 브리핑에서 업무를 누르면 그 자리에서 세부 단계를 보고 바로 체크 |
 | 업무 밸런스 | 브리핑 위쪽. 분류마다 업무 수를 막대로, 위험(●)·주의(▲)·순조(■)로 나눠 표시 |
+| 긴 글 정리 | 새 업무·던져넣기 칸에 안내문을 통째로 붙여넣으면 짧은 이름·기한·단계(1) 2) 3) 항목)로 나누고 원문은 메모로. 이미 긴 이름으로 등록된 업무는 업무 화면의 **제목 정리하기** |
+| AI 채팅 커넥터 (Claude) | 설정 → **AI 채팅과 연결**에서 주소를 만들어 Claude의 커스텀 커넥터에 추가하면, 대화 중에 “업무 챙김에 등록해 줘 / 오늘 뭐부터 해?”가 바로 됨. 도구: get_briefing, list_tasks, add_task, add_to_task, check_step (`schema_mcp.sql` 필요, AI 이용료는 각자 요금제) |
 | 업무 연결도 (3D) | 하단 **연결도** 탭. 분류·업무·단계를 3D 그물로 보고, 업무끼리 “앞 업무 → 뒤 업무”로 연결. 앞 업무가 마감을 넘기면 뒤 업무에 주의 표시 (`schema_links.sql` 필요) |
 | 대화 붙여넣기 | AI와 나눈 대화를 통째로 붙여넣으면 할 일을 이야기한 순서대로 단계로 |
 
@@ -178,11 +180,13 @@ task-app/
     schema_phase2.sql     2단계 추가 테이블·열
     schema_public.sql     범용 배포: 누구나 가입, 관리자·사용자별 기능 켜기, 캘린더 구독
     schema_links.sql      업무 연결(선후 관계)
+    schema_mcp.sql        AI 채팅 커넥터 연결 키
     install_all.sql       위 세 파일 + 관리자 이메일을 한 번에
     functions/calendar-sync   구글 캘린더 일정 생성·수정·삭제
     functions/weekly-backup   주 1회 JSON 백업
     functions/gmail-import    Gmail 라벨 메일 → 받은 제안함 (AI 없음)
     functions/widget-summary  위젯용 읽기 전용 요약
+    functions/mcp             AI 채팅 커넥터 (MCP, 연결 키로 본인 업무만)
     functions/calendar-feed   캘린더 구독 주소 (.ics, 모든 사용자)
     functions/delete-account  회원 탈퇴 (계정·데이터 전체 삭제)
   public/

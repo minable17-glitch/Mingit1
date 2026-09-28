@@ -532,6 +532,24 @@ export function calendarFeedUrl(token) {
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calendar-feed?token=${token}`;
 }
 
+// ── AI 채팅 커넥터 (MCP) ─────────────────────
+// Claude 등 AI 채팅의 "커넥터"에 이 주소를 넣으면, 대화 중에 AI가 업무를 읽고 등록할 수 있음
+
+export async function createMcpToken(userId) {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  await updateSettings(userId, { mcp_token: token });
+  return token;
+}
+
+export async function clearMcpToken(userId) {
+  await updateSettings(userId, { mcp_token: null });
+}
+
+export function mcpUrl(token) {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp?token=${token}`;
+}
+
 // ── 관리자 ──────────────────────────────────
 
 export async function adminOverview() {

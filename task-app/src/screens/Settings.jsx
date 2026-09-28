@@ -67,6 +67,7 @@ export default function Settings({ settings, userId, features, onSaved, onOpenSc
 
       <CalendarFeed settings={settings} userId={userId} onSaved={onSaved} />
       <AiSettings />
+      <AiConnector settings={settings} userId={userId} onSaved={onSaved} />
       {features?.google_advanced && <GoogleAdvanced />}
       <Widget settings={settings} userId={userId} onSaved={onSaved} />
       {features?.is_admin && <Admin />}
@@ -123,6 +124,60 @@ function CalendarFeed({ settings, userId, onSaved }) {
         </>
       ) : (
         <button onClick={() => makeToken('calendar', token, userId, settings, onSaved)}>구독 주소 만들기</button>
+      )}
+    </div>
+  );
+}
+
+// AI 채팅 커넥터: Claude 대화 안에서 "업무 챙김에 등록해 줘"가 바로 되도록 (MCP). AI 이용료는 각자 요금제에 포함.
+function AiConnector({ settings, userId, onSaved }) {
+  const [copied, copy] = useCopy();
+  const token = settings.mcp_token;
+
+  async function make() {
+    if (token && !confirm('새 주소를 만들면 기존 주소로 연결한 AI 채팅은 더 이상 동작하지 않아요. 계속할까요?')) return;
+    try {
+      onSaved({ ...settings, mcp_token: await api.createMcpToken(userId) });
+    } catch (e) {
+      alert(e.message.includes('mcp_token') ? '관리자가 schema_mcp.sql(또는 install_all.sql)을 한 번 더 실행해야 쓸 수 있어요.' : `만들지 못했어요: ${e.message}`);
+    }
+  }
+
+  async function stop() {
+    if (!confirm('연결을 끊을까요? AI 채팅에서 더 이상 업무를 읽거나 등록할 수 없어요.')) return;
+    await api.clearMcpToken(userId);
+    onSaved({ ...settings, mcp_token: null });
+  }
+
+  return (
+    <div className="block stack">
+      <h2>AI 채팅과 연결 (Claude 커넥터)</h2>
+      <p className="muted small">
+        한 번 연결해 두면 Claude와 대화하다가 <b>“이거 업무 챙김에 등록해 줘”</b>, <b>“오늘 뭐부터 해야 해?”</b>라고 말하면
+        Claude가 직접 업무를 등록하고 읽어 와요. 복사·붙여넣기가 필요 없어요.
+      </p>
+      <p className="muted small">⚠️ 이 주소를 아는 사람은 내 업무를 보고 추가할 수 있어요. 다른 사람과 공유하지 마세요.</p>
+      {token ? (
+        <>
+          <div className="row wrap">
+            <button className="primary" onClick={() => copy('mcp', api.mcpUrl(token))}>{copied === 'mcp' ? '복사됨 ✓' : '연결 주소 복사'}</button>
+            <a className="button-link" href="https://claude.ai/settings/connectors" target="_blank" rel="noreferrer">Claude 커넥터 설정 열기 ↗</a>
+          </div>
+          <ol className="muted small howto">
+            <li>“연결 주소 복사”를 누르고</li>
+            <li>Claude 설정 → <b>커넥터</b> → <b>커스텀 커넥터 추가</b></li>
+            <li>이름은 <b>업무 챙김</b>, URL 칸에 붙여넣고 <b>추가</b> (고급 설정은 비워 두기)</li>
+            <li>새 대화에서 입력창의 <b>＋ → 커넥터</b>에 업무 챙김이 켜져 있는지 확인</li>
+            <li>“방금 정리한 거 업무 챙김에 등록해 줘”라고 말하면 끝. 처음 한 번은 허용 버튼을 눌러 주세요.</li>
+          </ol>
+          <p className="muted small">휴대폰 Claude 앱에서도 같은 계정이면 그대로 쓸 수 있어요. 등록된 업무는 이 앱으로 돌아오면 바로 보여요.</p>
+          <div className="row wrap">
+            <button className="link" onClick={make}>주소 새로 만들기(기존 연결 끊기)</button>
+            <button className="link" onClick={stop}>연결 끊기</button>
+          </div>
+        </>
+      ) : (
+        <button onClick={make}>연결 주소 만들기</button>
       )}
     </div>
   );

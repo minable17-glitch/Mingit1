@@ -13,3 +13,6 @@ verify_jwt = false
 
 [functions.calendar-feed]
 verify_jwt = false
+
+[functions.mcp]
+verify_jwt = false
