@@ -40,6 +40,10 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 | 분류·템플릿·시간표 | **설정**에서 관리. 기본 템플릿: 품의·출장·평가계획 (단계 날짜는 마감 기준, 주말은 금요일로) |
 | 위젯 | **설정 → 위젯 주소**. 다음 행동과 경고만 보여주는 읽기 전용 주소. 아이폰용: `docs/widget-scriptable.js` |
 | 보관함 | 마지막 단계를 체크하거나 완료로 보관한 업무 |
+| 꼭지 펼치기 | 브리핑에서 업무를 누르면 그 자리에서 세부 단계를 보고 바로 체크 |
+| 업무 밸런스 | 브리핑 위쪽. 분류마다 업무 수를 막대로, 위험(●)·주의(▲)·순조(■)로 나눠 표시 |
+| 업무 연결도 (3D) | 하단 **연결도** 탭. 분류·업무·단계를 3D 그물로 보고, 업무끼리 “앞 업무 → 뒤 업무”로 연결. 앞 업무가 마감을 넘기면 뒤 업무에 주의 표시 (`schema_links.sql` 필요) |
+| 대화 붙여넣기 | AI와 나눈 대화를 통째로 붙여넣으면 할 일을 이야기한 순서대로 단계로 |
 
 ## 새싹책방·다른 앱과 겹치지 않는 주소
 
@@ -70,7 +74,7 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 1. [supabase.com/dashboard](https://supabase.com/dashboard) → **New project** (새싹책방 계정은 무료 프로젝트 2개가 차 있어서 **양궁 성장일지 계정**으로 로그인해 만듦. 양궁 성장일지 프로젝트와는 **별개의 새 프로젝트**)
    - 이름: `task-keeper`, 지역: **Northeast Asia (Seoul)**, DB 비밀번호는 아무거나(따로 쓸 일 없음)
 2. 만들어지면 왼쪽 **SQL Editor** → `supabase/install_all.sql` 전체 붙여넣기 → **Run** (모든 표 + 범용 배포 설정 + 관리자 이메일 등록이 한 번에 됨. 관리자 이메일을 바꾸려면 파일 맨 아래 줄만 고치기)
-   - 예전 설치 파일로 이미 설치했다면 `supabase/schema_public.sql`만 추가로 실행하면 됩니다(기존 데이터는 그대로).
+   - 예전 설치 파일로 이미 설치했다면 `install_all.sql`을 다시 실행하면 됩니다(기존 데이터는 그대로, 새 표만 추가).
 3. 적어 둘 값 — **Project Settings → General**의 *Project ID*(영문 20자, 이하 PROJECT_REF), **Project Settings → API Keys**의 *Publishable key*
 
 ### 2단계 · 구글 클라우드 (로그인 + 캘린더·Gmail 권한)
@@ -173,6 +177,7 @@ task-app/
     schema.sql            테이블·보안 규칙 (SQL Editor에서 수동 실행)
     schema_phase2.sql     2단계 추가 테이블·열
     schema_public.sql     범용 배포: 누구나 가입, 관리자·사용자별 기능 켜기, 캘린더 구독
+    schema_links.sql      업무 연결(선후 관계)
     install_all.sql       위 세 파일 + 관리자 이메일을 한 번에
     functions/calendar-sync   구글 캘린더 일정 생성·수정·삭제
     functions/weekly-backup   주 1회 JSON 백업

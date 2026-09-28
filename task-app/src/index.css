@@ -221,3 +221,33 @@ button.link.danger-text, .danger-text { color: var(--danger); }
 .ai-helper p { margin: 0; }
 .ai-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
 .ai-steps li::marker { color: var(--muted); }
+
+/* ── 꼭지 펼치기 · 밸런스 · 연결도 ───────────── */
+.task-row { padding: 0; cursor: default; }
+.row-button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.chev { color: var(--muted); margin-left: 2px; }
+.row-detail { border-top: 1px solid var(--line); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.balance summary { cursor: pointer; list-style: none; }
+.balance summary::-webkit-details-marker { display: none; }
+.bal-legend { list-style: none; padding: 0; margin: 10px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; }
+.bal-rows { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.bal-row { display: grid; grid-template-columns: 6.5em 1fr; align-items: center; gap: 8px; width: 100%; border: none; background: none; padding: 4px 0; text-align: left; }
+.bal-name { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.bal-track { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bal-bar { display: flex; gap: 2px; height: 14px; min-width: 14px; }
+.bal-seg { height: 100%; min-width: 4px; }
+.bal-seg:first-child { border-radius: 4px 0 0 4px; }
+.bal-seg:last-child { border-radius: 0 4px 4px 0; }
+.bal-seg:only-child { border-radius: 4px; }
+.bal-value { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.bal-detail { margin: 2px 0 0 6.5em; color: var(--muted); }
+
+.graph-wrap { position: relative; border-radius: 12px; overflow: hidden; background: #14161c; }
+.graph-box { width: 100%; height: min(62vh, 560px); }
+.graph-error { padding: 24px; color: #e8eaf0; }
+.graph-legend { list-style: none; margin: 8px 0 0; padding: 8px 12px; background: #14161c; color: #e8eaf0; border-radius: 10px; font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.graph-legend .swatch { display: inline-block; width: 1.1em; }
+.link-list { list-style: none; padding: 0; margin: 0; }
+.link-list li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }

@@ -5,7 +5,7 @@ import Breakdown from './Breakdown.jsx';
 
 const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
-export default function TaskDetail({ taskId, categories, categoryById, templates, features, onClose }) {
+export default function TaskDetail({ taskId, categories, categoryById, templates, features, links = [], tasks = [], onOpen, onClose }) {
   const [task, setTask] = useState(null);
   const [activity, setActivity] = useState([]);
   const [breaking, setBreaking] = useState(false);
@@ -139,6 +139,8 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
         </ul>
       </div>
 
+      <Links task={task} links={links} tasks={tasks} onOpen={onOpen} />
+
       {active && <NoteForm onSave={(note, next) => run(() => api.addNote(task, note, next))} />}
 
       {active && features?.google_advanced && <WorkBlockForm onSave={(v) => run(async () => {
@@ -188,6 +190,23 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
         </button>
       </div>
     </section>
+  );
+}
+
+// 이 업무와 연결된 앞·뒤 업무 (연결 만들기는 연결도 탭에서)
+function Links({ task, links, tasks, onOpen }) {
+  const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
+  const before = links.filter((l) => l.to_task_id === task.id).map((l) => byId[l.from_task_id]).filter(Boolean);
+  const after = links.filter((l) => l.from_task_id === task.id).map((l) => byId[l.to_task_id]).filter(Boolean);
+  if (!before.length && !after.length) return null;
+  const item = (t) => <button key={t.id} className="link" onClick={() => onOpen?.(t.id)}>{t.title}</button>;
+  return (
+    <div className="block stack small">
+      <h2>🔗 연결된 업무</h2>
+      {before.length > 0 && <div>먼저 끝내야 할 업무: {before.map(item)}</div>}
+      {after.length > 0 && <div>이 업무 다음에 할 업무: {after.map(item)}</div>}
+      <p className="muted">연결을 바꾸려면 하단 “연결도” 탭에서.</p>
+    </div>
   );
 }
 

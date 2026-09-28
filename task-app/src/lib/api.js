@@ -545,3 +545,18 @@ export async function adminSetSignupOpen(open) {
 export async function adminSetUserFlags(email, { advanced }) {
   check(await supabase.rpc('admin_set_user_flags', { target_email: email, advanced }));
 }
+
+// ── 업무 연결(선후 관계) ─────────────────────────
+
+export async function loadLinks() {
+  return check(await supabase.from('task_links').select('*'));
+}
+
+export async function addLink(fromTask, toTask) {
+  check(await supabase.from('task_links').insert({ from_task_id: fromTask.id, to_task_id: toTask.id }));
+  await logActivity(toTask.id, 'edit', `앞 업무 연결: ${fromTask.title}`);
+}
+
+export async function removeLink(linkId) {
+  check(await supabase.from('task_links').delete().eq('id', linkId));
+}

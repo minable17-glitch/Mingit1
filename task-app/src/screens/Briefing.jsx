@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
-import { sortForBriefing } from '../lib/briefing.js';
+import { assess, sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
-import { extractFromDocument, guessCategoryId, triageText } from '../lib/rules.js';
+import { extractFromDocument, guessCategoryId, pickDeadline, triageText } from '../lib/rules.js';
+import { blockerDelayed, blockersOf } from '../lib/links.js';
 import { extractFromConversation, looksLikeOfficialDoc } from '../lib/conversation.js';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen,
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [],
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -37,6 +38,7 @@ export default function Briefing({
       </header>
 
       <PrivacyNotice />
+      {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
 
       <p className="summary">
         진행 중 <b>{tasks.length}</b>
@@ -96,39 +98,90 @@ export default function Briefing({
             .map(({ c, items }) => (
               <div key={c.id} className="group">
                 <h2 style={{ '--c': c.color }} className="group-title">{c.name}</h2>
-                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} />
+                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} />
               </div>
             ))
-        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} />}
+        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} />}
     </section>
   );
 }
 
-function TaskList({ rows, categoryById, today, onOpen }) {
+// 업무 꼭지 목록: 누르면 그 자리에서 펼쳐져 세부 단계를 보고 바로 체크. "열기"로 업무 화면.
+function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, reload }) {
+  const [open, setOpen] = useState(() => new Set());
+  const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
+  const toggle = (id) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+
+  async function check(task, step) {
+    try {
+      const { completed } = await api.toggleStep(task, step);
+      if (completed) alert(`“${task.title}”의 마지막 단계를 마쳐서 보관함으로 옮겼어요. 수고하셨어요!`);
+      await reload();
+    } catch (e) {
+      alert(`저장하지 못했어요: ${e.message}`);
+    }
+  }
+
   return (
     <ul className="task-list">
       {rows.map(({ task, info }) => {
         const cat = categoryById[task.category_id];
         const total = task.steps?.length ?? 0;
         const done = task.steps?.filter((s) => s.done).length ?? 0;
+        const blockers = blockersOf(task.id, links, tasksById);
+        const delayed = blockers.length > 0 && blockerDelayed(task.id, links, tasksById, today, settings);
+        const isOpen = open.has(task.id);
         return (
-          <li key={task.id} className="task-row" style={{ '--c': cat?.color }} onClick={() => onOpen(task.id)}>
-            <div className="row-top">
-              <span className="title">{task.title}</span>
-              {info.due && (
-                <span className={info.overdue ? 'badge danger' : info.dueSoon ? 'badge warn' : 'badge'}>
-                  {dueLabel(info.due, today)}
-                </span>
+          <li key={task.id} className={isOpen ? 'task-row open' : 'task-row'} style={{ '--c': cat?.color }}>
+            <button type="button" className="row-button" aria-expanded={isOpen} onClick={() => toggle(task.id)}>
+              <div className="row-top">
+                <span className="title">{task.title}</span>
+                {info.due && (
+                  <span className={info.overdue ? 'badge danger' : info.dueSoon ? 'badge warn' : 'badge'}>
+                    {dueLabel(info.due, today)}
+                  </span>
+                )}
+                {info.noReply && <span className="badge stale">{info.waitDays}일 무응답</span>}
+                {info.neglected && <span className="badge stale">{info.idle}일 방치</span>}
+                {blockers.length > 0 && (
+                  <span className={delayed ? 'badge warn' : 'badge'} title={blockers.map((b) => b.title).join(', ')}>
+                    🔗 앞 업무 {blockers.length}{delayed ? ' 지연' : ''}
+                  </span>
+                )}
+                <span className="chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
+              </div>
+              {task.waiting_on
+                ? <div className="next waiting">⏳ {task.waiting_on} 기다리는 중</div>
+                : <div className="next">→ {task.next_action}</div>}
+              {task.latest_note && <div className="note">📝 {task.latest_note}</div>}
+              {total > 0 && (
+                <div className="progress" aria-label={`단계 ${done}/${total}`}><span style={{ width: `${(done / total) * 100}%` }} /></div>
               )}
-              {info.noReply && <span className="badge stale">{info.waitDays}일 무응답</span>}
-              {info.neglected && <span className="badge stale">{info.idle}일 방치</span>}
-            </div>
-            {task.waiting_on
-              ? <div className="next waiting">⏳ {task.waiting_on} 기다리는 중</div>
-              : <div className="next">→ {task.next_action}</div>}
-            {task.latest_note && <div className="note">📝 {task.latest_note}</div>}
-            {total > 0 && (
-              <div className="progress"><span style={{ width: `${(done / total) * 100}%` }} /></div>
+            </button>
+            {isOpen && (
+              <div className="row-detail">
+                {total === 0 && <p className="muted small">아직 세부 단계가 없어요.</p>}
+                <ul className="steps">
+                  {[...(task.steps ?? [])].sort((a, b) => a.position - b.position).map((s) => (
+                    <li key={s.id} className={s.done ? 'done' : ''}>
+                      <label>
+                        <input type="checkbox" checked={s.done} onChange={() => check(task, s)} />
+                        <span>{s.title}</span>
+                      </label>
+                      {s.due_date && <span className={!s.done && s.due_date < today ? 'badge danger' : 'badge'}>{dueLabel(s.due_date, today)}</span>}
+                    </li>
+                  ))}
+                </ul>
+                {blockers.length > 0 && <p className="small muted">먼저 끝내야 할 업무: {blockers.map((b) => b.title).join(', ')}</p>}
+                <div className="row">
+                  <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '단계 정하러 열기 →' : '업무 열기 →'}</button>
+                </div>
+              </div>
             )}
           </li>
         );
@@ -183,8 +236,10 @@ function QuickAdd({ categories, templates, onAdded }) {
     if (!title.trim() || !catId) return;
     setBusy(true);
     try {
-      if (template) await api.createFromTemplate(template, { title, categoryId: catId, dueDate });
-      else await api.createTask({ title, categoryId: catId, dueDate });
+      // 마감을 안 골랐는데 업무명에 날짜가 있으면(예: "공문작성(10월5일)") 그 날짜를 마감으로
+      const due = dueDate || pickDeadline(title, todayKST());
+      if (template) await api.createFromTemplate(template, { title, categoryId: catId, dueDate: due });
+      else await api.createTask({ title, categoryId: catId, dueDate: due });
       setTitle('');
       setDueDate('');
       setTemplateId('');
@@ -394,5 +449,86 @@ function PrivacyNotice() {
       <span className="grow">🔒 학생 이름·연락처·상담 내용 등 <b>학생 개인정보는 적지 말아 주세요.</b> 업무 제목은 “3반 상담 기록 정리”처럼 써 주세요.</span>
       <button className="link" onClick={() => { try { localStorage.setItem(KEY, '1'); } catch { /* 저장 안 돼도 이번엔 닫기 */ } setHidden(true); }}>확인</button>
     </div>
+  );
+}
+
+// ── 업무 밸런스: 분류마다 업무가 얼마나 몰려 있고, 그중 위험한 게 몇 개인지 ─────
+// 색은 상태만 뜻함(아이콘+글자와 함께). 막대 길이는 모든 분류가 같은 기준(가장 많은 분류 = 전체 폭).
+const BAL = [
+  { key: 'critical', color: '#d03b3b', icon: '●', label: '위험', hint: '마감 지남·임박' },
+  { key: 'warning', color: '#fab219', icon: '▲', label: '주의', hint: '방치·무응답·앞 업무 지연' },
+  { key: 'good', color: '#0ca30c', icon: '■', label: '순조', hint: '' },
+];
+
+function BalancePanel({ tasks, categories, settings, links, today }) {
+  const [picked, setPicked] = useState(null);
+  const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
+  const rows = categories.map((c) => {
+    const mine = tasks.filter((t) => t.category_id === c.id);
+    const count = { critical: 0, warning: 0, good: 0 };
+    let steps = 0;
+    let doneSteps = 0;
+    for (const t of mine) {
+      const i = assess(t, today, settings.neglect_days, settings.waiting_days);
+      const k = i.overdue || i.dueSoon ? 'critical'
+        : (i.neglected || i.noReply || blockerDelayed(t.id, links, tasksById, today, settings)) ? 'warning' : 'good';
+      count[k] += 1;
+      steps += t.steps?.length ?? 0;
+      doneSteps += t.steps?.filter((x) => x.done).length ?? 0;
+    }
+    return { c, total: mine.length, count, progress: steps ? Math.round((doneSteps / steps) * 100) : null };
+  }).filter((r) => r.total > 0);
+  const max = Math.max(...rows.map((r) => r.total), 1);
+
+  // 한 줄 요약: 위험이 가장 많은 분류, 없으면 가장 바쁜 분류
+  const worst = [...rows].sort((a, b) => b.count.critical - a.count.critical || b.total - a.total)[0];
+  const summary = worst.count.critical > 0
+    ? `${worst.c.name}에 급한 업무가 몰려 있어요 (${worst.total}건 중 ${worst.count.critical}건 위험).`
+    : rows.length > 1 && worst.total >= 2 * Math.min(...rows.map((r) => r.total))
+      ? `${worst.c.name} 업무가 가장 많아요 (${worst.total}건). 급한 건 없어요.`
+      : '업무가 고르게 나뉘어 있고, 급한 업무는 없어요.';
+
+  return (
+    <details className="balance block" open>
+      <summary><b>업무 밸런스</b> <span className="muted small">{summary}</span></summary>
+      <ul className="bal-legend" aria-label="범례">
+        {BAL.map((b) => (
+          <li key={b.key}><span style={{ color: b.color }} aria-hidden="true">{b.icon}</span> {b.label}{b.hint && <span className="muted"> ({b.hint})</span>}</li>
+        ))}
+      </ul>
+      <ul className="bal-rows">
+        {rows.map((r) => (
+          <li key={r.c.id}>
+            <button
+              type="button"
+              className="bal-row"
+              aria-expanded={picked === r.c.id}
+              onClick={() => setPicked(picked === r.c.id ? null : r.c.id)}
+            >
+              <span className="bal-name"><span className="dot" style={{ background: r.c.color }} aria-hidden="true" />{r.c.name}</span>
+              <span className="bal-track">
+                <span className="bal-bar" style={{ width: `${(r.total / max) * 100}%` }}>
+                  {BAL.filter((b) => r.count[b.key] > 0).map((b) => (
+                    <span
+                      key={b.key}
+                      className="bal-seg"
+                      style={{ flexGrow: r.count[b.key], background: b.color }}
+                      title={`${r.c.name} · ${b.label} ${r.count[b.key]}건`}
+                    />
+                  ))}
+                </span>
+                <span className="bal-value">{r.total}건</span>
+              </span>
+            </button>
+            {picked === r.c.id && (
+              <p className="bal-detail small">
+                {BAL.map((b) => `${b.icon} ${b.label} ${r.count[b.key]}`).join(' · ')}
+                {r.progress !== null && ` · 단계 진척 ${r.progress}%`}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
