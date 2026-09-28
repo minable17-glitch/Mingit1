@@ -4,6 +4,7 @@ import { sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
 import { extractFromDocument, guessCategoryId, triageText } from '../lib/rules.js';
+import { extractFromConversation, looksLikeOfficialDoc } from '../lib/conversation.js';
 
 export default function Briefing({
   tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen,
@@ -141,7 +142,7 @@ function TaskList({ rows, categoryById, today, onOpen }) {
 const MODES = [
   { key: 'new', label: '새 업무' },
   { key: 'throw', label: '던져넣기' },
-  { key: 'doc', label: '공문 붙여넣기' },
+  { key: 'doc', label: '공문·대화 붙여넣기' },
 ];
 
 function InputArea(props) {
@@ -318,13 +319,16 @@ function ThrowIn({ tasks, categories, onAdded }) {
   );
 }
 
-// 공문 붙여넣기: 규칙으로 제목·기한·제출물을 뽑아 초안 → 초안 화면에서 AI 도움받기로 다듬거나 직접 고쳐서 확정
+// 붙여넣기: 공문이면 제목·기한·붙임을, AI와 나눈 대화면 할 일 목록을 이야기한 순서대로 뽑아 초안
+// → 초안 화면에서 AI 도움받기로 다듬거나 직접 고쳐서 확정
 function PasteDocument({ categories, onOpenScreen }) {
   const [text, setText] = useState('');
 
   function analyze() {
-    const draft = extractFromDocument(text, categories, todayKST());
-    onOpenScreen({ type: 'draft', draft, source: '공문', sourceText: text });
+    const today = todayKST();
+    const isDoc = looksLikeOfficialDoc(text);
+    const draft = isDoc ? extractFromDocument(text, categories, today) : extractFromConversation(text, categories, today);
+    onOpenScreen({ type: 'draft', draft, source: isDoc ? '공문' : 'AI 대화', sourceText: text });
     setText('');
   }
 
@@ -332,7 +336,7 @@ function PasteDocument({ categories, onOpenScreen }) {
     <div className="stack">
       <textarea
         rows={5}
-        placeholder="공문 본문을 그대로 붙여넣으세요. 제목·기한·붙임(제출물)을 찾아 업무 초안을 만들어요."
+        placeholder={'공문 본문이나, ChatGPT·Claude 등과 나눈 대화를 통째로 붙여넣으세요.\n공문이면 제목·기한·붙임을, 대화면 할 일 목록을 이야기한 순서대로 뽑아 업무 초안을 만들어요.'}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />

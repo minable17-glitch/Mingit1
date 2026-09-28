@@ -70,7 +70,7 @@ export default function AiHelper({ title = 'AI 도움받기', buildPrompt, onAns
         <li className="stack">
           <textarea
             rows={5}
-            placeholder={answerPlaceholder ?? 'AI의 답을 통째로 복사해 여기에 붙여넣으세요'}
+            placeholder={answerPlaceholder ?? 'AI의 답을 통째로 복사해 여기에 붙여넣으세요. 형식이 달라도, 대화 전체를 붙여넣어도 목록을 순서대로 읽어요.'}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
           />

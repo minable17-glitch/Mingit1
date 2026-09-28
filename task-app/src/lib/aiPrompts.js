@@ -2,6 +2,7 @@
 // 받은 답을 다시 앱에 붙여넣으면 여기서 읽어 들입니다. (자기 API 키를 넣은 사용자는 자동으로 주고받음)
 // 답 형식을 [업무] [마감] [단계]… 처럼 정해 달라고 부탁하되, AI가 조금 다르게 답해도 읽을 수 있게 너그럽게 해석합니다.
 import { findDates } from './rules.js';
+import { extractActionItems } from './conversation.js';
 
 const ANSWER_FORMAT = `아래 형식 그대로, 다른 말 없이 답해 주세요. 날짜는 YYYY-MM-DD로 씁니다.
 [업무] 업무 이름
@@ -116,7 +117,6 @@ function parseStepLine(line, today) {
 export function parsePlan(answer, today) {
   const out = { title: '', due_date: '', category: '', steps: [], next_action: '', note: '' };
   let section = null;
-  const loose = []; // 섹션 표시 없이 나온 번호 목록
   for (const raw of answer.split(/\r?\n/)) {
     const line = plain(raw);
     if (!line) continue;
@@ -139,9 +139,9 @@ export function parsePlan(answer, today) {
     if (section === 'steps' && st) out.steps.push(st);
     else if (section === 'note') out.note = out.note ? `${out.note} ${line}` : line;
     else if (section === 'next_action' && !out.next_action) out.next_action = line;
-    else if (st) loose.push(st);
   }
-  if (!out.steps.length && loose.length) out.steps = loose;
+  // [단계] 표시가 없으면(자유롭게 나눈 대화를 통째로 붙여넣은 경우) 목록을 이야기한 순서대로
+  if (!out.steps.length) out.steps = extractActionItems(answer, today);
   out.steps = out.steps.slice(0, 12);
   return out;
 }
