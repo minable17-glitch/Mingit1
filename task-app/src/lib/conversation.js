@@ -31,6 +31,18 @@ export function cleanItemTitle(body) {
     .trim();
 }
 
+// 안내문 말투 떼기: "제출해 주시기 바랍니다" → "제출", "마감은 입니다" → "마감"
+export function politeTrim(t) {
+  return t
+    .replace(/\s*(을|를)?\s*(부탁드립니다|부탁드려요|바랍니다|부탁해요)[.!]?$/, '')
+    .replace(/\s*(해|하여|하시어)?\s*(주시기|주십시오|주세요|주시면\s*됩니다)[.!]?$/, '')
+    .replace(/\s*(까지)?\s*(입니다|이에요|예요|합니다)[.!]?$/, '')
+    .replace(/\s*(하시기|하시고|하시길)$/, '')
+    .replace(/(?<=\S{2})[은는]$/, '')
+    .replace(/[\s,.]+$/, '')
+    .trim();
+}
+
 // 너무 긴 설명은 첫 문장(또는 60자)까지만
 function shorten(title) {
   if (title.length <= 60) return title;
@@ -53,7 +65,7 @@ export function extractActionItems(text, today) {
     if (!line || /[?？]\s*$/.test(line)) continue; // 질문은 할 일이 아님
     if (/[:：]\s*$/.test(line)) continue; // "준비물:" 처럼 아래 목록의 제목만 있는 줄
     const dates = findDates(line, today);
-    const title = shorten(cleanItemTitle(line));
+    const title = shorten(politeTrim(cleanItemTitle(line)));
     if (title.length < 2) continue;
     const key = title.replace(/\s/g, '');
     if (seen.has(key)) continue;

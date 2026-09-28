@@ -2,6 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { diffDays, dueLabel, formatShort, toDateKST, todayKST } from '../lib/date.js';
 import Breakdown from './Breakdown.jsx';
+import { extractFromLongText } from '../lib/notice.js';
+
+// 긴 글이 통째로 업무 이름이 된 경우: 짧은 이름 + (비어 있으면) 기한·단계 + 원문은 메모
+async function tidyLongTitle(task, categories, today) {
+  const { draft } = extractFromLongText(task.title, categories, today);
+  const patch = { title: draft.title };
+  if (!task.due_date && draft.due_date) patch.due_date = draft.due_date;
+  const updated = await api.updateTask(task, patch);
+  const steps = draft.steps.filter((s) => s.title.trim());
+  if (!task.steps?.length && steps.length) await api.saveBreakdown({ ...task, ...updated }, steps, draft.next_action);
+  await api.addNote(task, draft.note || `[원문] ${task.title}`);
+}
 
 const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
@@ -69,6 +81,12 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
       )}
 
       <EditableTitle key={task.title} task={task} onSave={(title) => run(() => api.updateTask(task, { title }))} />
+      {active && task.title.length > 40 && (
+        <div className="banner static small">
+          업무 이름이 너무 길어요. 짧은 이름·기한·단계로 나누고 원문은 메모로 옮길까요?{' '}
+          <button className="primary" disabled={busy} onClick={() => run(() => tidyLongTitle(task, categories, today))}>제목 정리하기</button>
+        </div>
+      )}
 
       <div className="fields">
         <label>

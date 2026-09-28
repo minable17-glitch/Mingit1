@@ -225,6 +225,7 @@ button.link.danger-text, .danger-text { color: var(--danger); }
 /* ── 꼭지 펼치기 · 밸런스 · 연결도 ───────────── */
 .task-row { padding: 0; cursor: default; }
 .row-button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.row-button .title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .chev { color: var(--muted); margin-left: 2px; }
 .row-detail { border-top: 1px solid var(--line); padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 

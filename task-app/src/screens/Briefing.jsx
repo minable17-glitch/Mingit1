@@ -3,9 +3,9 @@ import * as api from '../lib/api.js';
 import { assess, sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
-import { extractFromDocument, guessCategoryId, pickDeadline, triageText } from '../lib/rules.js';
+import { guessCategoryId, pickDeadline, triageText } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
-import { extractFromConversation, looksLikeOfficialDoc } from '../lib/conversation.js';
+import { extractFromLongText, isLongText } from '../lib/notice.js';
 
 export default function Briefing({
   tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [],
@@ -214,7 +214,7 @@ function InputArea(props) {
   );
 }
 
-function QuickAdd({ categories, templates, onAdded }) {
+function QuickAdd({ categories, templates, onAdded, onOpenScreen }) {
   const [title, setTitle] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -234,6 +234,12 @@ function QuickAdd({ categories, templates, onAdded }) {
   async function submit(e) {
     e.preventDefault();
     if (!title.trim() || !catId) return;
+    // 안내문 등 긴 글을 붙여넣었으면 통째로 이름이 되지 않게 정리 화면으로
+    if (isLongText(title) && !template) {
+      openLongText(title, categories, onOpenScreen);
+      setTitle('');
+      return;
+    }
     setBusy(true);
     try {
       // 마감을 안 골랐는데 업무명에 날짜가 있으면(예: "공문작성(10월5일)") 그 날짜를 마감으로
@@ -279,6 +285,12 @@ function QuickAdd({ categories, templates, onAdded }) {
   );
 }
 
+// 긴 글 → 업무 초안 화면 (짧은 이름·기한·단계, 원문은 메모)
+function openLongText(text, categories, onOpenScreen, options) {
+  const { draft, source } = extractFromLongText(text, categories, todayKST(), options);
+  onOpenScreen({ type: 'draft', draft, source, sourceText: text });
+}
+
 const ATTACH_OPTIONS = [
   { key: 'step', label: '할 일(단계)로 추가' },
   { key: 'note', label: '메모로 남기기' },
@@ -286,7 +298,7 @@ const ATTACH_OPTIONS = [
 ];
 
 // 던져넣기: 규칙으로 어느 업무 것인지 추측 → 사용자가 고쳐서 반영.
-function ThrowIn({ tasks, categories, onAdded }) {
+function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposal, setProposal] = useState(null);
@@ -294,6 +306,11 @@ function ThrowIn({ tasks, categories, onAdded }) {
   function sortOut(e) {
     e.preventDefault();
     if (!text.trim()) return;
+    if (isLongText(text)) {
+      openLongText(text, categories, onOpenScreen);
+      setText('');
+      return;
+    }
     setProposal(triageText(text.trim(), tasks, categories, todayKST()));
   }
 
@@ -380,10 +397,7 @@ function PasteDocument({ categories, onOpenScreen }) {
   const [text, setText] = useState('');
 
   function analyze() {
-    const today = todayKST();
-    const isDoc = looksLikeOfficialDoc(text);
-    const draft = isDoc ? extractFromDocument(text, categories, today) : extractFromConversation(text, categories, today);
-    onOpenScreen({ type: 'draft', draft, source: isDoc ? '공문' : 'AI 대화', sourceText: text });
+    openLongText(text, categories, onOpenScreen, { preferChat: true });
     setText('');
   }
 

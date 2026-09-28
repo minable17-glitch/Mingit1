@@ -189,7 +189,8 @@ export function triageText(text, tasks, categories, today) {
     .sort((x, y) => y.s - x.s);
   const best = scored[0];
   const due = pickDeadline(text, today);
-  if (best && best.s >= 0.3) {
+  // 긴 글은 짧은 업무명과 겹치는 조각이 우연히 많아지므로 기존 업무에 붙이지 않음 (정리 화면에서 새 업무로)
+  if (best && best.s >= 0.3 && text.trim().length <= 60) {
     return {
       task_id: best.t.id,
       attach_as: TODO_WORDS.test(text) ? 'step' : 'note',
