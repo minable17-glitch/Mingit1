@@ -9,7 +9,10 @@ export const DEFAULT_CATEGORIES = [
   { name: '수업', color: '#4f7cff' },
   { name: '행정업무', color: '#10b981' },
   { name: '개인 일정', color: '#a855f7' },
+  { name: '기타', color: '#94a3b8' },
 ];
+
+export const ETC_CATEGORY = '기타';
 
 export const PLACEHOLDER_NEXT_ACTION = '첫 단계 정하기';
 
@@ -282,6 +285,15 @@ export async function clearWaiting(task, note) {
 }
 
 // ── 분류 ────────────────────────────────────
+
+// 던져넣기에서 분류를 고르지 않으면 들어가는 '기타' 분류 (없으면 맨 뒤에 만듦)
+// 돌려주는 값: { category, created }
+export async function ensureEtcCategory(categories) {
+  const found = categories.find((c) => c.name.trim() === ETC_CATEGORY);
+  if (found) return { category: found, created: false };
+  const sortOrder = categories.reduce((m, c) => Math.max(m, c.sort_order ?? 0), -1) + 1;
+  return { category: await createCategory({ name: ETC_CATEGORY, color: '#94a3b8' }, sortOrder), created: true };
+}
 
 export async function createCategory({ name, color }, sortOrder) {
   return check(await supabase.from('categories').insert({ name: name.trim(), color, sort_order: sortOrder }).select().single());

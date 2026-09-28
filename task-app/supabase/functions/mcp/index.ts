@@ -52,7 +52,7 @@ const TOOLS = [
       type: "object",
       properties: {
         title: { type: "string", description: "짧은 업무 이름 (40자 이내)", maxLength: 80 },
-        category: { type: "string", description: "분류 이름 (예: 담임, 수업, 행정업무). 없는 이름이면 첫 분류로" },
+        category: { type: "string", description: "분류 이름 (예: 담임, 수업, 행정업무). 비우거나 맞는 분류가 없으면 기타로" },
         due_date: DATE,
         steps: {
           type: "array",
@@ -187,10 +187,14 @@ async function listTasks(c: Ctx, args: { search?: string }) {
 async function addTask(c: Ctx, a: { title: string; category?: string; due_date?: string; steps?: { title: string; due_date?: string }[]; next_action?: string; note?: string }) {
   const title = a.title?.trim();
   if (!title) throw new ToolError("업무 이름(title)이 비어 있어요.");
-  const cats = check(await c.db.from("categories").select("id, name").eq("user_id", c.userId).order("sort_order")) as { id: string; name: string }[];
-  if (!cats.length) throw new ToolError("분류가 하나도 없어요. 업무 챙김 앱에 한 번 로그인하면 기본 분류가 만들어져요.");
+  const cats = check(await c.db.from("categories").select("id, name, sort_order").eq("user_id", c.userId).order("sort_order")) as { id: string; name: string; sort_order: number }[];
   const want = a.category?.replace(/\s/g, "");
-  const cat = (want && (cats.find((x) => x.name.replace(/\s/g, "") === want) ?? cats.find((x) => x.name.includes(want) || want.includes(x.name)))) || cats[0];
+  // 분류를 안 정했거나 맞는 분류가 없으면 '기타' (없으면 만듦)
+  const cat = (want && (cats.find((x) => x.name.replace(/\s/g, "") === want) ?? cats.find((x) => x.name.includes(want) || want.includes(x.name))))
+    || cats.find((x) => x.name.trim() === "기타")
+    || check(await c.db.from("categories").insert({
+      user_id: c.userId, name: "기타", color: "#94a3b8", sort_order: cats.reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1) + 1,
+    }).select("id, name").single()) as { id: string; name: string };
   const steps = (a.steps ?? []).map((s) => ({ title: s.title?.trim(), due_date: validDate(s.due_date) })).filter((s) => s.title);
   const due = validDate(a.due_date);
   const nextAction = a.next_action?.trim() || steps[0]?.title || PLACEHOLDER_NEXT_ACTION;

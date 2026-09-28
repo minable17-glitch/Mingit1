@@ -3,7 +3,7 @@ import * as api from '../lib/api.js';
 import { assess, sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
-import { guessCategoryId, pickDeadline, triageText } from '../lib/rules.js';
+import { pickDeadline, triageText } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 
@@ -286,8 +286,9 @@ function QuickAdd({ categories, templates, onAdded, onOpenScreen }) {
 }
 
 // 긴 글 → 업무 초안 화면 (짧은 이름·기한·단계, 원문은 메모)
-function openLongText(text, categories, onOpenScreen, options) {
+function openLongText(text, categories, onOpenScreen, options, categoryId) {
   const { draft, source } = extractFromLongText(text, categories, todayKST(), options);
+  if (categoryId) draft.category_id = categoryId;
   onOpenScreen({ type: 'draft', draft, source, sourceText: text });
 }
 
@@ -303,15 +304,28 @@ function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
   const [busy, setBusy] = useState(false);
   const [proposal, setProposal] = useState(null);
 
-  function sortOut(e) {
+  // 분류를 따로 고르지 않으면 '기타'로 (처음 한 번은 '기타' 분류를 만듦)
+  async function etcId() {
+    const { category, created } = await api.ensureEtcCategory(categories);
+    if (created) await onAdded();
+    return category.id;
+  }
+
+  async function sortOut(e) {
     e.preventDefault();
     if (!text.trim()) return;
-    if (isLongText(text)) {
-      openLongText(text, categories, onOpenScreen);
-      setText('');
-      return;
+    try {
+      const etc = await etcId();
+      if (isLongText(text)) {
+        openLongText(text, categories, onOpenScreen, {}, etc);
+        setText('');
+        return;
+      }
+      const p = triageText(text.trim(), tasks, categories, todayKST());
+      setProposal({ ...p, category_id: etc });
+    } catch (err) {
+      alert(`정리하지 못했어요: ${err.message}`);
     }
-    setProposal(triageText(text.trim(), tasks, categories, todayKST()));
   }
 
   async function confirm() {
@@ -357,7 +371,7 @@ function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
               value={isNew ? '' : proposal.task_id}
               onChange={(e) => set(e.target.value
                 ? { task_id: e.target.value, attach_as: isNew ? 'note' : proposal.attach_as }
-                : { task_id: '', attach_as: 'new', category_id: proposal.category_id || guessCategoryId(text, categories) })}
+                : { task_id: '', attach_as: 'new', category_id: proposal.category_id || categories.find((c) => c.name === api.ETC_CATEGORY)?.id || categories[0]?.id })}
             >
               <option value="">➕ 새 업무로 만들기</option>
               {ordered.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
