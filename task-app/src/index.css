@@ -330,3 +330,11 @@ button.link.danger-text, .danger-text { color: var(--danger); }
 .day.peak .day-count { color: var(--text); }
 .day-label { font-size: 0.65rem; color: var(--muted); text-align: center; line-height: 1.2; margin-top: 3px; border-top: 1px solid var(--line); width: 100%; padding-top: 2px; }
 .day.weekend .day-label { opacity: 0.6; }
+
+.done-btn { border-color: #0ca30c; color: #0a7f0a; font-weight: 700; }
+@media (prefers-color-scheme: dark) { .done-btn { color: #4cc94c; } }
+.undo-bar {
+  position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 8px;
+  background: var(--text); color: var(--bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 0.9rem;
+}
+.undo-bar .link { color: #9ec5f4; font-weight: 700; }

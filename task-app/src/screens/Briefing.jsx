@@ -118,6 +118,29 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
     return next;
   });
 
+  // 펼친 자리에서 바로 완료 → 보관함으로. 잘못 눌렀으면 잠깐 뜨는 '되돌리기'로 복구
+  const [justDone, setJustDone] = useState(null);
+  async function complete(task) {
+    try {
+      await api.completeTask(task);
+      setJustDone(task);
+      setTimeout(() => setJustDone((cur) => (cur?.id === task.id ? null : cur)), 8000);
+      await reload();
+    } catch (e) {
+      alert(`완료하지 못했어요: ${e.message}`);
+    }
+  }
+  async function undo() {
+    const task = justDone;
+    setJustDone(null);
+    try {
+      await api.reopenTask(task);
+      await reload();
+    } catch (e) {
+      alert(`되돌리지 못했어요: ${e.message}`);
+    }
+  }
+
   async function check(task, step) {
     try {
       const { completed } = await api.toggleStep(task, step);
@@ -129,6 +152,13 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
   }
 
   return (
+    <>
+    {justDone && (
+      <div className="undo-bar" role="status">
+        <span className="grow">✓ “{justDone.title}” 완료! 보관함으로 옮겼어요.</span>
+        <button className="link" onClick={undo}>되돌리기</button>
+      </div>
+    )}
     <ul className="task-list">
       {rows.map(({ task, info }) => {
         const cat = categoryById[task.category_id];
@@ -179,8 +209,9 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
                   ))}
                 </ul>
                 {blockers.length > 0 && <p className="small muted">먼저 끝내야 할 업무: {blockers.map((b) => b.title).join(', ')}</p>}
-                <div className="row">
+                <div className="row wrap">
                   <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '단계 정하러 열기 →' : '업무 열기 →'}</button>
+                  <button className="done-btn" onClick={() => complete(task)}>✓ 완료</button>
                 </div>
               </div>
             )}
@@ -188,6 +219,7 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
         );
       })}
     </ul>
+    </>
   );
 }
 
