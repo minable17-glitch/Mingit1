@@ -1,7 +1,11 @@
-// 업무 밸런스: 못 챙긴 업무가 많을수록 저울이 기울고, 급함·업무량을 지도로, 분류별·날짜별 부담을 막대로.
+// 업무 밸런스: 업무마다 캐릭터(업무 친구) — 챙길수록 크고, 오래 안 챙기면 작아지고 졸고, 급하면 땀을 흘림.
+// 아래 '숫자로 자세히'에는 균형 점수·저울, 업무 지도(급함 × 남은 단계), 분류별·날짜별 부담.
 // 색은 상태만 뜻함(위험·주의·순조) + 모양(●▲■)과 글자로 함께 표시.
 import { useMemo, useState } from 'react';
+import * as api from '../lib/api.js';
 import { analyzeBalance, HEAVY_LOAD, quadrantOf, QUADRANTS } from '../lib/balance.js';
+import { buddyOf, moodCounts, MOODS } from '../lib/buddies.js';
+import Buddy from './Buddy.jsx';
 import { dueLabel, todayKST } from '../lib/date.js';
 
 const STATE = {
@@ -11,31 +15,137 @@ const STATE = {
 };
 const ORDER = ['critical', 'warning', 'good'];
 
-export default function Balance({ tasks, categories, settings, links = [], onOpen, onOpenScreen }) {
+export default function Balance({ tasks, categories, settings, links = [], onOpen, onOpenScreen, reload }) {
   const today = todayKST();
   const b = useMemo(() => analyzeBalance(tasks, categories, settings, links, today), [tasks, categories, settings, links, today]);
 
   if (!tasks.length) {
     return (
       <section>
-        <header className="page-head"><h1>업무 밸런스</h1></header>
-        <p className="muted">진행 중인 업무가 없어요. 업무를 등록하면 여기서 균형을 보여 드려요.</p>
+        <header className="page-head"><h1>업무 친구들</h1></header>
+        <p className="muted">진행 중인 업무가 없어요. 업무를 등록하면 업무마다 친구가 한 명씩 생겨요.</p>
       </section>
     );
   }
 
   return (
     <section className="viz-root">
-      <header className="page-head"><h1>업무 밸런스</h1></header>
+      <header className="page-head"><h1>업무 친구들</h1></header>
+      <Garden b={b} categories={categories} settings={settings} onOpen={onOpen} reload={reload} />
 
-      <ScaleHero b={b} neglectDays={settings.neglect_days} />
-      <Meters b={b} />
-      <TaskMap points={b.points} today={today} onOpen={onOpen} />
-      <CategoryBalance rows={b.byCategory} onOpen={onOpen} />
-      <TwoWeeks days={b.days} overdue={b.overdueItems} />
+      <details className="more-stats">
+        <summary>📊 숫자로 자세히 보기 (균형 점수·업무 지도·2주 마감)</summary>
+        <ScaleHero b={b} neglectDays={settings.neglect_days} />
+        <Meters b={b} />
+        <TaskMap points={b.points} today={today} onOpen={onOpen} />
+        <CategoryBalance rows={b.byCategory} onOpen={onOpen} />
+        <TwoWeeks days={b.days} overdue={b.overdueItems} />
+      </details>
 
       <button className="link" onClick={() => onOpenScreen({ type: 'graph' })}>🔗 업무 연결(먼저 끝낼 업무) 관리 · 3D로 보기 →</button>
     </section>
+  );
+}
+
+// 업무 친구 정원: 분류마다 한 줄, 챙길수록 크고 오래 안 챙기면 작아지고 졸아요
+const MOOD_ORDER = ['panic', 'worried', 'sleepy', 'waiting', 'calm', 'happy'];
+
+function Garden({ b, categories, settings, onOpen, reload }) {
+  const [sel, setSel] = useState(null);
+  const [justDone, setJustDone] = useState(null);
+  const buddies = useMemo(
+    () => b.points.map((p) => ({ ...p, ...buddyOf(p, settings.neglect_days) })),
+    [b.points, settings.neglect_days],
+  );
+  const counts = moodCounts(buddies);
+  const rows = categories
+    .map((c) => ({ c, items: buddies.filter((x) => x.task.category_id === c.id).sort((x, y) => MOOD_ORDER.indexOf(x.mood) - MOOD_ORDER.indexOf(y.mood)) }))
+    .filter((r) => r.items.length);
+  const picked = buddies.find((x) => x.task.id === sel);
+  const needCare = counts.sleepy + counts.waiting;
+  const headline = counts.panic + counts.worried > 0
+    ? `땀 흘리는 친구 ${counts.panic + counts.worried}명이 급해요.${needCare ? ` 시든 친구도 ${needCare}명 있어요.` : ''}`
+    : needCare > 0 ? `시든 친구 ${needCare}명이 챙겨 주길 기다려요.` : '모두 잘 지내고 있어요!';
+
+  async function complete(task) {
+    try {
+      await api.completeTask(task);
+      setSel(null);
+      setJustDone(task);
+      await reload();
+    } catch (e) {
+      alert(`완료하지 못했어요: ${e.message}`);
+    }
+  }
+  async function undo() {
+    const task = justDone;
+    setJustDone(null);
+    await api.reopenTask(task);
+    await reload();
+  }
+
+  return (
+    <>
+      <div className="garden-head block">
+        <p className="garden-headline">{headline}</p>
+        <ul className="mood-chips">
+          {MOOD_ORDER.slice().reverse().filter((m) => counts[m] > 0).map((m) => (
+            <li key={m}>{MOODS[m].emoji} {MOODS[m].label} <b>{counts[m]}</b></li>
+          ))}
+        </ul>
+        <p className="small muted">
+          크게 = 최근에 챙김 · 작게·졸림 = {settings.neglect_days}일 넘게 못 챙김 · 땀 = 마감 임박 · 머리 위 상자 = 남은 단계.
+          단계를 체크하거나 메모를 남기면 다시 커져요.
+        </p>
+      </div>
+
+      {justDone && (
+        <div className="undo-bar" role="status">
+          <span className="grow">🎉 “{justDone.title}” 완료! 보관함으로 보냈어요.</span>
+          <button className="link" onClick={undo}>되돌리기</button>
+        </div>
+      )}
+
+      {rows.map(({ c, items }) => (
+        <div key={c.id} className="garden block" style={{ '--c': c.color }}>
+          <div className="garden-title"><span className="dot" style={{ background: c.color }} aria-hidden="true" />{c.name} <span className="muted small">{items.length}</span></div>
+          <ul className="garden-row">
+            {items.map((x, i) => (
+              <li key={x.task.id}>
+                <button
+                  type="button"
+                  className={`buddy${sel === x.task.id ? ' on' : ''}`}
+                  onClick={() => setSel(sel === x.task.id ? null : x.task.id)}
+                  aria-label={`${x.task.title}: ${MOODS[x.mood].label}`}
+                >
+                  <Buddy color={c.color} mood={x.mood} boxes={x.boxes} size={x.size} delay={(i * 0.37) % 2} />
+                  <span className="buddy-name">{x.task.title}</span>
+                  {(x.info.due || x.info.neglected || x.info.noReply) && (
+                    <span className={`buddy-tag ${x.info.overdue || x.info.dueSoon ? 'hot' : ''}`}>
+                      {x.info.due ? dueLabel(x.info.due, todayKST()) : x.info.noReply ? `${x.info.waitDays}일 무응답` : `${x.info.idle}일 방치`}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {picked && picked.task.category_id === c.id && (
+            <div className="map-card buddy-card">
+              <div className="row">
+                <span className="buddy-emoji" aria-hidden="true">{MOODS[picked.mood].emoji}</span>
+                <b className="grow">{picked.task.title}</b>
+              </div>
+              <p className="small">{picked.message}</p>
+              <p className="small muted">→ 다음 행동: {picked.task.waiting_on ? `${picked.task.waiting_on} 기다리기` : picked.task.next_action}</p>
+              <div className="row wrap">
+                <button className="primary" onClick={() => onOpen(picked.task.id)}>업무 열기 →</button>
+                <button className="done-btn" onClick={() => complete(picked.task)}>✓ 완료</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
