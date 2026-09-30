@@ -11,12 +11,13 @@ import Inbox from './screens/Inbox.jsx';
 import DraftForm from './screens/DraftForm.jsx';
 import Templates from './screens/Templates.jsx';
 import Timetable from './screens/Timetable.jsx';
-// 3D 연결도는 무거워서 탭을 열 때만 내려받음
+import Balance from './screens/Balance.jsx';
+// 3D 연결도는 무거워서 열 때만 내려받음 (밸런스 화면 맨 아래에서)
 const Graph3D = lazy(() => import('./screens/Graph3D.jsx'));
 
 const TABS = [
   { key: 'briefing', label: '브리핑' },
-  { key: 'graph', label: '연결도' },
+  { key: 'balance', label: '밸런스' },
   { key: 'archive', label: '보관함' },
   { key: 'review', label: '회고' },
   { key: 'settings', label: '설정' },
@@ -166,6 +167,11 @@ function Main({ userId, features }) {
     categories: () => <Categories {...shared} onClose={close} />,
     templates: () => <Templates {...shared} onClose={close} />,
     timetable: () => <Timetable {...shared} onClose={close} />,
+    graph: () => (
+      <Suspense fallback={<div className="center muted">연결도 불러오는 중…</div>}>
+        <Graph3D {...shared} onClose={close} />
+      </Suspense>
+    ),
     draft: () => (
       <DraftForm
         initial={overlay.draft}
@@ -189,11 +195,7 @@ function Main({ userId, features }) {
         <>
           <main>
             {tab === 'briefing' && <Briefing {...shared} inboxCount={inboxCount} />}
-            {tab === 'graph' && (
-              <Suspense fallback={<div className="center muted">연결도 불러오는 중…</div>}>
-                <Graph3D {...shared} />
-              </Suspense>
-            )}
+            {tab === 'balance' && <Balance {...shared} />}
             {tab === 'archive' && <Archive {...shared} />}
             {tab === 'review' && <Review {...shared} />}
             {tab === 'settings' && <Settings {...shared} />}

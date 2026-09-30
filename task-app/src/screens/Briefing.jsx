@@ -5,6 +5,7 @@ import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
 import { pickDeadline, triageText } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
+import { taskState } from '../lib/balance.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 
 export default function Briefing({
@@ -497,9 +498,7 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
     let steps = 0;
     let doneSteps = 0;
     for (const t of mine) {
-      const i = assess(t, today, settings.neglect_days, settings.waiting_days);
-      const k = i.overdue || i.dueSoon ? 'critical'
-        : (i.neglected || i.noReply || blockerDelayed(t.id, links, tasksById, today, settings)) ? 'warning' : 'good';
+      const k = taskState(t, assess(t, today, settings.neglect_days, settings.waiting_days), links, tasksById, today, settings);
       count[k] += 1;
       steps += t.steps?.length ?? 0;
       doneSteps += t.steps?.filter((x) => x.done).length ?? 0;

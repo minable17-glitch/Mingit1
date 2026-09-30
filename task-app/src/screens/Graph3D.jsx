@@ -21,7 +21,7 @@ const BG = '#14161c';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const short = (s, n = 14) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-export default function Graph3D({ tasks, categories, links, settings, reload, onOpen }) {
+export default function Graph3D({ tasks, categories, links, settings, reload, onOpen, onClose }) {
   const box = useRef(null);
   const graphRef = useRef(null);
   const [showSteps, setShowSteps] = useState(true);
@@ -147,6 +147,7 @@ export default function Graph3D({ tasks, categories, links, settings, reload, on
 
   return (
     <section>
+      {onClose && <button className="link" onClick={onClose}>← 밸런스</button>}
       <header className="page-head">
         <h1>업무 연결도</h1>
         <label className="toggle">
