@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import * as api from './lib/api.js';
 import Briefing from './screens/Briefing.jsx';
@@ -12,14 +12,13 @@ import DraftForm from './screens/DraftForm.jsx';
 import Templates from './screens/Templates.jsx';
 import Timetable from './screens/Timetable.jsx';
 import Balance from './screens/Balance.jsx';
-// 3D 연결도는 무거워서 열 때만 내려받음 (밸런스 화면 맨 아래에서)
-const Graph3D = lazy(() => import('./screens/Graph3D.jsx'));
+import Thoughts from './screens/Thoughts.jsx';
 
 const TABS = [
   { key: 'briefing', label: '브리핑' },
-  { key: 'balance', label: '밸런스' },
+  { key: 'balance', label: '한눈에' },
+  { key: 'thoughts', label: '생각' },
   { key: 'archive', label: '보관함' },
-  { key: 'review', label: '회고' },
   { key: 'settings', label: '설정' },
 ];
 
@@ -97,6 +96,7 @@ function Main({ userId, features }) {
   const [templates, setTemplates] = useState([]);
   const [links, setLinks] = useState([]);
   const [reminders, setReminders] = useState([]);
+  const [thoughts, setThoughts] = useState([]);
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
@@ -104,13 +104,14 @@ function Main({ userId, features }) {
 
   const reload = useCallback(async () => {
     try {
-      const [cats, active, st, tpls, inbox, lnks, rems] = await Promise.all([
+      const [cats, active, st, tpls, inbox, lnks, rems, notes] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
         api.loadTemplates().catch(() => []),
         // 받은 제안함(Gmail)은 고급 구글 연동 사용자만
         features.google_advanced ? api.loadInbox().catch(() => []) : [],
         api.loadLinks().catch(() => []), // 연결 표를 아직 안 만들었어도 앱은 동작
         api.loadReminders(),
+        api.loadThoughts(),
       ]);
       setCategories(cats);
       setTasks(active);
@@ -119,6 +120,7 @@ function Main({ userId, features }) {
       setInboxCount(inbox.length);
       setLinks(lnks);
       setReminders(rems);
+      setThoughts(notes);
       setError('');
       return active;
     } catch (e) {
@@ -173,7 +175,7 @@ function Main({ userId, features }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders,
+    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 
@@ -184,11 +186,6 @@ function Main({ userId, features }) {
     categories: () => <Categories {...shared} onClose={close} />,
     templates: () => <Templates {...shared} onClose={close} />,
     timetable: () => <Timetable {...shared} onClose={close} />,
-    graph: () => (
-      <Suspense fallback={<div className="center muted">연결도 불러오는 중…</div>}>
-        <Graph3D {...shared} onClose={close} />
-      </Suspense>
-    ),
     draft: () => (
       <DraftForm
         initial={overlay.draft}
@@ -214,7 +211,7 @@ function Main({ userId, features }) {
             {tab === 'briefing' && <Briefing {...shared} inboxCount={inboxCount} />}
             {tab === 'balance' && <Balance {...shared} />}
             {tab === 'archive' && <Archive {...shared} />}
-            {tab === 'review' && <Review {...shared} />}
+            {tab === 'thoughts' && <Thoughts {...shared} />}
             {tab === 'settings' && <Settings {...shared} />}
           </main>
           <nav className="tabs">

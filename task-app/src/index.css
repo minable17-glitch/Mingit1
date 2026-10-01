@@ -388,3 +388,57 @@ p.warn { color: #b45309; }
 .buddy-svg .snot { transform-origin: 70px 78px; animation: snot 2.4s ease-in-out infinite; }
 @keyframes snot { 0%, 100% { transform: scale(0.6); } 50% { transform: scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .buddy-svg .snot { animation: none; } }
+
+/* 생각 노트 */
+.thoughts .page-head { align-items: center; }
+.composer textarea { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+.kind-pick { display: flex; flex-wrap: wrap; gap: 4px; }
+.kind-pick .chip { font-size: 0.85rem; padding: 3px 10px; }
+.principles { background: linear-gradient(135deg, #fff8e1, var(--card)); border-color: #f3dc8f; }
+@media (prefers-color-scheme: dark) { .principles { background: linear-gradient(135deg, #2e2814, var(--card)); border-color: #5c4d1d; } }
+.principles ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.search { width: 100%; margin-bottom: 10px; }
+.thought-group h3 { margin: 14px 0 6px; font-weight: 700; }
+.thought-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.thought-card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid #9aa5b8; border-radius: 12px; padding: 10px 12px; }
+.thought-card.kind-principle { border-left-color: #e8b400; }
+.thought-card.kind-idea { border-left-color: #4f7cff; }
+.thought-card.kind-lesson { border-left-color: #10b981; }
+.thought-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); }
+.kind-badge { font-weight: 700; }
+.thought-body { white-space: pre-wrap; margin: 6px 0; overflow-wrap: anywhere; }
+.thought-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.today-principle { display: flex; gap: 8px; align-items: flex-start; background: linear-gradient(135deg, #fff8e1, var(--card)); border: 1px solid #f3dc8f; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 0.92rem; }
+@media (prefers-color-scheme: dark) { .today-principle { background: linear-gradient(135deg, #2e2814, var(--card)); border-color: #5c4d1d; } }
+.today-principle b { display: block; font-size: 0.75rem; color: var(--muted); }
+
+/* 마인드맵 */
+.view-switch { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 12px; }
+.view-switch button { flex: 1; border: none; border-radius: 9px; font-weight: 700; padding: 8px; background: transparent; }
+.view-switch button.on { background: var(--text); color: var(--bg); }
+.mm-tools { margin-bottom: 8px; }
+.mm-tools button { padding: 6px 12px; font-size: 0.85rem; }
+.mm-scroll { overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; max-height: 70vh; -webkit-overflow-scrolling: touch;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 18px 18px; }
+.mm-svg { display: block; }
+.mm-edge { fill: none; stroke-linecap: round; opacity: 0.55; }
+.mm-dep { fill: none; stroke: #4f7cff; stroke-width: 2; stroke-dasharray: 6 5; }
+.mm-node text { font-family: inherit; font-size: 13px; fill: var(--text); }
+.mm-node.root rect { fill: var(--text); }
+.mm-node.root text { fill: var(--bg); font-size: 15px; font-weight: 800; }
+.mm-node.cat { cursor: pointer; }
+.mm-node.cat text { fill: #fff; font-weight: 800; font-size: 14px; paint-order: stroke; stroke: rgba(0,0,0,0.15); stroke-width: 2px; }
+.mm-node.cat .mm-count { font-size: 11px; }
+.mm-node.task rect { fill: var(--card); stroke-width: 2; }
+.mm-node.task > g:first-child { cursor: pointer; }
+.mm-node.task text { font-weight: 600; }
+.mm-more { font-size: 11px; fill: var(--muted) !important; font-weight: 700; }
+.mm-open { cursor: pointer; }
+.mm-open circle { fill: var(--bg); stroke: var(--line); }
+.mm-open text { font-size: 11px; fill: var(--primary) !important; font-weight: 800; }
+.mm-node.leaf rect { fill: var(--bg); stroke: var(--line); }
+.mm-node.leaf text { font-size: 12px; }
+.mm-node.leaf.done text { fill: var(--muted); text-decoration: line-through; }
+.mm-node.leaf.principle rect { fill: #fff8e1; stroke: #f3dc8f; }
+@media (prefers-color-scheme: dark) { .mm-node.leaf.principle rect { fill: #2e2814; stroke: #5c4d1d; } }
+.principles { margin-bottom: 12px; }

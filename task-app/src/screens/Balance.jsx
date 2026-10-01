@@ -6,6 +6,7 @@ import * as api from '../lib/api.js';
 import { analyzeBalance, HEAVY_LOAD, quadrantOf, QUADRANTS } from '../lib/balance.js';
 import { buddyOf, moodCounts, MOODS } from '../lib/buddies.js';
 import Buddy from './Buddy.jsx';
+import MindMap from './MindMap.jsx';
 import { dueLabel, todayKST } from '../lib/date.js';
 
 const STATE = {
@@ -15,34 +16,47 @@ const STATE = {
 };
 const ORDER = ['critical', 'warning', 'good'];
 
-export default function Balance({ tasks, categories, settings, links = [], onOpen, onOpenScreen, reload }) {
+const VIEW_KEY = 'task-keeper.balance-view';
+const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'buddies'; } catch { return 'buddies'; } };
+
+export default function Balance({ tasks, categories, settings, links = [], thoughts, onOpen, reload }) {
   const today = todayKST();
   const b = useMemo(() => analyzeBalance(tasks, categories, settings, links, today), [tasks, categories, settings, links, today]);
+  const [view, setView] = useState(readView);
+  const pick = (v) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* 저장 안 돼도 괜찮음 */ } };
 
   if (!tasks.length) {
     return (
       <section>
-        <header className="page-head"><h1>업무 친구들</h1></header>
-        <p className="muted">진행 중인 업무가 없어요. 업무를 등록하면 업무마다 친구가 한 명씩 생겨요.</p>
+        <header className="page-head"><h1>업무 한눈에</h1></header>
+        <p className="muted">진행 중인 업무가 없어요. 업무를 등록하면 업무마다 친구가 한 명씩 생기고, 마인드맵도 그려져요.</p>
       </section>
     );
   }
 
   return (
     <section className="viz-root">
-      <header className="page-head"><h1>업무 친구들</h1></header>
-      <Garden b={b} categories={categories} settings={settings} onOpen={onOpen} reload={reload} />
+      <header className="page-head"><h1>업무 한눈에</h1></header>
+      <div className="view-switch" role="tablist">
+        <button role="tab" aria-selected={view === 'buddies'} className={view === 'buddies' ? 'on' : ''} onClick={() => pick('buddies')}>🐣 업무 친구들</button>
+        <button role="tab" aria-selected={view === 'map'} className={view === 'map' ? 'on' : ''} onClick={() => pick('map')}>🧠 마인드맵</button>
+      </div>
 
-      <details className="more-stats">
-        <summary>📊 숫자로 자세히 보기 (균형 점수·업무 지도·2주 마감)</summary>
-        <ScaleHero b={b} neglectDays={settings.neglect_days} />
-        <Meters b={b} />
-        <TaskMap points={b.points} today={today} onOpen={onOpen} />
-        <CategoryBalance rows={b.byCategory} onOpen={onOpen} />
-        <TwoWeeks days={b.days} overdue={b.overdueItems} />
-      </details>
-
-      <button className="link" onClick={() => onOpenScreen({ type: 'graph' })}>🔗 업무 연결(먼저 끝낼 업무) 관리 · 3D로 보기 →</button>
+      {view === 'map' ? (
+        <MindMap tasks={tasks} categories={categories} links={links} thoughts={thoughts} settings={settings} reload={reload} onOpen={onOpen} />
+      ) : (
+        <>
+          <Garden b={b} categories={categories} settings={settings} onOpen={onOpen} reload={reload} />
+          <details className="more-stats">
+            <summary>📊 숫자로 자세히 보기 (균형 점수·업무 지도·2주 마감)</summary>
+            <ScaleHero b={b} neglectDays={settings.neglect_days} />
+            <Meters b={b} />
+            <TaskMap points={b.points} today={today} onOpen={onOpen} />
+            <CategoryBalance rows={b.byCategory} onOpen={onOpen} />
+            <TwoWeeks days={b.days} overdue={b.overdueItems} />
+          </details>
+        </>
+      )}
     </section>
   );
 }

@@ -647,6 +647,28 @@ export async function removeReminder(id) {
   check(await supabase.from('reminders').delete().eq('id', id));
 }
 
+// ── 생각 노트 (업무에 관한 생각·원칙·아이디어·배운 점) ─────
+
+export async function loadThoughts() {
+  const { data, error } = await supabase.from('thoughts').select('*').order('created_at', { ascending: false });
+  if (error) return null; // schema_notes.sql 실행 전
+  return data;
+}
+
+export async function addThought({ body, kind, categoryId, taskId }) {
+  return check(await supabase.from('thoughts').insert({
+    body: body.trim(), kind, category_id: categoryId || null, task_id: taskId || null, pinned: kind === 'principle',
+  }).select().single());
+}
+
+export async function updateThought(id, patch) {
+  return check(await supabase.from('thoughts').update({ ...patch, updated_at: now() }).eq('id', id).select().single());
+}
+
+export async function deleteThought(id) {
+  check(await supabase.from('thoughts').delete().eq('id', id));
+}
+
 // ── 관리자 ──────────────────────────────────
 
 export async function adminOverview() {

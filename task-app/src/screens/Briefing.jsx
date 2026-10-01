@@ -8,9 +8,10 @@ import { blockerDelayed, blockersOf } from '../lib/links.js';
 import { taskState } from '../lib/balance.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
+import { principleOfDay } from '../lib/thoughts.js';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [],
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [],
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -40,6 +41,16 @@ export default function Briefing({
       </header>
 
       <PrivacyNotice />
+      {(() => {
+        const p = principleOfDay(thoughts ?? [], today);
+        return p && (
+          <div className="today-principle">
+            <span aria-hidden="true">📌</span>
+            <div><b>오늘의 원칙</b>{p.body}</div>
+          </div>
+        );
+      })()}
+
       {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
 
       <p className="summary">

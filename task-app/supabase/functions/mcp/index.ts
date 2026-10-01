@@ -23,6 +23,7 @@ const INSTRUCTIONS = `업무 챙김은 교사의 업무 목록 앱입니다. 업
 - "업무 정리해 줘"라고 하면 list_tasks 로 전체를 보고, 무엇을 어떻게 바꿀지 목록으로 먼저 보여 준 뒤 update_task 로 고치세요(긴 이름 줄이기, 알맞은 분류로 옮기기, 마감 채우기, 단계 새로 짜기). 원문이 이름에 들어 있으면 note 로 옮기세요.
 - 겹치는 업무는 한쪽에 단계·메모를 옮긴 뒤 다른 쪽을 archive_task 로 완료 보관하세요. 지우는 기능은 없습니다. 끝나지 않은 업무를 보관할 때는 꼭 사용자에게 먼저 물어보세요.
 - "몇 시에 알려 줘"라고 하면 add_reminder 로 시간 알림을 만드세요(한국 시간 YYYY-MM-DDTHH:mm). 관련 업무가 있으면 task_id 를 넣으세요. 사용자가 앱 설정에서 알림 받기를 켜 둔 기기로 알림이 갑니다.
+- 사용자가 업무에 관한 생각·원칙·아이디어·배운 점을 남기고 싶어 하면 add_thought 로 생각 노트에 저장하세요. 계획을 세울 때 get_thoughts 로 사용자의 원칙을 참고하면 좋습니다.
 - 날짜는 YYYY-MM-DD, 한국 시간 기준입니다. 연도가 없으면 가까운 미래로 보세요.
 - 등록하기 전에 무엇을 등록할지 사용자에게 짧게 보여 주고 확인받으면 좋습니다.
 - 학생 이름 등 개인정보는 업무에 넣지 마세요.`;
@@ -151,6 +152,33 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  {
+    name: "add_thought",
+    title: "생각 노트에 저장",
+    description: "업무에 관한 생각·원칙·아이디어·배운 점을 생각 노트에 저장합니다. 원칙(principle)은 앱 브리핑에 '오늘의 원칙'으로 하나씩 보여요.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        body: { type: "string", maxLength: 2000 },
+        kind: { type: "string", enum: ["thought", "principle", "idea", "lesson"], description: "thought=생각, principle=원칙, idea=아이디어, lesson=배운 점" },
+        category: { type: "string", description: "관련 분류 이름 (선택)" },
+      },
+      required: ["body", "kind"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: "get_thoughts",
+    title: "생각 노트 보기",
+    description: "사용자의 생각 노트(원칙·생각·아이디어·배운 점)를 최근 순으로 돌려줍니다. kind 로 좁힐 수 있어요.",
+    inputSchema: {
+      type: "object",
+      properties: { kind: { type: "string", enum: ["thought", "principle", "idea", "lesson"] } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
     name: "check_step",
@@ -413,6 +441,32 @@ async function addReminder(c: Ctx, a: { title: string; remind_at: string; task_i
   return `${a.remind_at.replace("T", " ")}에 "${title}" 알림을 보낼게요${taskTitle ? ` (업무: ${taskTitle})` : ""}. 앱 설정에서 알림 받기를 켜 둔 기기로 가요.`;
 }
 
+const KIND_LABEL: Record<string, string> = { thought: "생각", principle: "원칙", idea: "아이디어", lesson: "배운 점" };
+
+async function addThought(c: Ctx, a: { body: string; kind: string; category?: string }) {
+  const body = a.body?.trim();
+  if (!body) throw new ToolError("내용(body)이 비어 있어요.");
+  if (!KIND_LABEL[a.kind]) throw new ToolError("kind 는 thought, principle, idea, lesson 중 하나예요.");
+  let categoryId: string | null = null;
+  if (a.category?.trim()) {
+    const want = a.category.replace(/\s/g, "");
+    const { data: cats } = await c.db.from("categories").select("id, name").eq("user_id", c.userId);
+    categoryId = (cats ?? []).find((x: { name: string }) => x.name.replace(/\s/g, "") === want)?.id ?? null;
+  }
+  const { error } = await c.db.from("thoughts").insert({ user_id: c.userId, body: body.slice(0, 2000), kind: a.kind, category_id: categoryId, pinned: a.kind === "principle" });
+  if (error) throw new ToolError(error.message.includes("thoughts") ? "생각 노트 기능이 아직 설치되지 않았어요. 관리자가 install_all.sql 을 한 번 더 실행해야 해요." : error.message);
+  return `생각 노트에 ${KIND_LABEL[a.kind]}(으)로 저장했어요: ${body.slice(0, 80)}${body.length > 80 ? "…" : ""}`;
+}
+
+async function getThoughts(c: Ctx, a: { kind?: string }) {
+  let q = c.db.from("thoughts").select("body, kind, created_at").eq("user_id", c.userId).order("created_at", { ascending: false }).limit(100);
+  if (a.kind) q = q.eq("kind", a.kind);
+  const { data, error } = await q;
+  if (error) throw new ToolError("생각 노트를 읽지 못했어요. 관리자가 install_all.sql 을 한 번 더 실행해야 할 수 있어요.");
+  if (!data?.length) return "생각 노트가 비어 있어요.";
+  return data.map((t: { body: string; kind: string; created_at: string }) => `- [${KIND_LABEL[t.kind] ?? t.kind}] ${t.body} (${t.created_at.slice(0, 10)})`).join("\n");
+}
+
 async function checkStep(c: Ctx, a: { step_id: string; done?: boolean }) {
   const step = check(await c.db.from("steps").select("id, task_id, title").eq("user_id", c.userId).eq("id", a.step_id).maybeSingle()) as { id: string; task_id: string; title: string } | null;
   if (!step) throw new ToolError("그 단계를 찾지 못했어요. list_tasks 로 step id를 다시 확인하세요.");
@@ -439,6 +493,8 @@ async function callTool(c: Ctx, name: string, args: Record<string, unknown>) {
     case "update_task": return await updateTask(c, args as Parameters<typeof updateTask>[1]);
     case "archive_task": return await archiveTask(c, args as Parameters<typeof archiveTask>[1]);
     case "add_reminder": return await addReminder(c, args as Parameters<typeof addReminder>[1]);
+    case "add_thought": return await addThought(c, args as Parameters<typeof addThought>[1]);
+    case "get_thoughts": return await getThoughts(c, args as Parameters<typeof getThoughts>[1]);
     case "check_step": return await checkStep(c, args as Parameters<typeof checkStep>[1]);
     default: throw new ToolError(`모르는 도구: ${name}`);
   }
