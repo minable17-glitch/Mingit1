@@ -94,7 +94,7 @@ function Garden({ b, categories, settings, onOpen, reload }) {
           ))}
         </ul>
         <p className="small muted">
-          크게 = 최근에 챙김 · 작게·졸림 = {settings.neglect_days}일 넘게 못 챙김 · 땀 = 마감 임박 · 머리 위 상자 = 남은 단계.
+          크게 = 최근에 챙김 · 작게·졸림 = {settings.neglect_days}일 넘게 못 챙김 · 땀 = 마감 임박 · 왼쪽 위 숫자 = 남은 단계.
           단계를 체크하거나 메모를 남기면 다시 커져요.
         </p>
       </div>

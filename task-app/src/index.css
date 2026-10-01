@@ -385,3 +385,6 @@ button.link.danger-text, .danger-text { color: var(--danger); }
 p.warn { color: #b45309; }
 .reminder-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .reminder-list li { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.buddy-svg .snot { transform-origin: 70px 78px; animation: snot 2.4s ease-in-out infinite; }
+@keyframes snot { 0%, 100% { transform: scale(0.6); } 50% { transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .buddy-svg .snot { animation: none; } }

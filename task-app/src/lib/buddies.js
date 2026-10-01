@@ -1,5 +1,5 @@
 // 업무 친구: 업무마다 캐릭터 하나. 최근에 챙길수록 크고, 오래 안 챙기면 작아지고 졸아요.
-// 급하면 땀을 흘리고, 남은 단계는 머리 위 상자로 쌓여요. (순수 함수, 테스트 가능)
+// 급하면 땀을 흘리고, 남은 단계 수는 캐릭터 왼쪽 위 숫자로. (순수 함수, 테스트 가능)
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -36,8 +36,8 @@ function messageOf(mood, { info, task, load, unknownSize }) {
   if (mood === 'sleepy') parts.push(`${info.idle}일째 못 챙겨서 작아졌어요. 한 단계만 해도 다시 커져요.`);
   if (mood === 'happy') parts.push('최근에 챙겨서 쑥쑥 크고 있어요.');
   if (mood === 'calm') parts.push(`${info.idle}일 전에 마지막으로 챙겼어요.`);
-  if (unknownSize) parts.push('아직 단계가 없어요. 단계를 정하면 머리 위에 상자로 보여요.');
-  else parts.push(`머리 위 상자 = 남은 단계 ${load}개.`);
+  if (unknownSize) parts.push('아직 단계가 없어요. 단계를 정하면 왼쪽 위에 남은 단계 수가 보여요.');
+  else parts.push(`왼쪽 위 숫자 = 남은 단계 ${load}개.`);
   return parts.join(' ');
 }
 
