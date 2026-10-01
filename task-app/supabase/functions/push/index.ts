@@ -25,6 +25,7 @@ async function vapid(db: SupabaseClient) {
     const keys = await webpush.generateVapidKeys({ extractable: true });
     await db.from("server_config").upsert({ key: "vapid", value: await webpush.exportVapidKeys(keys) }, { onConflict: "key", ignoreDuplicates: true });
     stored = await read(); // 동시에 두 번 만들어졌으면 먼저 저장된 것을 씀
+    if (!stored) throw new Error("server_config 표가 없어요. schema_push.sql(또는 install_all.sql)을 실행해 주세요.");
   }
   const keys = await webpush.importVapidKeys(stored, { extractable: false });
   return { keys, publicKey: await webpush.exportApplicationServerKey(keys) };
@@ -67,8 +68,7 @@ Deno.serve(async (req) => {
     }
     if (req.method !== "POST") return json({ error: "method" }, 405);
     const body = await req.json().catch(() => ({}));
-    const { keys } = await vapid(db);
-    const server = await webpush.ApplicationServer.new({ contactInformation: Deno.env.get("SUPABASE_URL")!, vapidKeys: keys });
+    const appServer = async () => webpush.ApplicationServer.new({ contactInformation: Deno.env.get("SUPABASE_URL")!, vapidKeys: (await vapid(db)).keys });
 
     if (body.action === "test") {
       const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       if (!data?.user) return json({ error: "login_required" }, 401);
       const { data: subs } = await db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").eq("user_id", data.user.id);
       if (!subs?.length) return json({ error: "no_device" }, 400);
-      const result = await sendTo(db, server, subs as Sub[], { title: "🔔 업무 챙김", body: "알림이 잘 와요! 정해 둔 시간에 이렇게 알려 드릴게요.", tag: "test", url: "/" });
+      const result = await sendTo(db, await appServer(), subs as Sub[], { title: "🔔 업무 챙김", body: "알림이 잘 와요! 정해 둔 시간에 이렇게 알려 드릴게요.", tag: "test", url: "/" });
       return json(result);
     }
 
@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       const fresh = (due as Reminder[]).filter((r) => now.getTime() - Date.parse(r.remind_at) < 12 * 3600e3); // 12시간 넘게 밀린 건 조용히 넘김
       if (!fresh.length) return json({ due: due?.length ?? 0, sent: 0 });
+      const server = await appServer();
       const users = [...new Set(fresh.map((r) => r.user_id))];
       const { data: subs } = await db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", users);
       let sent = 0;
