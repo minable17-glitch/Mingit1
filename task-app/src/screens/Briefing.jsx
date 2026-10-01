@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { assess, sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
@@ -7,9 +7,10 @@ import { pickDeadline, triageText } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
 import { taskState } from '../lib/balance.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
+import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [],
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [],
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -99,16 +100,16 @@ export default function Briefing({
             .map(({ c, items }) => (
               <div key={c.id} className="group">
                 <h2 style={{ '--c': c.color }} className="group-title">{c.name}</h2>
-                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} />
+                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} />
               </div>
             ))
-        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} />}
+        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} />}
     </section>
   );
 }
 
 // 업무 꼭지 목록: 누르면 그 자리에서 펼쳐져 세부 단계를 보고 바로 체크. "열기"로 업무 화면.
-function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, reload }) {
+function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, reload, reminders = [] }) {
   const [open, setOpen] = useState(() => new Set());
   const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
   const toggle = (id) => setOpen((prev) => {
@@ -167,6 +168,7 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
         const blockers = blockersOf(task.id, links, tasksById);
         const delayed = blockers.length > 0 && blockerDelayed(task.id, links, tasksById, today, settings);
         const isOpen = open.has(task.id);
+        const reminder = reminders.find((r) => r.task_id === task.id);
         return (
           <li key={task.id} className={isOpen ? 'task-row open' : 'task-row'} style={{ '--c': cat?.color }}>
             <button type="button" className="row-button" aria-expanded={isOpen} onClick={() => toggle(task.id)}>
@@ -184,6 +186,7 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
                     🔗 앞 업무 {blockers.length}{delayed ? ' 지연' : ''}
                   </span>
                 )}
+                {reminder && <span className="badge remind">🔔 {remindLabel(reminder.remind_at)}</span>}
                 <span className="chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
               </div>
               {task.waiting_on
@@ -332,10 +335,12 @@ const ATTACH_OPTIONS = [
 ];
 
 // 던져넣기: 규칙으로 어느 업무 것인지 추측 → 사용자가 고쳐서 반영.
-function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
+function ThrowIn({ tasks, categories, settings, onAdded, onOpenScreen }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposal, setProposal] = useState(null);
+  const [pushOn, setPushOn] = useState(true);
+  useEffect(() => { api.pushState().then((st) => setPushOn(st === 'on')).catch(() => {}); }, []);
 
   // 분류를 따로 고르지 않으면 '기타'로 (처음 한 번은 '기타' 분류를 만듦)
   async function etcId() {
@@ -355,7 +360,9 @@ function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
         return;
       }
       const p = triageText(text.trim(), tasks, categories, todayKST());
-      setProposal({ ...p, category_id: etc });
+      // 글에 시간이 있으면("3시", "점심 전", "5교시 후") 그 시간에 알림
+      const remind = parseRemindTime(text, Date.now(), settings?.bell_schedule);
+      setProposal({ ...p, category_id: etc, remind_at: remind?.at ?? '', remind_why: remind?.why ?? '' });
     } catch (err) {
       alert(`정리하지 못했어요: ${err.message}`);
     }
@@ -364,7 +371,14 @@ function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
   async function confirm() {
     setBusy(true);
     try {
-      await api.applyTriage(proposal, tasks);
+      const taskId = await api.applyTriage(proposal, tasks);
+      if (proposal.remind_at) {
+        try {
+          await api.addReminder({ taskId, title: proposal.content, remindAt: localToISO(proposal.remind_at) });
+        } catch (err) {
+          alert(`업무는 저장했지만 알림은 저장하지 못했어요: ${err.message}`);
+        }
+      }
       setProposal(null);
       setText('');
       await onAdded();
@@ -428,6 +442,17 @@ function ThrowIn({ tasks, categories, onAdded, onOpenScreen }) {
             </div>
           )}
           <input value={proposal.content} onChange={(e) => set({ content: e.target.value })} />
+          <div className="remind-row">
+            <label className="row wrap">
+              <span className="small">🔔 알림</span>
+              <input type="datetime-local" value={proposal.remind_at} onChange={(e) => set({ remind_at: e.target.value, remind_why: '' })} />
+              {proposal.remind_at
+                ? <button type="button" className="link small" onClick={() => set({ remind_at: '', remind_why: '' })}>알림 없음</button>
+                : <span className="small muted">(선택)</span>}
+            </label>
+            {proposal.remind_at && proposal.remind_why && <p className="small muted">글의 “{proposal.remind_why}”을 보고 {remindLabel(localToISO(proposal.remind_at))}에 알려 드릴게요.</p>}
+            {proposal.remind_at && !pushOn && <p className="small warn">이 기기에서 알림 받기가 꺼져 있어요. 설정 → 시간 알림에서 켜 주세요.</p>}
+          </div>
           <div className="row">
             <button className="primary" disabled={busy || !proposal.content.trim()} onClick={confirm}>반영</button>
             <button className="link" onClick={() => setProposal(null)}>취소</button>

@@ -67,6 +67,7 @@ export default function Settings({ settings, userId, features, onSaved, onOpenSc
 
       <CalendarFeed settings={settings} userId={userId} onSaved={onSaved} />
       <AiSettings />
+      <PushSettings />
       <AiConnector settings={settings} userId={userId} onSaved={onSaved} />
       {features?.google_advanced && <GoogleAdvanced />}
       <Widget settings={settings} userId={userId} onSaved={onSaved} />
@@ -125,6 +126,57 @@ function CalendarFeed({ settings, userId, onSaved }) {
       ) : (
         <button onClick={() => makeToken('calendar', token, userId, settings, onSaved)}>구독 주소 만들기</button>
       )}
+    </div>
+  );
+}
+
+// 시간 알림: 이 기기에서 알림 받기 켜기·끄기, 시험 알림
+function PushSettings() {
+  const [state, setState] = useState('loading');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api.pushState().then(setState).catch(() => setState('unsupported')); }, []);
+
+  async function act(fn, done) {
+    setBusy(true);
+    setMsg('');
+    try {
+      await fn();
+      setState(await api.pushState());
+      setMsg(done);
+    } catch (e) {
+      setMsg(e.message.includes('push_subscriptions') ? '관리자가 schema_push.sql(또는 install_all.sql)을 한 번 더 실행해야 쓸 수 있어요.' : e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="block stack">
+      <h2>🔔 시간 알림</h2>
+      <p className="muted small">
+        던져넣기에 “3시에 행정실 가기”, “점심 전에 등록부 사인”처럼 쓰거나 업무 화면에서 알림을 추가하면, 그 시간에 이 기기로 알림이 와요.
+        앱을 닫아 둬도 와요. 휴대폰과 컴퓨터를 같이 쓰면 기기마다 한 번씩 켜 주세요.
+      </p>
+      {api.needsHomeScreen() ? (
+        <p className="small">📱 아이폰은 Safari 아래쪽 <b>공유 버튼 → 홈 화면에 추가</b>로 앱을 설치한 뒤, 홈 화면의 업무 챙김을 열어서 여기서 켜 주세요.</p>
+      ) : state === 'unsupported' ? (
+        <p className="small">이 브라우저는 알림을 지원하지 않아요. 크롬(안드로이드·PC)이나 홈 화면에 추가한 아이폰 앱에서 켜 주세요.</p>
+      ) : state === 'denied' ? (
+        <p className="small">알림이 차단되어 있어요. 주소창 왼쪽 자물쇠(🔒) → <b>알림 → 허용</b>으로 바꾼 뒤 새로고침해 주세요.</p>
+      ) : state === 'on' ? (
+        <>
+          <p className="small"><b>✓ 이 기기에서 알림을 받고 있어요.</b></p>
+          <div className="row wrap">
+            <button disabled={busy} onClick={() => act(api.sendTestPush, '시험 알림을 보냈어요. 몇 초 안에 도착해요.')}>시험 알림 보내기</button>
+            <button className="link" disabled={busy} onClick={() => act(api.disablePush, '이 기기에서 알림을 껐어요.')}>이 기기에서 끄기</button>
+          </div>
+        </>
+      ) : state === 'off' ? (
+        <button className="primary" disabled={busy} onClick={() => act(api.enablePush, '알림을 켰어요! “시험 알림 보내기”로 확인해 보세요.')}>이 기기에서 알림 받기</button>
+      ) : null}
+      {msg && <p className="small">{msg}</p>}
+      <p className="muted small">폰이 무음·방해금지 모드면 소리 없이 알림만 와요. “점심 전”, “5교시 전”은 시간표 설정의 종 시간으로 계산해요.</p>
     </div>
   );
 }

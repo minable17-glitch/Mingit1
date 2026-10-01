@@ -5,3 +5,10 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# 서비스 워커는 항상 새로 받아야 알림 처리가 최신으로 바뀜
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"

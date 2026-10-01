@@ -96,6 +96,7 @@ function Main({ userId, features }) {
   const [tasks, setTasks] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [links, setLinks] = useState([]);
+  const [reminders, setReminders] = useState([]);
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
@@ -103,12 +104,13 @@ function Main({ userId, features }) {
 
   const reload = useCallback(async () => {
     try {
-      const [cats, active, st, tpls, inbox, lnks] = await Promise.all([
+      const [cats, active, st, tpls, inbox, lnks, rems] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
         api.loadTemplates().catch(() => []),
         // 받은 제안함(Gmail)은 고급 구글 연동 사용자만
         features.google_advanced ? api.loadInbox().catch(() => []) : [],
         api.loadLinks().catch(() => []), // 연결 표를 아직 안 만들었어도 앱은 동작
+        api.loadReminders(),
       ]);
       setCategories(cats);
       setTasks(active);
@@ -116,6 +118,7 @@ function Main({ userId, features }) {
       setTemplates(tpls);
       setInboxCount(inbox.length);
       setLinks(lnks);
+      setReminders(rems);
       setError('');
       return active;
     } catch (e) {
@@ -143,6 +146,20 @@ function Main({ userId, features }) {
     })();
   }, [userId, reload]);
 
+  // 알림을 눌러 들어오면(?task=…) 그 업무를 엶. 앱이 열려 있으면 서비스 워커가 메시지로 알려 줌
+  useEffect(() => {
+    if (!ready) return;
+    const openFromUrl = (href) => {
+      const id = new URL(href, location.origin).searchParams.get('task');
+      if (id) setOverlay({ type: 'task', id });
+      if (location.search) history.replaceState(null, '', location.pathname);
+    };
+    openFromUrl(location.href);
+    const onMessage = (e) => { if (e.data?.type === 'open-url') { openFromUrl(e.data.url); reload(); } };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [ready, reload]);
+
   // 다른 탭/창에서 돌아오면 새로 불러옴 (날짜가 바뀌었을 수도 있음)
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') reload(); };
@@ -156,7 +173,7 @@ function Main({ userId, features }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates, features, links,
+    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 

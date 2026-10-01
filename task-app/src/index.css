@@ -376,3 +376,12 @@ button.link.danger-text, .danger-text { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) {
   .buddy-svg, .buddy-svg .zzz, .buddy-svg .sparkle { animation: none; }
 }
+
+/* 시간 알림 */
+.badge.remind { background: #e0ecff; color: #1e40af; }
+@media (prefers-color-scheme: dark) { .badge.remind { background: #1c2a4a; color: #b7d3f6; } }
+.remind-row { border-top: 1px dashed var(--line); padding-top: 8px; }
+.remind-row p { margin: 4px 0 0; }
+p.warn { color: #b45309; }
+.reminder-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.reminder-list li { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }

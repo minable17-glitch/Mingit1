@@ -52,7 +52,7 @@ jobs:
       # 안전장치: 다른 앱(양궁 성장일지 등)의 서버 기능이 있는 프로젝트면 아무것도 바꾸지 않고 멈춤
       - name: 업무 챙김 전용 프로젝트인지 확인
         run: |
-          ours="calendar-feed calendar-sync delete-account gmail-import mcp weekly-backup widget-summary"
+          ours="calendar-feed calendar-sync delete-account gmail-import mcp push weekly-backup widget-summary"
           if ! existing=$(supabase functions list --project-ref "$PROJECT_REF" -o json); then
             echo "::error::프로젝트의 함수 목록을 읽지 못해 안전을 위해 멈춥니다. 프로젝트 ID와 토큰을 확인하세요."
             exit 1
@@ -78,9 +78,43 @@ jobs:
           for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET CRON_SECRET BACKUP_SECRET; do
             if [ -n "${!name}" ]; then args+=("$name=${!name}"); fi
           done
-          if [ ${#args[@]} -gt 0 ]; then
-            supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
-          fi
+          # 시간 알림 예약 작업용 비밀값: 배포할 때마다 새로 만들어 함수와 예약 작업에 같이 넣음
+          REMINDER_SECRET=$(openssl rand -hex 24)
+          echo "::add-mask::$REMINDER_SECRET"
+          echo "REMINDER_SECRET=$REMINDER_SECRET" >> "$GITHUB_ENV"
+          args+=("REMINDER_SECRET=$REMINDER_SECRET")
+          supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
 
       - name: 함수 배포
         run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+      # 1분마다 push 함수를 불러 시간이 된 알림을 보내게 함 (pg_cron + pg_net). 이 작업 하나만 만들거나 고침
+      - name: 시간 알림 예약 작업 등록
+        run: |
+          SQL=$(cat <<SQLEOF
+          create extension if not exists pg_cron with schema pg_catalog;
+          create extension if not exists pg_net with schema extensions;
+          select cron.unschedule(jobid) from cron.job where jobname = 'task-keeper-reminders';
+          select cron.schedule(
+            'task-keeper-reminders',
+            '* * * * *',
+            \$job\$ select net.http_post(
+              url := 'https://${PROJECT_REF}.supabase.co/functions/v1/push',
+              headers := jsonb_build_object('Content-Type', 'application/json', 'x-reminder-secret', '${REMINDER_SECRET}'),
+              body := jsonb_build_object('action', 'tick')
+            ) \$job\$
+          );
+          SQLEOF
+          )
+          body=$(jq -n --arg q "$SQL" '{query: $q}')
+          status=$(curl -sS -o /tmp/cron.out -w '%{http_code}' -X POST \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" -H "Content-Type: application/json" -d "$body")
+          if [ "$status" -ge 300 ]; then
+            echo "::error::예약 작업을 등록하지 못했습니다 (HTTP $status): $(cat /tmp/cron.out)"
+            exit 1
+          fi
+          echo "예약 작업 등록됨"
+          # 확인: 함수가 비밀값으로 잘 응답하는지
+          curl -sS -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/push" \
+            -H "Content-Type: application/json" -H "x-reminder-secret: ${REMINDER_SECRET}" -d '{"action":"tick"}'

@@ -22,6 +22,7 @@ const INSTRUCTIONS = `업무 챙김은 교사의 업무 목록 앱입니다. 업
 - 이미 있는 업무와 관련된 내용이면 먼저 list_tasks 로 확인하고 add_to_task 로 붙이세요. 같은 업무를 두 번 만들지 마세요.
 - "업무 정리해 줘"라고 하면 list_tasks 로 전체를 보고, 무엇을 어떻게 바꿀지 목록으로 먼저 보여 준 뒤 update_task 로 고치세요(긴 이름 줄이기, 알맞은 분류로 옮기기, 마감 채우기, 단계 새로 짜기). 원문이 이름에 들어 있으면 note 로 옮기세요.
 - 겹치는 업무는 한쪽에 단계·메모를 옮긴 뒤 다른 쪽을 archive_task 로 완료 보관하세요. 지우는 기능은 없습니다. 끝나지 않은 업무를 보관할 때는 꼭 사용자에게 먼저 물어보세요.
+- "몇 시에 알려 줘"라고 하면 add_reminder 로 시간 알림을 만드세요(한국 시간 YYYY-MM-DDTHH:mm). 관련 업무가 있으면 task_id 를 넣으세요. 사용자가 앱 설정에서 알림 받기를 켜 둔 기기로 알림이 갑니다.
 - 날짜는 YYYY-MM-DD, 한국 시간 기준입니다. 연도가 없으면 가까운 미래로 보세요.
 - 등록하기 전에 무엇을 등록할지 사용자에게 짧게 보여 주고 확인받으면 좋습니다.
 - 학생 이름 등 개인정보는 업무에 넣지 마세요.`;
@@ -134,6 +135,22 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "add_reminder",
+    title: "시간 알림 만들기",
+    description: "정한 시간(한국 시간)에 사용자의 폰·컴퓨터로 알림을 보냅니다. 업무와 관련 있으면 task_id 를 넣으면 알림을 눌렀을 때 그 업무가 열립니다.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "알림에 보일 짧은 내용 (예: 행정실 등록부 사인)", maxLength: 120 },
+        remind_at: { type: "string", description: "한국 시간 YYYY-MM-DDTHH:mm", pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$" },
+        task_id: { type: "string", description: "관련 업무 id (선택, list_tasks 에서)" },
+      },
+      required: ["title", "remind_at"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
     name: "check_step",
@@ -381,6 +398,21 @@ async function archiveTask(c: Ctx, a: { task_id: string; note?: string }) {
   return `"${t.title}"을(를) 완료로 보관했어요. 앱의 보관함에서 다시 꺼낼 수 있어요.`;
 }
 
+async function addReminder(c: Ctx, a: { title: string; remind_at: string; task_id?: string }) {
+  const title = a.title?.trim();
+  if (!title) throw new ToolError("알림 내용(title)이 비어 있어요.");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(a.remind_at ?? "")) throw new ToolError("remind_at 은 한국 시간 YYYY-MM-DDTHH:mm 형식이어야 해요.");
+  const at = new Date(`${a.remind_at}:00+09:00`);
+  if (isNaN(at.getTime())) throw new ToolError("알림 시간을 읽지 못했어요.");
+  if (at.getTime() < Date.now() - 60e3) throw new ToolError("이미 지난 시간이에요. 앞으로의 시간을 주세요.");
+  let taskTitle = "";
+  if (a.task_id) taskTitle = (await ownedTask(c, a.task_id)).title;
+  const { error } = await c.db.from("reminders").insert({ user_id: c.userId, task_id: a.task_id || null, title: title.slice(0, 120), remind_at: at.toISOString() });
+  if (error) throw new ToolError(error.message.includes("reminders") ? "시간 알림 기능이 아직 설치되지 않았어요. 관리자가 install_all.sql 을 한 번 더 실행해야 해요." : error.message);
+  if (a.task_id) await log(c, a.task_id, "edit", `알림 ${a.remind_at.replace("T", " ")}: ${title}`);
+  return `${a.remind_at.replace("T", " ")}에 "${title}" 알림을 보낼게요${taskTitle ? ` (업무: ${taskTitle})` : ""}. 앱 설정에서 알림 받기를 켜 둔 기기로 가요.`;
+}
+
 async function checkStep(c: Ctx, a: { step_id: string; done?: boolean }) {
   const step = check(await c.db.from("steps").select("id, task_id, title").eq("user_id", c.userId).eq("id", a.step_id).maybeSingle()) as { id: string; task_id: string; title: string } | null;
   if (!step) throw new ToolError("그 단계를 찾지 못했어요. list_tasks 로 step id를 다시 확인하세요.");
@@ -406,6 +438,7 @@ async function callTool(c: Ctx, name: string, args: Record<string, unknown>) {
     case "add_to_task": return await addToTask(c, args as Parameters<typeof addToTask>[1]);
     case "update_task": return await updateTask(c, args as Parameters<typeof updateTask>[1]);
     case "archive_task": return await archiveTask(c, args as Parameters<typeof archiveTask>[1]);
+    case "add_reminder": return await addReminder(c, args as Parameters<typeof addReminder>[1]);
     case "check_step": return await checkStep(c, args as Parameters<typeof checkStep>[1]);
     default: throw new ToolError(`모르는 도구: ${name}`);
   }

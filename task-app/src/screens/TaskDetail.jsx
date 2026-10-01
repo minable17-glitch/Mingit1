@@ -3,6 +3,7 @@ import * as api from '../lib/api.js';
 import { diffDays, dueLabel, formatShort, toDateKST, todayKST } from '../lib/date.js';
 import Breakdown from './Breakdown.jsx';
 import { extractFromLongText } from '../lib/notice.js';
+import { isoToLocal, localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
 
 // 긴 글이 통째로 업무 이름이 된 경우: 짧은 이름 + (비어 있으면) 기한·단계 + 원문은 메모
 async function tidyLongTitle(task, categories, today) {
@@ -17,7 +18,7 @@ async function tidyLongTitle(task, categories, today) {
 
 const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
-export default function TaskDetail({ taskId, categories, categoryById, templates, features, links = [], tasks = [], onOpen, onClose }) {
+export default function TaskDetail({ taskId, categories, categoryById, templates, features, links = [], tasks = [], reminders = [], settings, reload, onOpen, onClose }) {
   const [task, setTask] = useState(null);
   const [activity, setActivity] = useState([]);
   const [breaking, setBreaking] = useState(false);
@@ -160,6 +161,8 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
       <Links task={task} links={links} tasks={tasks} onOpen={onOpen} />
 
       {active && <NoteForm onSave={(note, next) => run(() => api.addNote(task, note, next))} />}
+
+      {active && <Reminders task={task} reminders={reminders.filter((r) => r.task_id === task.id)} bell={settings?.bell_schedule} reload={reload} />}
 
       {active && features?.google_advanced && <WorkBlockForm onSave={(v) => run(async () => {
         await api.addWorkBlock(task, v);
@@ -312,6 +315,66 @@ function NoteForm({ onSave }) {
       />
       <button className="primary" disabled={!note.trim()}>메모 남기기</button>
     </form>
+  );
+}
+
+// 시간 알림: 정한 시간에 폰·컴퓨터로 알림 (설정 → 시간 알림에서 기기마다 켜야 함)
+function Reminders({ task, reminders, bell, reload }) {
+  const [at, setAt] = useState('');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [pushOn, setPushOn] = useState(true);
+  useEffect(() => { api.pushState().then((st) => setPushOn(st === 'on')).catch(() => {}); }, []);
+
+  // 빠른 선택: 30분 뒤, 점심 전, 퇴근 전, 내일 아침 (화면을 열 때 한 번 계산)
+  const [quick] = useState(() => {
+    const now = Date.now();
+    return [
+      { label: '30분 뒤', value: isoToLocal(new Date(now + 30 * 60e3).toISOString()) },
+      { label: '점심 전', value: parseRemindTime('점심', now, bell)?.at },
+      { label: '퇴근 전', value: parseRemindTime('퇴근', now, bell)?.at },
+      { label: '내일 아침', value: parseRemindTime('내일 아침', now, bell)?.at },
+    ].filter((q) => q.value);
+  });
+
+  async function add() {
+    if (!at) return;
+    setBusy(true);
+    try {
+      await api.addReminder({ taskId: task.id, title: text.trim() || task.next_action || task.title, remindAt: localToISO(at) });
+      setAt('');
+      setText('');
+      await reload?.();
+    } catch (e) {
+      alert(e.message.includes('reminders') ? '관리자가 schema_push.sql(또는 install_all.sql)을 한 번 더 실행해야 쓸 수 있어요.' : `알림을 저장하지 못했어요: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="block stack">
+      <h2>🔔 시간 알림</h2>
+      {reminders.length > 0 && (
+        <ul className="reminder-list">
+          {reminders.map((r) => (
+            <li key={r.id}>
+              <b>{remindLabel(r.remind_at)}</b> <span className="grow">{r.title}</span>
+              <button className="link small" onClick={async () => { await api.removeReminder(r.id); await reload?.(); }}>지우기</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="row wrap">
+        {quick.map((q) => <button key={q.label} type="button" className={at === q.value ? 'chip on' : 'chip'} onClick={() => setAt(q.value)}>{q.label}</button>)}
+      </div>
+      <div className="row wrap">
+        <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+        <input className="grow" placeholder={`알림 내용 (비우면: ${task.next_action})`} value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="primary" disabled={!at || busy} onClick={add}>알림 추가</button>
+      </div>
+      {!pushOn && <p className="small warn">이 기기에서 알림 받기가 꺼져 있어요. 설정 → 시간 알림에서 켜 주세요.</p>}
+    </div>
   );
 }
 

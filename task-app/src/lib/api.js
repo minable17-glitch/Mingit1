@@ -374,20 +374,23 @@ export function briefTask(task, categoryById, settings, today = todayKST()) {
 
 // 던져넣기 제안을 확정해서 반영
 // proposal: { task_id, attach_as: 'step'|'note'|'next_action'|'new', content, due_date, category_id }
+// 돌려주는 값: 붙이거나 새로 만든 업무의 id
 export async function applyTriage(proposal, tasks) {
   if (proposal.attach_as !== 'new') {
     const task = tasks.find((t) => t.id === proposal.task_id);
     if (!task) throw new Error('붙일 업무를 찾지 못했어요');
-    if (proposal.attach_as === 'step') return addStep(task, proposal.content, proposal.due_date);
-    if (proposal.attach_as === 'next_action') return updateTask(task, { next_action: proposal.content });
-    return addNote(task, proposal.content);
+    if (proposal.attach_as === 'step') await addStep(task, proposal.content, proposal.due_date);
+    else if (proposal.attach_as === 'next_action') await updateTask(task, { next_action: proposal.content });
+    else await addNote(task, proposal.content);
+    return task.id;
   }
-  return createTask({
+  const task = await createTask({
     title: proposal.new_title || proposal.content,
     categoryId: proposal.category_id,
     dueDate: proposal.due_date,
     nextAction: proposal.next_action,
   });
+  return task.id;
 }
 
 // 공문·메일 제안(사용자가 고친 것)을 업무로 만들기
@@ -560,6 +563,88 @@ export async function clearMcpToken(userId) {
 
 export function mcpUrl(token) {
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mcp?token=${token}`;
+}
+
+// ── 시간 알림 (웹 푸시) ─────────────────────────
+// 기기마다 '알림 받기'를 켜면 서버가 정해 둔 시간에 알림을 보냄 (앱을 닫아 둬도 옴)
+
+export function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+// 아이폰은 홈 화면에 추가한 앱에서만 알림을 받을 수 있음
+export function needsHomeScreen() {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
+  return ios && !standalone;
+}
+
+async function currentSubscription() {
+  const reg = await navigator.serviceWorker.getRegistration('/');
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+
+// 'unsupported' | 'denied' | 'on' | 'off'
+export async function pushState() {
+  if (!pushSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  return (await currentSubscription()) ? 'on' : 'off';
+}
+
+const b64ToBytes = (b64) => {
+  const s = atob((b64 + '='.repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+};
+
+function deviceName() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad/.test(ua)) return '아이폰·아이패드';
+  if (/Android/.test(ua)) return '안드로이드';
+  if (/Windows/.test(ua)) return '윈도우 PC';
+  if (/Mac/.test(ua)) return '맥';
+  return '기기';
+}
+
+export async function enablePush() {
+  if (!pushSupported()) throw new Error('이 브라우저는 알림을 지원하지 않아요. 크롬을 써 주세요.');
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') throw new Error('알림이 허용되지 않았어요. 브라우저 설정에서 이 사이트의 알림을 허용해 주세요.');
+  const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  await navigator.serviceWorker.ready;
+  const { data, error } = await supabase.functions.invoke('push', { method: 'GET' });
+  if (error || !data?.publicKey) throw new Error('알림 서버에 연결하지 못했어요. 잠시 뒤 다시 해 주세요.');
+  const sub = (await reg.pushManager.getSubscription())
+    ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(data.publicKey) });
+  const j = sub.toJSON();
+  await supabase.from('push_subscriptions').delete().eq('endpoint', j.endpoint);
+  check(await supabase.from('push_subscriptions').insert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: deviceName() }));
+}
+
+export async function disablePush() {
+  const sub = await currentSubscription();
+  if (!sub) return;
+  await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+  await sub.unsubscribe();
+}
+
+export async function sendTestPush() {
+  const { data, error } = await supabase.functions.invoke('push', { body: { action: 'test' } });
+  if (error) throw new Error('시험 알림을 보내지 못했어요. 알림 받기를 다시 켜 보세요.');
+  return data;
+}
+
+export async function loadReminders() {
+  const { data, error } = await supabase.from('reminders').select('*').is('sent_at', null).order('remind_at');
+  if (error) return []; // schema_push.sql 실행 전
+  return data;
+}
+
+export async function addReminder({ taskId, title, remindAt }) {
+  return check(await supabase.from('reminders').insert({ task_id: taskId || null, title: title.trim().slice(0, 120), remind_at: remindAt }).select().single());
+}
+
+export async function removeReminder(id) {
+  check(await supabase.from('reminders').delete().eq('id', id));
 }
 
 // ── 관리자 ──────────────────────────────────
