@@ -5,6 +5,7 @@
 #   TASK_GOOGLE_CLIENT_ID       구글 OAuth 클라이언트 ID
 #   TASK_GOOGLE_CLIENT_SECRET   구글 OAuth 보안 비밀
 #   TASK_CRON_SECRET, TASK_BACKUP_SECRET  (선택) 예약 작업용 아무 긴 문자열
+# 배포할 때마다 supabase/install_all.sql 도 자동으로 실행합니다 (SQL Editor에 직접 붙여넣지 않아도 됨).
 # 비밀값을 넣은 뒤에는 Actions 탭에서 이 작업의 마지막 실행을 열고 "Re-run all jobs" 를 누르면 됩니다.
 name: 업무 챙김 서버 기능 배포
 
@@ -66,6 +67,19 @@ jobs:
             exit 1
           fi
           echo "업무 챙김 전용 프로젝트 확인됨"
+
+      # 표·권한 설치/갱신: install_all.sql 을 Supabase 관리 API로 실행 (여러 번 실행해도 안전, 다른 앱 프로젝트면 SQL 안의 안전장치가 멈춤)
+      - name: 데이터베이스 표 설치·갱신
+        run: |
+          body=$(jq -n --rawfile q supabase/install_all.sql '{query: $q}')
+          status=$(curl -sS -o /tmp/sql.out -w '%{http_code}' -X POST \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" -H "Content-Type: application/json" -d "$body")
+          if [ "$status" -ge 300 ]; then
+            echo "::error::install_all.sql 실행 실패 (HTTP $status): $(head -c 800 /tmp/sql.out)"
+            exit 1
+          fi
+          echo "데이터베이스 표 설치·갱신 완료"
 
       - name: 함수용 비밀값 설정
         env:
