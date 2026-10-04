@@ -442,3 +442,25 @@ p.warn { color: #b45309; }
 .mm-node.leaf.principle rect { fill: #fff8e1; stroke: #f3dc8f; }
 @media (prefers-color-scheme: dark) { .mm-node.leaf.principle rect { fill: #2e2814; stroke: #5c4d1d; } }
 .principles { margin-bottom: 12px; }
+
+/* 오늘 할 일 */
+.today-card { border: 2px solid #ffd88a; background: linear-gradient(180deg, #fffbef, var(--card) 60%); }
+@media (prefers-color-scheme: dark) { .today-card { border-color: #6b5520; background: linear-gradient(180deg, #2a2412, var(--card) 60%); } }
+.today-card > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.today-card > summary::-webkit-details-marker { display: none; }
+.today-title { font-weight: 800; font-size: 1.05rem; }
+.today-bar { flex-basis: 100%; height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.today-bar span { display: block; height: 100%; background: #0ca30c; border-radius: 999px; transition: width 0.3s; }
+.today-group { margin-top: 12px; }
+.today-group h3 { font-size: 0.85rem; margin: 0 0 6px; color: var(--muted); }
+.today-group ul { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.today-group li { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+.today-group li label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.today-group li.done span, .today-group li.done .link { color: var(--muted); text-decoration: line-through; }
+.today-group .link.left { text-align: left; }
+.remind-time { font-variant-numeric: tabular-nums; min-width: 3.2em; color: #1e40af; }
+@media (prefers-color-scheme: dark) { .remind-time { color: #b7d3f6; } }
+.today-group .order { display: inline-flex; gap: 2px; }
+.icon { border: none; background: none; padding: 2px 6px; color: var(--muted); font-size: 1rem; line-height: 1; }
+.icon:disabled { opacity: 0.3; }
+.carry { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 6px 10px; border-radius: 8px; background: rgba(250, 178, 25, 0.15); }

@@ -24,6 +24,7 @@ const INSTRUCTIONS = `업무 챙김은 교사의 업무 목록 앱입니다. 업
 - 겹치는 업무는 한쪽에 단계·메모를 옮긴 뒤 다른 쪽을 archive_task 로 완료 보관하세요. 지우는 기능은 없습니다. 끝나지 않은 업무를 보관할 때는 꼭 사용자에게 먼저 물어보세요.
 - "몇 시에 알려 줘"라고 하면 add_reminder 로 시간 알림을 만드세요(한국 시간 YYYY-MM-DDTHH:mm). 관련 업무가 있으면 task_id 를 넣으세요. 사용자가 앱 설정에서 알림 받기를 켜 둔 기기로 알림이 갑니다.
 - 사용자가 업무에 관한 생각·원칙·아이디어·배운 점을 남기고 싶어 하면 add_thought 로 생각 노트에 저장하세요. 계획을 세울 때 get_thoughts 로 사용자의 원칙을 참고하면 좋습니다.
+- "오늘 할 일에 넣어 줘"라고 하면 add_today_item 으로 내 오늘 목록에 넣으세요(관련 업무가 있으면 task_id).
 - 날짜는 YYYY-MM-DD, 한국 시간 기준입니다. 연도가 없으면 가까운 미래로 보세요.
 - 등록하기 전에 무엇을 등록할지 사용자에게 짧게 보여 주고 확인받으면 좋습니다.
 - 학생 이름 등 개인정보는 업무에 넣지 마세요.`;
@@ -181,6 +182,22 @@ const TOOLS = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
+    name: "add_today_item",
+    title: "오늘 할 일에 넣기",
+    description: "사용자가 따로 정리하는 '내 오늘 목록'에 할 일을 넣습니다. 관련 업무가 있으면 task_id 를 넣으면 눌렀을 때 그 업무가 열려요. day 를 비우면 오늘(한국 시간).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", maxLength: 200 },
+        task_id: { type: "string", description: "관련 업무 id (선택)" },
+        day: { ...DATE, description: "YYYY-MM-DD (선택, 비우면 오늘)" },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  {
     name: "check_step",
     title: "단계 완료 체크",
     description: "단계 하나를 완료로 체크합니다(done=false 면 되돌림). 모든 단계가 끝나면 업무가 완료되어 보관함으로 갑니다. step_id 는 list_tasks 에서.",
@@ -248,7 +265,9 @@ async function getBriefing(c: Ctx) {
     const next = t.waiting_on ? `${t.waiting_on} 회신 대기 중` : t.next_action;
     return `${n + 1}. ${t.title}${badge(i) ? ` [${badge(i)}]` : ""}${i.due ? ` 마감 ${i.due}` : ""}\n   → 다음 행동: ${next}${t.steps.length ? ` (단계 ${done}/${t.steps.length})` : ""}`;
   });
-  return `오늘은 ${today}입니다. 진행 중인 업무 ${rows.length}개 (급한 순):\n${lines.join("\n")}`;
+  const { data: mine } = await c.db.from("today_items").select("title, done").eq("user_id", c.userId).eq("day", today).order("position");
+  const mineText = mine?.length ? `\n\n내 오늘 목록 (${mine.filter((i: { done: boolean }) => i.done).length}/${mine.length} 끝):\n${mine.map((i: { title: string; done: boolean }) => `${i.done ? "☑" : "☐"} ${i.title}`).join("\n")}` : "";
+  return `오늘은 ${today}입니다. 진행 중인 업무 ${rows.length}개 (급한 순):\n${lines.join("\n")}${mineText}`;
 }
 
 async function listTasks(c: Ctx, args: { search?: string }) {
@@ -467,6 +486,18 @@ async function getThoughts(c: Ctx, a: { kind?: string }) {
   return data.map((t: { body: string; kind: string; created_at: string }) => `- [${KIND_LABEL[t.kind] ?? t.kind}] ${t.body} (${t.created_at.slice(0, 10)})`).join("\n");
 }
 
+async function addTodayItem(c: Ctx, a: { title: string; task_id?: string; day?: string }) {
+  const title = a.title?.trim();
+  if (!title) throw new ToolError("할 일(title)이 비어 있어요.");
+  const day = validDate(a.day) ?? todayKST();
+  if (a.task_id) await ownedTask(c, a.task_id);
+  const { data: existing } = await c.db.from("today_items").select("position").eq("user_id", c.userId).eq("day", day);
+  const position = (existing ?? []).reduce((m: number, i: { position: number }) => Math.max(m, i.position + 1), 0);
+  const { error } = await c.db.from("today_items").insert({ user_id: c.userId, day, title: title.slice(0, 200), task_id: a.task_id || null, position });
+  if (error) throw new ToolError(error.message.includes("today_items") ? "오늘 할 일 기능이 아직 설치되지 않았어요. 잠시 뒤 다시 해 주세요." : error.message);
+  return `${day === todayKST() ? "오늘" : day} 할 일에 넣었어요: ${title}`;
+}
+
 async function checkStep(c: Ctx, a: { step_id: string; done?: boolean }) {
   const step = check(await c.db.from("steps").select("id, task_id, title").eq("user_id", c.userId).eq("id", a.step_id).maybeSingle()) as { id: string; task_id: string; title: string } | null;
   if (!step) throw new ToolError("그 단계를 찾지 못했어요. list_tasks 로 step id를 다시 확인하세요.");
@@ -495,6 +526,7 @@ async function callTool(c: Ctx, name: string, args: Record<string, unknown>) {
     case "add_reminder": return await addReminder(c, args as Parameters<typeof addReminder>[1]);
     case "add_thought": return await addThought(c, args as Parameters<typeof addThought>[1]);
     case "get_thoughts": return await getThoughts(c, args as Parameters<typeof getThoughts>[1]);
+    case "add_today_item": return await addTodayItem(c, args as Parameters<typeof addTodayItem>[1]);
     case "check_step": return await checkStep(c, args as Parameters<typeof checkStep>[1]);
     default: throw new ToolError(`모르는 도구: ${name}`);
   }

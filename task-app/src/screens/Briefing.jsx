@@ -9,9 +9,10 @@ import { taskState } from '../lib/balance.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
 import { principleOfDay } from '../lib/thoughts.js';
+import TodayCard from './TodayCard.jsx';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [],
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [],
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -50,6 +51,8 @@ export default function Briefing({
           </div>
         );
       })()}
+
+      <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} reload={reload} onOpen={onOpen} />
 
       {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
 
@@ -111,16 +114,16 @@ export default function Briefing({
             .map(({ c, items }) => (
               <div key={c.id} className="group">
                 <h2 style={{ '--c': c.color }} className="group-title">{c.name}</h2>
-                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} />
+                <TaskList rows={items} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} todayItems={todayItems} />
               </div>
             ))
-        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} />}
+        : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} todayItems={todayItems} />}
     </section>
   );
 }
 
 // 업무 꼭지 목록: 누르면 그 자리에서 펼쳐져 세부 단계를 보고 바로 체크. "열기"로 업무 화면.
-function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, reload, reminders = [] }) {
+function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, reload, reminders = [], todayItems = [] }) {
   const [open, setOpen] = useState(() => new Set());
   const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
   const toggle = (id) => setOpen((prev) => {
@@ -150,6 +153,17 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
       await reload();
     } catch (e) {
       alert(`되돌리지 못했어요: ${e.message}`);
+    }
+  }
+
+  // 펼친 업무의 다음 행동을 '내 오늘 목록'에
+  async function addToToday(task) {
+    try {
+      const mine = (todayItems ?? []).filter((i) => i.day === today);
+      await api.addTodayItem({ day: today, title: task.waiting_on ? `${task.waiting_on} 확인` : task.next_action, taskId: task.id, position: mine.reduce((m, i) => Math.max(m, i.position + 1), 0) });
+      await reload();
+    } catch (e) {
+      alert(`오늘 목록에 넣지 못했어요: ${e.message}`);
     }
   }
 
@@ -225,6 +239,9 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
                 {blockers.length > 0 && <p className="small muted">먼저 끝내야 할 업무: {blockers.map((b) => b.title).join(', ')}</p>}
                 <div className="row wrap">
                   <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '단계 정하러 열기 →' : '업무 열기 →'}</button>
+                  {todayItems !== null && ((todayItems ?? []).some((i) => i.day === today && i.task_id === task.id && !i.done)
+                    ? <span className="small muted">☀️ 오늘 목록에 있음</span>
+                    : <button onClick={() => addToToday(task)}>☀️ 오늘 할 일에</button>)}
                   <button className="done-btn" onClick={() => complete(task)}>✓ 완료</button>
                 </div>
               </div>

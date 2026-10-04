@@ -669,6 +669,31 @@ export async function deleteThought(id) {
   check(await supabase.from('thoughts').delete().eq('id', id));
 }
 
+// ── 오늘 할 일 (내가 따로 정리하는 오늘 목록) ──────────
+
+export async function loadTodayItems(sinceDay) {
+  const { data, error } = await supabase.from('today_items').select('*').gte('day', sinceDay).order('position');
+  if (error) return null; // schema_today.sql 실행 전
+  return data;
+}
+
+export async function addTodayItem({ day, title, taskId, position }) {
+  return check(await supabase.from('today_items').insert({ day, title: title.trim().slice(0, 200), task_id: taskId || null, position }).select().single());
+}
+
+export async function updateTodayItem(id, patch) {
+  check(await supabase.from('today_items').update(patch).eq('id', id));
+}
+
+export async function deleteTodayItem(id) {
+  check(await supabase.from('today_items').delete().eq('id', id));
+}
+
+// 순서 바꾸기·어제 것 가져오기처럼 여러 줄을 한 번에
+export async function updateTodayItems(rows) {
+  await Promise.all(rows.map(({ id, ...patch }) => updateTodayItem(id, patch)));
+}
+
 // ── 관리자 ──────────────────────────────────
 
 export async function adminOverview() {

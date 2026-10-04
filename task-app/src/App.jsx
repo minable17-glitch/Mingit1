@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import * as api from './lib/api.js';
+import { addDays, todayKST } from './lib/date.js';
 import Briefing from './screens/Briefing.jsx';
 import TaskDetail from './screens/TaskDetail.jsx';
 import Archive from './screens/Archive.jsx';
@@ -97,6 +98,7 @@ function Main({ userId, features }) {
   const [links, setLinks] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [thoughts, setThoughts] = useState([]);
+  const [todayItems, setTodayItems] = useState([]);
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
@@ -104,7 +106,7 @@ function Main({ userId, features }) {
 
   const reload = useCallback(async () => {
     try {
-      const [cats, active, st, tpls, inbox, lnks, rems, notes] = await Promise.all([
+      const [cats, active, st, tpls, inbox, lnks, rems, notes, todays] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
         api.loadTemplates().catch(() => []),
         // 받은 제안함(Gmail)은 고급 구글 연동 사용자만
@@ -112,6 +114,7 @@ function Main({ userId, features }) {
         api.loadLinks().catch(() => []), // 연결 표를 아직 안 만들었어도 앱은 동작
         api.loadReminders(),
         api.loadThoughts(),
+        api.loadTodayItems(addDays(todayKST(), -7)),
       ]);
       setCategories(cats);
       setTasks(active);
@@ -121,6 +124,7 @@ function Main({ userId, features }) {
       setLinks(lnks);
       setReminders(rems);
       setThoughts(notes);
+      setTodayItems(todays);
       setError('');
       return active;
     } catch (e) {
@@ -175,7 +179,7 @@ function Main({ userId, features }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts,
+    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 
