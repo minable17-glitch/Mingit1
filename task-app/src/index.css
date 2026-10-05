@@ -582,3 +582,32 @@ p.warn { color: #b45309; }
 .pl-week-day { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: none; padding: 0 0 4px; }
 .pl-week-body p { margin: 2px 0; overflow-wrap: anywhere; }
 .pl-mini { font-size: 0.6rem; color: var(--muted); }
+.pl-w-sec { margin-top: 6px; }
+.pl-w-sec > b { display: block; font-size: 0.78rem; color: #2f8f6f; }
+@media (prefers-color-scheme: dark) { .pl-w-sec > b { color: #8fd3b9; } }
+.pl-w-sec p.done { color: var(--muted); text-decoration: line-through; }
+.pl-w-period { display: inline-block; min-width: 1.4em; text-align: center; font-weight: 800; color: #2f8f6f; background: #dff3ec; border-radius: 4px; }
+@media (prefers-color-scheme: dark) { .pl-w-period { background: #1d3a31; color: #8fd3b9; } }
+.pl-week-body .pre { white-space: pre-wrap; }
+
+/* 📤 저장·인쇄 */
+.export-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; max-height: 60vh; }
+.export-table { border-collapse: collapse; font-size: 0.8rem; min-width: 100%; }
+.export-table th, .export-table td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; white-space: pre-wrap; }
+.export-table th { background: var(--bg); position: sticky; top: 0; white-space: nowrap; }
+.print-title { margin: 6px 0; font-size: 0.95rem; }
+.print-foot { display: none; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; }
+  .export-scroll { overflow: visible; max-height: none; border: none; }
+  .export-table { font-size: 9.5pt; width: 100%; }
+  .export-table th, .export-table td { border: 1px solid #555; color: #000; }
+  .export-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; position: static; }
+  .export-table tr { break-inside: avoid; }
+  .print-title { font-size: 14pt; }
+  .print-foot { display: block; margin-top: 6px; }
+}

@@ -729,6 +729,20 @@ export async function loadClassMonth(month) {
 }
 
 // 명렬표 저장: replace=true 면 기존 학생(과 그 기록)을 지우고 새로
+// 기간(from~to, 포함) 학급 기록 전부: 내보내기·인쇄용
+export async function loadClassRange(from, to) {
+  const q = (t, col = 'day') => supabase.from(t).select('*').gte(col, from).lte(col, to);
+  const [students, notices, attendance, notes, days, items] = await Promise.all([
+    supabase.from('class_students').select('*').order('number'),
+    q('class_notices'), q('class_attendance'), q('class_notes'), q('planner_days'), q('today_items'),
+  ]);
+  if (students.error) return null;
+  return {
+    students: students.data, notices: notices.data ?? [], attendance: attendance.data ?? [],
+    notes: notes.data ?? [], days: days.data ?? [], items: items.data ?? [],
+  };
+}
+
 // 던져 둔 것을 학급으로 보낼 때 쓰는 명렬표 (표가 없으면 [])
 export async function loadStudents() {
   const { data, error } = await supabase.from('class_students').select('*').eq('active', true).order('number');
@@ -796,12 +810,13 @@ export async function clearClassData() {
 // ── 일지(플래너): 날짜마다 메모·교시별 기록·하루 기록 ──────
 // 표가 아직 없으면 null
 export async function loadPlannerRange(from, to) {
-  const [days, items] = await Promise.all([
+  const [days, items, notices] = await Promise.all([
     supabase.from('planner_days').select('*').gte('day', from).lte('day', to),
     supabase.from('today_items').select('*').gte('day', from).lte('day', to).order('position'),
+    supabase.from('class_notices').select('*').gte('day', from).lte('day', to).order('position'),
   ]);
   if (days.error) return null;
-  return { days: days.data, items: items.data ?? [] };
+  return { days: days.data, items: items.data ?? [], notices: notices.data ?? [] };
 }
 
 export async function savePlannerDay(day, patch) {

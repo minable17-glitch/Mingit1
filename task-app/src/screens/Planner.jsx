@@ -31,6 +31,7 @@ export default function Planner({ day, setDay, bell = [] }) {
   const dayOf = (d) => data?.days.find((x) => x.day === d) ?? null;
   const itemsOf = (d) => (data?.items ?? []).filter((i) => i.day === d);
   const bellOf = (n) => bell.find((b) => Number(b.period) === n);
+  const noticesOf = (d, kind) => (data?.notices ?? []).filter((x) => x.day === d && x.kind === kind).sort((a, b) => a.position - b.position);
 
   return (
     <div className="planner">
@@ -43,7 +44,7 @@ export default function Planner({ day, setDay, bell = [] }) {
       {data === null && <p className="notice">일지를 준비하는 중이에요. 잠시 뒤 다시 열어 주세요.</p>}
 
       {data && mode === 'day' && (
-        <DayPage key={day} day={day} saved={dayOf(day)} items={itemsOf(day)} bellOf={bellOf} reload={reload} />
+        <DayPage key={day} day={day} saved={dayOf(day)} items={itemsOf(day)} morning={noticesOf(day, 'morning')} closing={noticesOf(day, 'closing')} bellOf={bellOf} reload={reload} />
       )}
 
       {data && mode === 'week' && (
@@ -60,11 +61,22 @@ export default function Planner({ day, setDay, bell = [] }) {
                   <span className="grow" />
                   <span className="small link">열기 →</span>
                 </button>
-                {isEmptyDay(dayOf(d), itemsOf(d)) ? <span className="small muted">—</span> : (
+                {isEmptyDay(dayOf(d), itemsOf(d)) && !noticesOf(d, 'morning').length && !noticesOf(d, 'closing').length ? <span className="small muted">—</span> : (
                   <div className="small pl-week-body">
-                    {s.memo && <p>📝 {s.memo}</p>}
-                    {rows.map((p) => <p key={p.i}><b>{p.i}교시</b> {p.a} {p.b && <span className="muted">· {p.b}</span>}</p>)}
-                    {itemsOf(d).filter((i) => !i.done).slice(0, 3).map((i) => <p key={i.id}>☐ {i.title}</p>)}
+                    {dayOf(d)?.memo?.trim() && <div className="pl-w-sec"><b>📝 메모</b><p className="pre">{dayOf(d).memo.trim()}</p></div>}
+                    {noticesOf(d, 'morning').length > 0 && (
+                      <div className="pl-w-sec"><b>☀️ 조회</b>{noticesOf(d, 'morning').map((n, k) => <p key={n.id} className={n.done ? 'done' : ''}>{k + 1}. {n.body}</p>)}</div>
+                    )}
+                    {rows.length > 0 && (
+                      <div className="pl-w-sec"><b>📚 교시별</b>{rows.map((p) => <p key={p.i}><span className="pl-w-period">{p.i}</span> {p.a}{p.b && <span className="muted"> · {p.b}</span>}</p>)}</div>
+                    )}
+                    {noticesOf(d, 'closing').length > 0 && (
+                      <div className="pl-w-sec"><b>🌙 종례</b>{noticesOf(d, 'closing').map((n, k) => <p key={n.id} className={n.done ? 'done' : ''}>{k + 1}. {n.body}</p>)}</div>
+                    )}
+                    {itemsOf(d).length > 0 && (
+                      <div className="pl-w-sec"><b>✅ 할 일</b>{itemsOf(d).map((i) => <p key={i.id} className={i.done ? 'done' : ''}>{i.done ? '☑' : '☐'} {i.title}</p>)}</div>
+                    )}
+                    {dayOf(d)?.reflection?.trim() && <div className="pl-w-sec"><b>🌙 하루 기록</b><p className="pre">{dayOf(d).reflection.trim()}</p></div>}
                   </div>
                 )}
               </li>
@@ -100,7 +112,7 @@ export default function Planner({ day, setDay, bell = [] }) {
 }
 
 // 하루 쪽: 메모 · 교시 표 · 체크리스트 · 하루 기록. 칸에서 나가면 저장
-function DayPage({ day, saved, items, bellOf, reload }) {
+function DayPage({ day, saved, items, morning, closing, bellOf, reload }) {
   const [memo, setMemo] = useState(saved?.memo ?? '');
   const [rows, setRows] = useState(() => periodRows(saved?.periods));
   const [reflection, setReflection] = useState(saved?.reflection ?? '');
@@ -130,6 +142,8 @@ function DayPage({ day, saved, items, bellOf, reload }) {
         <textarea rows={4} placeholder="오늘 기억할 것, 일정, 생각…" value={memo} onChange={(e) => setMemo(e.target.value)} onBlur={() => save()} />
       </label>
 
+      <NoticeBox kind="morning" day={day} list={morning} run={run} />
+
       <div className="pl-box">
         <span className="pl-label">📚 교시별</span>
         <table className="pl-periods">
@@ -147,6 +161,8 @@ function DayPage({ day, saved, items, bellOf, reload }) {
           </tbody>
         </table>
       </div>
+
+      <NoticeBox kind="closing" day={day} list={closing} run={run} />
 
       <div className="pl-box">
         <span className="pl-label">✅ 할 일 <span className="small muted">(이 날짜의 ‘오늘 할 일’과 같은 목록)</span></span>
@@ -169,6 +185,32 @@ function DayPage({ day, saved, items, bellOf, reload }) {
         <span className="pl-label">🌙 하루 기록</span>
         <textarea rows={3} placeholder="오늘 있었던 일, 잘된 점, 내일 챙길 것…" value={reflection} onChange={(e) => setReflection(e.target.value)} onBlur={() => save()} />
       </label>
+    </div>
+  );
+}
+
+// 조회·종례 전달사항 (학급 탭의 조회·종례와 같은 목록)
+function NoticeBox({ kind, day, list, run }) {
+  const [text, setText] = useState('');
+  const label = kind === 'morning' ? '☀️ 조회' : '🌙 종례';
+  return (
+    <div className="pl-box">
+      <span className="pl-label">{label} 전달사항</span>
+      {list.length > 0 && (
+        <ol className="pl-checks">
+          {list.map((n, k) => (
+            <li key={n.id} className={n.done ? 'done' : ''}>
+              <input type="checkbox" checked={n.done} onChange={() => run(() => api.updateNotice(n.id, { done: !n.done }))} aria-label="전달함" />
+              <span className="grow">{k + 1}. {n.body}</span>
+              <button className="icon" onClick={() => run(() => api.deleteNotice(n.id))} aria-label="지우기">×</button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <form className="row" onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; const body = text; setText(''); run(() => api.addNotice({ day, kind, body, position: list.reduce((m, x) => Math.max(m, x.position + 1), 0) })); }}>
+        <input className="grow" placeholder={`${label.slice(2)}에 전할 말`} value={text} onChange={(e) => setText(e.target.value)} />
+        <button disabled={!text.trim()}>추가</button>
+      </form>
     </div>
   );
 }
