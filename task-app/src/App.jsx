@@ -14,6 +14,7 @@ import Templates from './screens/Templates.jsx';
 import Timetable from './screens/Timetable.jsx';
 import Balance from './screens/Balance.jsx';
 import Thoughts from './screens/Thoughts.jsx';
+import Calendar from './screens/Calendar.jsx';
 
 const TABS = [
   { key: 'briefing', label: '브리핑' },
@@ -190,6 +191,12 @@ function Main({ userId, features }) {
     categories: () => <Categories {...shared} onClose={close} />,
     templates: () => <Templates {...shared} onClose={close} />,
     timetable: () => <Timetable {...shared} onClose={close} />,
+    calendar: () => (
+      <section>
+        <header className="page-head"><button className="link" onClick={close}>← 돌아가기</button><h1>📅 마감 달력</h1></header>
+        <Calendar {...shared} initialTaskId={overlay.taskId} />
+      </section>
+    ),
     draft: () => (
       <DraftForm
         initial={overlay.draft}

@@ -7,6 +7,7 @@ import { analyzeBalance, HEAVY_LOAD, quadrantOf, QUADRANTS } from '../lib/balanc
 import { buddyOf, moodCounts, MOODS } from '../lib/buddies.js';
 import Buddy from './Buddy.jsx';
 import MindMap from './MindMap.jsx';
+import Calendar from './Calendar.jsx';
 import { dueLabel, todayKST } from '../lib/date.js';
 
 const STATE = {
@@ -19,7 +20,7 @@ const ORDER = ['critical', 'warning', 'good'];
 const VIEW_KEY = 'task-keeper.balance-view';
 const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'buddies'; } catch { return 'buddies'; } };
 
-export default function Balance({ tasks, categories, settings, links = [], thoughts, onOpen, reload }) {
+export default function Balance({ tasks, categories, settings, links = [], thoughts, reminders = [], onOpen, reload }) {
   const today = todayKST();
   const b = useMemo(() => analyzeBalance(tasks, categories, settings, links, today), [tasks, categories, settings, links, today]);
   const [view, setView] = useState(readView);
@@ -38,11 +39,14 @@ export default function Balance({ tasks, categories, settings, links = [], thoug
     <section className="viz-root">
       <header className="page-head"><h1>업무 한눈에</h1></header>
       <div className="view-switch" role="tablist">
-        <button role="tab" aria-selected={view === 'buddies'} className={view === 'buddies' ? 'on' : ''} onClick={() => pick('buddies')}>🐣 업무 친구들</button>
+        <button role="tab" aria-selected={view === 'buddies'} className={view === 'buddies' ? 'on' : ''} onClick={() => pick('buddies')}>🐣 친구들</button>
         <button role="tab" aria-selected={view === 'map'} className={view === 'map' ? 'on' : ''} onClick={() => pick('map')}>🧠 마인드맵</button>
+        <button role="tab" aria-selected={view === 'cal'} className={view === 'cal' ? 'on' : ''} onClick={() => pick('cal')}>📅 달력</button>
       </div>
 
-      {view === 'map' ? (
+      {view === 'cal' ? (
+        <Calendar tasks={tasks} categories={categories} reminders={reminders} onOpen={onOpen} />
+      ) : view === 'map' ? (
         <MindMap tasks={tasks} categories={categories} links={links} thoughts={thoughts} settings={settings} reload={reload} onOpen={onOpen} />
       ) : (
         <>

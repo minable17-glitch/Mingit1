@@ -18,7 +18,7 @@ async function tidyLongTitle(task, categories, today) {
 
 const KIND_LABEL = { create: '등록', check: '체크', note: '메모', edit: '수정', complete: '완료', wait: '공 넘김', reply: '응답 받음' };
 
-export default function TaskDetail({ taskId, categories, categoryById, templates, features, links = [], tasks = [], reminders = [], settings, reload, onOpen, onClose }) {
+export default function TaskDetail({ taskId, categories, categoryById, templates, features, links = [], tasks = [], reminders = [], settings, reload, onOpen, onOpenScreen, onClose }) {
   const [task, setTask] = useState(null);
   const [activity, setActivity] = useState([]);
   const [breaking, setBreaking] = useState(false);
@@ -157,6 +157,10 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
           ))}
         </ul>
       </div>
+
+      {(task.due_date || task.steps?.some((st) => st.due_date)) && onOpenScreen && (
+        <button className="link" onClick={() => onOpenScreen({ type: 'calendar', taskId: task.id })}>📅 이 업무 일정 달력으로 보기 →</button>
+      )}
 
       <Links task={task} links={links} tasks={tasks} onOpen={onOpen} />
 
