@@ -522,3 +522,36 @@ p.warn { color: #b45309; }
 .sort-panel { padding: 0 12px 12px; }
 .sort-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .sort-actions button { font-size: 0.88rem; padding: 6px 10px; }
+
+/* 학급 */
+.tabs button { font-size: 0.85rem; padding-left: 2px; padding-right: 2px; }
+.class-date { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.class-date b { font-size: 1.05rem; }
+.class-date input[type=date] { margin-left: auto; padding: 4px 6px; font-size: 0.85rem; }
+.class-tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
+.class-tabs button { flex: none; border-radius: 999px; padding: 6px 12px; font-size: 0.88rem; font-weight: 700; }
+.class-tabs button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.notice-list { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; counter-reset: n; }
+.notice-list li { display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+.notice-list li.done span { color: var(--muted); text-decoration: line-through; }
+.suggest { border-top: 1px dashed var(--line); padding-top: 8px; }
+.att-summary { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.9rem; }
+.att-summary .has b { color: #d03b3b; }
+.att-list, .roster-list, .note-list, .month-att { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.att-list > li { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.att-list > li.marked { border-color: #f3b4b4; background: rgba(208, 59, 59, 0.04); }
+.att-row { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: none; padding: 8px 10px; text-align: left; border-radius: 0; }
+.att-num { min-width: 2em; text-align: center; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.att-tag { font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #fde8e8; color: #9b1c1c; }
+.att-tag.t-late, .att-tag.t-early { background: #fef3c7; color: #92400e; }
+.att-tag.t-result { background: #ede9fe; color: #5b21b6; }
+.att-edit { padding: 0 10px 10px; }
+.att-edit .chip { font-size: 0.85rem; padding: 3px 12px; }
+.roster-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.roster-list li.inactive { opacity: 0.5; }
+.note-list li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.note-date { min-width: 3em; color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.month-att li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.classroom textarea { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.danger-text { color: #d03b3b; }
+.privacy-line { margin-top: 16px; }

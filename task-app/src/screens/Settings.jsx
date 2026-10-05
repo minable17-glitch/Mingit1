@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { AI_MODELS, AI_SITES, askWithOwnKey, loadAiSettings, saveAiSettings } from '../lib/ai.js';
 
-export default function Settings({ settings, userId, features, onSaved, onOpenScreen }) {
+export default function Settings({ settings, userId, features, onSaved, onOpenScreen, showClass, setShowClass }) {
   const [form, setForm] = useState({
     neglect_days: settings.neglect_days,
     waiting_days: settings.waiting_days,
@@ -67,6 +67,14 @@ export default function Settings({ settings, userId, features, onSaved, onOpenSc
 
       <CalendarFeed settings={settings} userId={userId} onSaved={onSaved} />
       <AiSettings />
+      <div className="block stack">
+        <h2>🏫 학급 탭 (담임)</h2>
+        <label className="row">
+          <input type="checkbox" checked={showClass} onChange={(e) => setShowClass(e.target.checked)} />
+          <span>아래에 <b>학급</b> 탭 보이기 — 조회·종례 전달사항, 출결, 학생 특이사항, 명렬표</span>
+        </label>
+        <p className="small muted">담임이 아니면 꺼 두세요. 학급 기록은 본인만 볼 수 있고, AI 채팅 커넥터로는 내보내지 않아요.</p>
+      </div>
       <PushSettings />
       <AiConnector settings={settings} userId={userId} onSaved={onSaved} />
       {features?.google_advanced && <GoogleAdvanced />}

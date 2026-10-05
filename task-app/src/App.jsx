@@ -15,10 +15,12 @@ import Timetable from './screens/Timetable.jsx';
 import Balance from './screens/Balance.jsx';
 import Thoughts from './screens/Thoughts.jsx';
 import Calendar from './screens/Calendar.jsx';
+import ClassRoom from './screens/ClassRoom.jsx';
 
 const TABS = [
   { key: 'briefing', label: '브리핑' },
   { key: 'balance', label: '한눈에' },
+  { key: 'class', label: '학급' },
   { key: 'thoughts', label: '생각' },
   { key: 'archive', label: '보관함' },
   { key: 'settings', label: '설정' },
@@ -101,6 +103,9 @@ function Main({ userId, features }) {
   const [thoughts, setThoughts] = useState([]);
   const [todayItems, setTodayItems] = useState([]);
   const [throwItems, setThrowItems] = useState([]);
+  // 학급 탭(담임용) 보이기: 기기마다 설정에서 끄고 켬
+  const [showClass, setShowClassState] = useState(() => { try { return localStorage.getItem('task-keeper.show-class') !== 'off'; } catch { return true; } });
+  const setShowClass = (on) => { setShowClassState(on); try { localStorage.setItem('task-keeper.show-class', on ? 'on' : 'off'); } catch { /* 괜찮음 */ } };
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
@@ -183,7 +188,7 @@ function Main({ userId, features }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems, throwItems,
+    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems, throwItems, showClass, setShowClass,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 
@@ -225,12 +230,13 @@ function Main({ userId, features }) {
           <main>
             {tab === 'briefing' && <Briefing {...shared} inboxCount={inboxCount} />}
             {tab === 'balance' && <Balance {...shared} />}
+            {tab === 'class' && <ClassRoom {...shared} />}
             {tab === 'archive' && <Archive {...shared} />}
             {tab === 'thoughts' && <Thoughts {...shared} />}
             {tab === 'settings' && <Settings {...shared} />}
           </main>
           <nav className="tabs">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.key !== 'class' || showClass).map((t) => (
               <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
                 {t.label}
               </button>

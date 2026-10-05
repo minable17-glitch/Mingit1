@@ -428,7 +428,7 @@ function PrivacyNotice() {
   if (hidden) return null;
   return (
     <div className="notice row">
-      <span className="grow">🔒 학생 이름·연락처·상담 내용 등 <b>학생 개인정보는 적지 말아 주세요.</b> 업무 제목은 “3반 상담 기록 정리”처럼 써 주세요.</span>
+      <span className="grow">🔒 업무·메모에는 <b>학생 개인정보를 적지 말아 주세요.</b> 업무 제목은 “3반 상담 기록 정리”처럼 쓰고, 학생 출결·특이사항은 <b>학급</b> 탭(본인만 보기)에 적어 주세요.</span>
       <button className="link" onClick={() => { try { localStorage.setItem(KEY, '1'); } catch { /* 저장 안 돼도 이번엔 닫기 */ } setHidden(true); }}>확인</button>
     </div>
   );

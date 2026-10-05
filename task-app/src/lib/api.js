@@ -710,6 +710,76 @@ export async function deleteThrow(id) {
   check(await supabase.from('throw_items').delete().eq('id', id));
 }
 
+// ── 학급(담임): 명렬표·전달사항·출결·특이사항 ─────────
+// 학생 정보는 본인만 볼 수 있음(행 단위 보안). AI 커넥터로는 내보내지 않음.
+
+// 한 달(YYYY-MM) 치 학급 기록. 표가 아직 없으면 null
+export async function loadClassMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  const from = `${month}-01`;
+  const to = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  const [students, notices, attendance, notes] = await Promise.all([
+    supabase.from('class_students').select('*').order('number'),
+    supabase.from('class_notices').select('*').gte('day', from).lt('day', to).order('position'),
+    supabase.from('class_attendance').select('*').gte('day', from).lt('day', to),
+    supabase.from('class_notes').select('*').order('day', { ascending: false }).limit(500),
+  ]);
+  if (students.error) return null;
+  return { students: students.data, notices: notices.data ?? [], attendance: attendance.data ?? [], notes: notes.data ?? [] };
+}
+
+// 명렬표 저장: replace=true 면 기존 학생(과 그 기록)을 지우고 새로
+export async function saveRoster(rows, { replace = false } = {}) {
+  if (replace) check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
+  if (rows.length) check(await supabase.from('class_students').insert(rows.map((r) => ({ number: r.number, name: r.name.trim() }))));
+}
+
+export async function updateStudent(id, patch) {
+  check(await supabase.from('class_students').update(patch).eq('id', id));
+}
+
+export async function deleteStudent(id) {
+  check(await supabase.from('class_students').delete().eq('id', id));
+}
+
+export async function addNotice({ day, kind, body, position }) {
+  return check(await supabase.from('class_notices').insert({ day, kind, body: body.trim(), position }).select().single());
+}
+
+export async function updateNotice(id, patch) {
+  check(await supabase.from('class_notices').update(patch).eq('id', id));
+}
+
+export async function deleteNotice(id) {
+  check(await supabase.from('class_notices').delete().eq('id', id));
+}
+
+// 출결: 같은 학생·날짜·종류면 사유·메모만 바꿈
+export async function setAttendance({ studentId, day, type, reason, memo }) {
+  check(await supabase.from('class_attendance').upsert(
+    { student_id: studentId, day, type, reason, memo: memo?.trim() || null },
+    { onConflict: 'student_id,day,type' },
+  ));
+}
+
+export async function clearAttendance(id) {
+  check(await supabase.from('class_attendance').delete().eq('id', id));
+}
+
+export async function addClassNote({ studentId, day, body }) {
+  check(await supabase.from('class_notes').insert({ student_id: studentId, day, body: body.trim() }));
+}
+
+export async function deleteClassNote(id) {
+  check(await supabase.from('class_notes').delete().eq('id', id));
+}
+
+// 학년말 정리: 학급 기록 모두 지우기
+export async function clearClassData() {
+  check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
+  check(await supabase.from('class_notices').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
+}
+
 // ── 관리자 ──────────────────────────────────
 
 export async function adminOverview() {
