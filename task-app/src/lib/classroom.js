@@ -30,8 +30,9 @@ export function parseRoster(text) {
     if (!name) continue;
     const numCell = cells.find((c) => /^\d{1,6}$/.test(c));
     let number = numCell ? Number(numCell) : out.length + 1;
-    if (number > 99) number %= 100; // 학번 → 번호
-    out.push({ number, name });
+    const row = { number, name };
+    if (number > 99) { row.number = number % 100; row.code = numCell; } // 학번(10203) → 번호 3, 학번은 따로 보관
+    out.push(row);
   }
   // 같은 번호가 겹치면 순서대로 다시 매김
   if (new Set(out.map((s) => s.number)).size !== out.length) return out.map((s, i) => ({ ...s, number: i + 1 }));

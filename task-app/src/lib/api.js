@@ -758,7 +758,7 @@ export async function appendPlannerMemo(day, line) {
 
 export async function saveRoster(rows, { replace = false } = {}) {
   if (replace) check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
-  if (rows.length) check(await supabase.from('class_students').insert(rows.map((r) => ({ number: r.number, name: r.name.trim() }))));
+  if (rows.length) check(await supabase.from('class_students').insert(rows.map((r) => ({ number: r.number, name: r.name.trim(), student_code: r.code || null }))));
 }
 
 export async function updateStudent(id, patch) {
@@ -782,9 +782,11 @@ export async function deleteNotice(id) {
 }
 
 // 출결: 같은 학생·날짜·종류면 사유·메모만 바꿈
-export async function setAttendance({ studentId, day, type, reason, memo }) {
+// days 를 주면 그 날들 모두(기간 결석) 같은 내용으로
+export async function setAttendance({ studentId, day, days, type, reason, memo, periods, docs }) {
+  const list = days?.length ? days : [day];
   check(await supabase.from('class_attendance').upsert(
-    { student_id: studentId, day, type, reason, memo: memo?.trim() || null },
+    list.map((d) => ({ student_id: studentId, day: d, type, reason, memo: memo?.trim() || null, periods: periods || null, docs: docs?.trim() || null })),
     { onConflict: 'student_id,day,type' },
   ));
 }

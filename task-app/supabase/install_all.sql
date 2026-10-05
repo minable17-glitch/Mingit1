@@ -738,6 +738,11 @@ create policy owner_all on public.class_notes for all
   using (user_id = auth.uid() and public.is_allowed())
   with check (user_id = auth.uid() and public.is_allowed());
 
+-- 학교 출결처리현황 양식용: 학번(전체), 지각·조퇴·결과 교시, 첨부서류
+alter table public.class_students add column if not exists student_code text;
+alter table public.class_attendance add column if not exists periods text;
+alter table public.class_attendance add column if not exists docs text;
+
 -- 업무 챙김 11 — 일지(플래너): 날짜마다 메모·교시별 기록(0~7교시)·하루 기록. schema_class.sql 다음에 실행. 여러 번 실행해도 안전합니다.
 -- 체크리스트는 오늘 할 일(today_items)을 날짜별로 같이 씁니다.
 

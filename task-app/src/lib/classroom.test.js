@@ -6,7 +6,7 @@ test('구글 시트에서 복사한 명렬표 읽기', () => {
   assert.deepEqual(parseRoster('번호\t이름\n1\t김하늘\n2\t이바다\n3\t박구름'), [
     { number: 1, name: '김하늘' }, { number: 2, name: '이바다' }, { number: 3, name: '박구름' },
   ]);
-  assert.deepEqual(parseRoster('학번,성명,성별\n10201,최별,여\n10202,정달,남'), [{ number: 1, name: '최별' }, { number: 2, name: '정달' }]);
+  assert.deepEqual(parseRoster('학번,성명,성별\n10201,최별,여\n10202,정달,남'), [{ number: 1, name: '최별', code: '10201' }, { number: 2, name: '정달', code: '10202' }]);
   assert.deepEqual(parseRoster('김하늘\n이바다'), [{ number: 1, name: '김하늘' }, { number: 2, name: '이바다' }]);
   assert.deepEqual(parseRoster('1 김하늘\n2 이바다\n'), [{ number: 1, name: '김하늘' }, { number: 2, name: '이바다' }]);
 });

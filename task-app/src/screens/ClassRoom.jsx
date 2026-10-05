@@ -4,10 +4,31 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { addDays, dueLabel, todayKST } from '../lib/date.js';
 import Planner from './Planner.jsx';
+import { periodText, schoolDaysList } from '../lib/schoolAttendance.js';
 import ClassExport from './ClassExport.jsx';
 import { ATT_REASONS, ATT_TYPES, daySummary, monthSummary, monthSummaryText, noticesText, parseRoster, reasonLabel, typeLabel } from '../lib/classroom.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+// 지각: 마지막으로 빠진 교시(조회~7교시) / 조퇴: 처음 빠진 교시(1교시~종례) / 결과: 빠진 교시 여러 개
+function PeriodPicker({ type, value, onChange }) {
+  if (type === 'absent') return null;
+  const options = type === 'late' ? ['조회', '1', '2', '3', '4', '5', '6', '7'] : type === 'early' ? ['1', '2', '3', '4', '5', '6', '7', '종례'] : ['1', '2', '3', '4', '5', '6', '7'];
+  const picked = value ? value.split(',') : [];
+  const label = (o) => (/^\d$/.test(o) ? `${o}교시` : o);
+  const hint = type === 'late' ? '몇 교시까지 빠졌나요?' : type === 'early' ? '몇 교시부터 빠졌나요?' : '빠진 교시를 모두 고르세요';
+  return (
+    <div className="stack">
+      <span className="small muted">{hint} {value && <b>→ {periodText(type, value)}</b>}</span>
+      <div className="row wrap">
+        {options.map((o) => (
+          <button key={o} type="button" className={picked.includes(o) ? 'chip on' : 'chip'}
+            onClick={() => onChange(type === 'result' ? (picked.includes(o) ? picked.filter((x) => x !== o) : [...picked, o].sort((a, b) => Number(a) - Number(b))).join(',') : o)}>{label(o)}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 const SECTIONS = [
   { key: 'planner', label: '📒 일지' },
   { key: 'morning', label: '☀️ 조회' },
@@ -161,7 +182,8 @@ function Notices({ kind, day, today, notices, tasks, categories, run }) {
 // ── 출결 ──────────────────────────────
 function Attendance({ day, month, students, records, run }) {
   const [editing, setEditing] = useState(null); // student id
-  const [form, setForm] = useState({ type: 'absent', reason: 'sick', memo: '' });
+  const blank = { type: 'absent', reason: 'sick', memo: '', periods: '', docs: '', until: '' };
+  const [form, setForm] = useState(blank);
   const [copied, setCopied] = useState(false);
   const active = students.filter((s) => s.active);
   const sum = daySummary(students, records, day);
@@ -169,7 +191,7 @@ function Attendance({ day, month, students, records, run }) {
 
   function open(s) {
     setEditing(editing === s.id ? null : s.id);
-    setForm({ type: 'absent', reason: 'sick', memo: '' });
+    setForm(blank);
   }
 
   return (
@@ -195,7 +217,7 @@ function Attendance({ day, month, students, records, run }) {
                   <div className="att-edit stack">
                     {mine.map((r) => (
                       <div key={r.id} className="row small">
-                        <span className="grow">{reasonLabel(r.reason)}{typeLabel(r.type)}{r.memo ? ` · ${r.memo}` : ''}</span>
+                        <span className="grow">{reasonLabel(r.reason)}{typeLabel(r.type)}{r.type !== 'absent' ? ` ${periodText(r.type, r.periods)}` : ''}{r.memo ? ` · ${r.memo}` : ''}{r.docs ? ` · 📎${r.docs}` : ''}</span>
                         <button className="link" onClick={() => run(() => api.clearAttendance(r.id))}>지우기</button>
                       </div>
                     ))}
@@ -205,9 +227,33 @@ function Attendance({ day, month, students, records, run }) {
                     <div className="row wrap">
                       {ATT_REASONS.map((r) => <button key={r.key} type="button" className={form.reason === r.key ? 'chip on' : 'chip'} onClick={() => setForm({ ...form, reason: r.key })}>{r.label}</button>)}
                     </div>
+                    <PeriodPicker type={form.type} value={form.periods} onChange={(periods) => setForm({ ...form, periods })} />
+                    <input placeholder="사유 (예: 감기, 병원진료, 현장체험학습)" value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
+                    {form.type === 'absent' && (
+                      <>
+                        <div className="row wrap small">
+                          <span className="muted">첨부서류</span>
+                          {['진료확인서', '처방전', '학부모의견서', '담임의견서', '진단서'].map((d) => (
+                            <button key={d} type="button" className={form.docs.split(', ').includes(d) ? 'chip on' : 'chip'}
+                              onClick={() => { const set = new Set(form.docs ? form.docs.split(', ') : []); if (set.has(d)) set.delete(d); else set.add(d); setForm({ ...form, docs: [...set].join(', ') }); }}>{d}</button>
+                          ))}
+                        </div>
+                        {form.reason === 'approved' && /체험\s*학습/.test(form.memo) && <p className="small muted">현장체험학습은 첨부서류가 ‘체험학습신청서, 보고서’로 자동으로 적혀요.</p>}
+                        <label className="row small">
+                          <span className="muted">여러 날이면 ~</span>
+                          <input type="date" value={form.until} min={day} onChange={(e) => setForm({ ...form, until: e.target.value })} />
+                          <span className="muted">까지 (주말·공휴일 빼고 저장)</span>
+                        </label>
+                      </>
+                    )}
+                    {form.type !== 'absent' && <p className="small muted">지각·조퇴·결과의 첨부서류는 ‘학부모와연락’으로 자동으로 적혀요.</p>}
                     <div className="row">
-                      <input className="grow" placeholder="메모 (선택, 예: 체험학습)" value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} />
-                      <button className="primary" onClick={() => run(async () => { await api.setAttendance({ studentId: s.id, day, ...form }); setEditing(null); })}>저장</button>
+                      <span className="grow" />
+                      <button className="primary" onClick={() => run(async () => {
+                        const days = form.type === 'absent' && form.until && form.until > day ? schoolDaysList(day, form.until) : null;
+                        await api.setAttendance({ studentId: s.id, day, days, type: form.type, reason: form.reason, memo: form.memo, periods: form.periods, docs: form.docs });
+                        setEditing(null);
+                      })}>저장</button>
                     </div>
                   </div>
                 )}
@@ -297,7 +343,7 @@ function Roster({ students, run }) {
         <textarea rows={5} placeholder={'번호\t이름\n1\t김하늘\n2\t이바다'} value={paste} onChange={(e) => setPaste(e.target.value)} />
         {parsed.length > 0 && (
           <>
-            <p className="small"><b>{parsed.length}명</b>을 읽었어요: {parsed.slice(0, 5).map((s) => `${s.number}번 ${s.name}`).join(', ')}{parsed.length > 5 ? ' …' : ''}</p>
+            <p className="small"><b>{parsed.length}명</b>을 읽었어요: {parsed.slice(0, 5).map((s) => `${s.number}번 ${s.name}${s.code ? `(${s.code})` : ''}`).join(', ')}{parsed.length > 5 ? ' …' : ''}</p>
             <div className="row wrap">
               <button className="primary" onClick={() => {
                 if (students.length && !confirm(`지금 명렬표(${students.length}명)와 그 학생들의 출결·특이사항을 지우고 새 명렬표로 바꿀까요?`)) return;
@@ -317,7 +363,7 @@ function Roster({ students, run }) {
             {students.map((s) => (
               <li key={s.id} className={s.active ? '' : 'inactive'}>
                 <span className="att-num">{s.number}</span>
-                <span className="grow">{s.name}{s.active ? '' : ' (전출)'}</span>
+                <span className="grow">{s.name}{s.student_code ? <span className="small muted"> · {s.student_code}</span> : ''}{s.active ? '' : ' (전출)'}</span>
                 <button className="link small" onClick={() => {
                   const name = prompt('이름 고치기', s.name);
                   if (name?.trim()) run(() => api.updateStudent(s.id, { name: name.trim() }));

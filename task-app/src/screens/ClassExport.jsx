@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { addDays, todayKST } from '../lib/date.js';
 import { weekDays } from '../lib/calendar.js';
+import { SCHOOL_HEADER, schoolReportRows } from '../lib/schoolAttendance.js';
+import { downloadSchoolXlsx } from '../lib/xlsxExport.js';
 import { attendanceSummaryTable, attendanceTable, noticesTable, notesTable, plannerTable, toCSV, toTSV } from '../lib/exporting.js';
 
 const KINDS = [
+  { key: 'school', label: '🧾 출결처리현황(학교 양식)' },
   { key: 'notices', label: '☀️🌙 조회·종례 전달사항' },
   { key: 'attendance', label: '✅ 출결 기록' },
   { key: 'attSummary', label: '📊 출결 학생별 합계' },
@@ -29,7 +32,9 @@ function monthRange(day) {
 export default function ClassExport({ day }) {
   const [range, setRange] = useState('month');
   const [custom, setCustom] = useState(() => monthRange(day));
-  const [kind, setKind] = useState('attendance');
+  const [kind, setKind] = useState('school');
+  const [offText, setOffText] = useState(() => { try { return localStorage.getItem('task-keeper.school-off') || ''; } catch { return ''; } });
+  const extraOff = new Set((offText.match(/\d{4}-\d{2}-\d{2}/g) ?? []));
   const [className, setClassName] = useState(() => { try { return localStorage.getItem('task-keeper.class-name') || ''; } catch { return ''; } });
   const [loaded, setLoaded] = useState({ key: '', data: undefined });
   const [msg, setMsg] = useState('');
@@ -47,8 +52,11 @@ export default function ClassExport({ day }) {
 
   const kindLabel = KINDS.find((k) => k.key === kind).label.replace(/^\S+\s/, '');
   const period = from === to ? from : `${from} ~ ${to}`;
-  const title = `${className ? `${className} ` : ''}${kindLabel} (${period})`;
-  const rows = !data ? [] : kind === 'notices' ? noticesTable(data.notices)
+  const wholeMonth = range === 'month';
+  const schoolTitle = `${wholeMonth ? `${Number(from.slice(5, 7))}월  ` : ''}출결처리현황${className ? `(${className})` : ''}${wholeMonth ? '' : ` ${period}`}`;
+  const title = kind === 'school' ? schoolTitle : `${className ? `${className} ` : ''}${kindLabel} (${period})`;
+  const rows = !data ? [] : kind === 'school' ? [SCHOOL_HEADER, ...schoolReportRows(data.attendance, data.students, extraOff)]
+    : kind === 'notices' ? noticesTable(data.notices)
     : kind === 'attendance' ? attendanceTable(data.attendance, data.students)
       : kind === 'attSummary' ? attendanceSummaryTable(data.attendance, data.students)
         : kind === 'notes' ? notesTable(data.notes, data.students)
@@ -57,10 +65,11 @@ export default function ClassExport({ day }) {
 
   const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 2500); };
   async function copy() {
-    const tsv = toTSV(rows);
+    // 학교 양식은 머리글 빼고 내용만 → 이미 있는 월별 시트의 6행 A열에 바로 붙여넣기
+    const tsv = toTSV(kind === 'school' ? rows.slice(1) : rows);
     try {
       await navigator.clipboard.writeText(tsv);
-      flash('복사했어요. 구글 시트의 빈 칸(A1)을 누르고 Ctrl+V 하세요.');
+      flash(kind === 'school' ? '복사했어요. 학교 출결 시트에서 ‘시작일자’ 아래 첫 칸(A6)을 누르고 Ctrl+V 하세요.' : '복사했어요. 구글 시트의 빈 칸(A1)을 누르고 Ctrl+V 하세요.');
     } catch {
       window.prompt('아래 내용을 복사해 시트에 붙여넣으세요', tsv);
     }
@@ -100,10 +109,23 @@ export default function ClassExport({ day }) {
         )}
       </div>
       <p className="small muted">{period} · 위의 날짜(‹ ›)를 옮기면 그날·그 주·그 달이 바뀌어요.</p>
+      {kind === 'school' && (
+        <label className="stack small">
+          <span className="muted">학교 쉬는 날(재량휴업일 등) — 이어진 결석·기간 계산에서 빼요. 주말·법정 공휴일은 자동으로 빠져요.</span>
+          <input placeholder="예: 2026-10-02, 2026-11-20" value={offText} onChange={(e) => { setOffText(e.target.value); try { localStorage.setItem('task-keeper.school-off', e.target.value); } catch { /* 괜찮음 */ } }} />
+        </label>
+      )}
 
       <div className="row wrap">
         <button className="primary" disabled={empty} onClick={copy}>📋 시트용 복사</button>
-        <button disabled={empty} onClick={download}>⬇ 파일 저장(CSV)</button>
+        {kind === 'school'
+          ? <button disabled={empty} onClick={async () => {
+            try {
+              await downloadSchoolXlsx({ title, sheetName: wholeMonth ? `${Number(from.slice(5, 7))}월` : '출결', header: SCHOOL_HEADER, rows: rows.slice(1), fileName: `${title.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_')}.xlsx` });
+              flash('엑셀 파일을 저장했어요. 구글 드라이브에 올리면 시트로도 열려요.');
+            } catch (e) { flash(`엑셀 파일을 만들지 못했어요: ${e.message}`); }
+          }}>📗 엑셀(.xlsx, 학교 양식)</button>
+          : <button disabled={empty} onClick={download}>⬇ 파일 저장(CSV)</button>}
         <button disabled={empty} onClick={() => window.print()}>🖨 인쇄</button>
       </div>
       {msg && <p className="small">{msg}</p>}
@@ -113,7 +135,15 @@ export default function ClassExport({ day }) {
       {data && empty && <p className="small muted">이 기간에는 기록이 없어요.</p>}
       {data && !empty && (
         <div className="print-area">
-          <h3 className="print-title">{title}</h3>
+          {kind === 'school' ? (
+            <div className="school-head">
+              <h3 className="print-title school-title">{title}</h3>
+              <table className="approval"><tbody>
+                <tr><th rowSpan={2}>결재</th><th>담임</th><th>부장</th><th>교감</th></tr>
+                <tr><td /><td /><td /></tr>
+              </tbody></table>
+            </div>
+          ) : <h3 className="print-title">{title}</h3>}
           <div className="export-scroll">
             <table className="export-table">
               <thead><tr>{rows[0].map((h) => <th key={h}>{h}</th>)}</tr></thead>
