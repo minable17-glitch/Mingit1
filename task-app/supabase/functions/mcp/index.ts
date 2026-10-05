@@ -265,7 +265,7 @@ async function getBriefing(c: Ctx) {
     const next = t.waiting_on ? `${t.waiting_on} 회신 대기 중` : t.next_action;
     return `${n + 1}. ${t.title}${badge(i) ? ` [${badge(i)}]` : ""}${i.due ? ` 마감 ${i.due}` : ""}\n   → 다음 행동: ${next}${t.steps.length ? ` (단계 ${done}/${t.steps.length})` : ""}`;
   });
-  const { data: mine } = await c.db.from("today_items").select("title, done").eq("user_id", c.userId).eq("day", today).order("position");
+  const { data: mine } = await c.db.from("today_items").select("title, done").eq("user_id", c.userId).eq("day", today).eq("scope", "day").order("position");
   const mineText = mine?.length ? `\n\n내 오늘 목록 (${mine.filter((i: { done: boolean }) => i.done).length}/${mine.length} 끝):\n${mine.map((i: { title: string; done: boolean }) => `${i.done ? "☑" : "☐"} ${i.title}`).join("\n")}` : "";
   return `오늘은 ${today}입니다. 진행 중인 업무 ${rows.length}개 (급한 순):\n${lines.join("\n")}${mineText}`;
 }
@@ -491,7 +491,7 @@ async function addTodayItem(c: Ctx, a: { title: string; task_id?: string; day?: 
   if (!title) throw new ToolError("할 일(title)이 비어 있어요.");
   const day = validDate(a.day) ?? todayKST();
   if (a.task_id) await ownedTask(c, a.task_id);
-  const { data: existing } = await c.db.from("today_items").select("position").eq("user_id", c.userId).eq("day", day);
+  const { data: existing } = await c.db.from("today_items").select("position").eq("user_id", c.userId).eq("day", day).eq("scope", "day");
   const position = (existing ?? []).reduce((m: number, i: { position: number }) => Math.max(m, i.position + 1), 0);
   const { error } = await c.db.from("today_items").insert({ user_id: c.userId, day, title: title.slice(0, 200), task_id: a.task_id || null, position });
   if (error) throw new ToolError(error.message.includes("today_items") ? "오늘 할 일 기능이 아직 설치되지 않았어요. 잠시 뒤 다시 해 주세요." : error.message);

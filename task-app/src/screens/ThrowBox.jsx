@@ -7,6 +7,7 @@ import { triageText } from '../lib/rules.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
 import { looksClassRelated } from '../lib/planner.js';
+import { isDayItem } from '../lib/today.js';
 
 export function ThrowIn({ settings, onAdded }) {
   const [text, setText] = useState('');
@@ -132,7 +133,7 @@ function SortPanel({ item, tasks, categories, todayItems, showClass, reload, onO
     onOpenScreen({ type: 'draft', draft, source, sourceText: item.content, throwId: item.id });
   }
 
-  const mine = (todayItems ?? []).filter((i) => i.day === today);
+  const mine = (todayItems ?? []).filter((i) => i.day === today && isDayItem(i));
 
   return (
     <div className="sort-panel stack">

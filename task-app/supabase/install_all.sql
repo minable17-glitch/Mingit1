@@ -620,6 +620,10 @@ create policy owner_all on public.today_items for all
   using (user_id = auth.uid() and public.is_allowed())
   with check (user_id = auth.uid() and public.is_allowed());
 
+-- 주간·월간 할 일과 공강(교시) 계획: scope=week 는 그 주 월요일, month 는 그 달 1일을 day 에 저장
+alter table public.today_items add column if not exists scope text not null default 'day' check (scope in ('day', 'week', 'month'));
+alter table public.today_items add column if not exists period int;
+
 -- 업무 챙김 9 — 던져 둔 것(나중에 분류할 메모함). schema_today.sql 다음에 실행. 여러 번 실행해도 안전합니다.
 
 -- 안전장치: 업무 챙김 전용 프로젝트에서만 실행

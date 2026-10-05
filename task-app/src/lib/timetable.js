@@ -23,3 +23,22 @@ export function freeSlotNow(bell, timetable, now = Date.now()) {
   if (!slot || busy.has(Number(slot.period))) return null;
   return { period: slot.period, minutesLeft: toMinutes(slot.end) - minutes };
 }
+
+// 그날(YYYY-MM-DD)의 공강 교시들 [{ period, start, end, now, past }] — 주말이거나 종 시간이 없으면 []
+export function freePeriodsOn(bell, timetable, date, now = Date.now()) {
+  if (!bell?.length) return [];
+  const [y, m, d] = date.split('-').map(Number);
+  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  if (wd === 0 || wd === 6) return [];
+  const busy = new Set((timetable?.[String(wd)] ?? []).map(Number));
+  const clock = kstClock(now);
+  const todayStr = new Date(now + KST_OFFSET_MS).toISOString().slice(0, 10);
+  const isToday = todayStr === date;
+  return bell
+    .filter((b) => !busy.has(Number(b.period)))
+    .map((b) => ({
+      period: Number(b.period), start: b.start, end: b.end,
+      now: isToday && clock.minutes >= toMinutes(b.start) && clock.minutes < toMinutes(b.end),
+      past: date < todayStr || (isToday && clock.minutes >= toMinutes(b.end)),
+    }));
+}

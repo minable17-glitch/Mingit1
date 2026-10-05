@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assess, sortForBriefing } from './briefing.js';
-import { freeSlotNow, kstClock } from './timetable.js';
+import { freePeriodsOn, freeSlotNow, kstClock } from './timetable.js';
 import { stepsFromTemplate, templateStepsFromTask } from './templates.js';
 import { weekStart } from './date.js';
 
@@ -35,6 +35,10 @@ test('KST 시계와 공강 판단', () => {
   assert.equal(freeSlotNow(bell, { 3: [2] }, now), null); // 수업 있음
   assert.equal(freeSlotNow(bell, {}, Date.parse('2026-09-23T00:47:00Z')), null); // 쉬는 시간
   assert.equal(freeSlotNow(bell, {}, Date.parse('2026-09-26T01:00:00Z')), null); // 토요일
+  const bell3 = [...bell, { period: 3, start: '10:50', end: '11:35' }];
+  assert.deepEqual(freePeriodsOn(bell3, { 3: [1] }, '2026-09-23', now).map((p) => [p.period, p.now, p.past]), [[2, true, false], [3, false, false]]);
+  assert.deepEqual(freePeriodsOn(bell3, { 3: [1] }, '2026-09-22', now).map((p) => p.past), [true, true, true]); // 어제(화)는 지남 (화요일엔 수업 표시 없음)
+  assert.deepEqual(freePeriodsOn(bell3, {}, '2026-09-26', now), []); // 토요일
 });
 
 test('템플릿 날짜 계산 왕복', () => {

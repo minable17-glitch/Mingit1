@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import * as api from './lib/api.js';
-import { addDays, todayKST } from './lib/date.js';
+import { loadSince } from './lib/today.js';
+import { todayKST } from './lib/date.js';
 import Briefing from './screens/Briefing.jsx';
 import TaskDetail from './screens/TaskDetail.jsx';
 import Archive from './screens/Archive.jsx';
@@ -121,7 +122,7 @@ function Main({ userId, features }) {
         api.loadLinks().catch(() => []), // 연결 표를 아직 안 만들었어도 앱은 동작
         api.loadReminders(),
         api.loadThoughts(),
-        api.loadTodayItems(addDays(todayKST(), -7)),
+        api.loadTodayItems(loadSince(todayKST())),
         api.loadThrows(),
       ]);
       setCategories(cats);

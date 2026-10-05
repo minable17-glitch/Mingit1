@@ -677,8 +677,12 @@ export async function loadTodayItems(sinceDay) {
   return data;
 }
 
-export async function addTodayItem({ day, title, taskId, position }) {
-  return check(await supabase.from('today_items').insert({ day, title: title.trim().slice(0, 200), task_id: taskId || null, position }).select().single());
+// scope: 'day'(오늘) | 'week'(그 주 월요일 day) | 'month'(그 달 1일 day), period: 공강 교시(선택)
+export async function addTodayItem({ day, title, taskId, position, scope = 'day', period = null }) {
+  const row = { day, title: title.trim().slice(0, 200), task_id: taskId || null, position };
+  if (scope !== 'day') row.scope = scope; // 예전 표(scope 칸 없음)에서도 오늘 목록은 그대로 저장되게
+  if (period != null) row.period = period;
+  return check(await supabase.from('today_items').insert(row).select().single());
 }
 
 export async function updateTodayItem(id, patch) {
@@ -818,7 +822,7 @@ export async function loadPlannerRange(from, to) {
     supabase.from('class_notices').select('*').gte('day', from).lte('day', to).order('position'),
   ]);
   if (days.error) return null;
-  return { days: days.data, items: items.data ?? [], notices: notices.data ?? [] };
+  return { days: days.data, items: (items.data ?? []).filter((i) => (i.scope ?? 'day') === 'day'), notices: notices.data ?? [] };
 }
 
 export async function savePlannerDay(day, patch) {

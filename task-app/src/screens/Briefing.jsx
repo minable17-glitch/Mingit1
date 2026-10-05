@@ -10,6 +10,7 @@ import { extractFromLongText, isLongText } from '../lib/notice.js';
 import { remindLabel } from '../lib/remindTime.js';
 import { principleOfDay } from '../lib/thoughts.js';
 import TodayCard from './TodayCard.jsx';
+import { isDayItem } from '../lib/today.js';
 import { ThrowBox, ThrowIn } from './ThrowBox.jsx';
 
 export default function Briefing({
@@ -34,6 +35,8 @@ export default function Briefing({
 
   const isFriday = kstClock().weekday === 5;
   const slot = freeSlotNow(settings.bell_schedule, settings.timetable);
+  // 지금 공강에 하기로 계획해 둔 오늘 할 일
+  const plannedNow = slot ? (todayItems ?? []).filter((i) => i.day === today && isDayItem(i) && Number(i.period) === Number(slot.period)) : [];
 
   return (
     <section>
@@ -53,7 +56,7 @@ export default function Briefing({
         );
       })()}
 
-      <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} reload={reload} onOpen={onOpen} />
+      <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} settings={settings} reload={reload} onOpen={onOpen} onOpenTimetable={() => onOpenScreen({ type: 'timetable' })} />
 
       {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
 
@@ -74,8 +77,8 @@ export default function Briefing({
           🗓️ 금요일이에요. 5분 주간 회고 하기
         </button>
       )}
-      {slot && tasks.length > 0 && (
-        <SpareTime slot={slot} tasks={tasks} settings={settings} onOpen={onOpen} />
+      {slot && (tasks.length > 0 || plannedNow.length > 0) && (
+        <SpareTime slot={slot} tasks={tasks} settings={settings} onOpen={onOpen} planned={plannedNow} reload={reload} />
       )}
 
       <InputArea
@@ -162,7 +165,7 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
   // 펼친 업무의 다음 행동을 '내 오늘 목록'에
   async function addToToday(task) {
     try {
-      const mine = (todayItems ?? []).filter((i) => i.day === today);
+      const mine = (todayItems ?? []).filter((i) => i.day === today && isDayItem(i));
       await api.addTodayItem({ day: today, title: task.waiting_on ? `${task.waiting_on} 확인` : task.next_action, taskId: task.id, position: mine.reduce((m, i) => Math.max(m, i.position + 1), 0) });
       await reload();
     } catch (e) {
@@ -242,7 +245,7 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
                 {blockers.length > 0 && <p className="small muted">먼저 끝내야 할 업무: {blockers.map((b) => b.title).join(', ')}</p>}
                 <div className="row wrap">
                   <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '단계 정하러 열기 →' : '업무 열기 →'}</button>
-                  {todayItems !== null && ((todayItems ?? []).some((i) => i.day === today && i.task_id === task.id && !i.done)
+                  {todayItems !== null && ((todayItems ?? []).some((i) => i.day === today && isDayItem(i) && i.task_id === task.id && !i.done)
                     ? <span className="small muted">☀️ 오늘 목록에 있음</span>
                     : <button onClick={() => addToToday(task)}>☀️ 오늘 할 일에</button>)}
                   <button className="done-btn" onClick={() => complete(task)}>✓ 완료</button>
@@ -395,16 +398,29 @@ function spareSuggestions(tasks, settings) {
     }));
 }
 
-function SpareTime({ slot, tasks, settings, onOpen }) {
+function SpareTime({ slot, tasks, settings, onOpen, planned = [], reload }) {
   const [items, setItems] = useState(null);
   const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
+  const toggle = async (i) => {
+    try { await api.updateTodayItem(i.id, { done: !i.done }); await reload(); } catch (e) { alert(`저장하지 못했어요: ${e.message}`); }
+  };
 
   return (
     <div className="banner static">
       <div className="row wrap">
         <span className="grow">☕ 지금 {slot.period}교시 공강 · <b>{slot.minutesLeft}분</b> 남음</span>
-        {!items && <button onClick={() => setItems(spareSuggestions(tasks, settings))}>지금 할 일 보기</button>}
+        {!items && tasks.length > 0 && <button onClick={() => setItems(spareSuggestions(tasks, settings))}>{planned.length ? '다른 할 일 보기' : '지금 할 일 보기'}</button>}
       </div>
+      {planned.length > 0 && (
+        <ul className="spare-planned">
+          <li className="small muted">이 시간에 하기로 한 일</li>
+          {planned.map((i) => (
+            <li key={i.id} className={i.done ? 'done' : ''}>
+              <label><input type="checkbox" checked={i.done} onChange={() => toggle(i)} /> {i.title}</label>
+            </li>
+          ))}
+        </ul>
+      )}
       {items && (
         <ul className="spare-list">
           {items.map((i, n) => (

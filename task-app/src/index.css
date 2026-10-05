@@ -620,3 +620,21 @@ p.warn { color: #b45309; }
 
 .print-bar { display: flex; justify-content: flex-end; margin: 8px 0; }
 .print-bar button { font-size: 0.88rem; }
+
+/* 오늘 · 이번 주 · 이번 달 탭 */
+.today-tabs { display: inline-flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.today-tabs button { border: none; background: transparent; padding: 5px 10px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+.today-tabs button.on { background: #f0a92e; color: #fff; }
+@media (prefers-color-scheme: dark) { .today-tabs button.on { background: #b07a14; } }
+
+/* 자투리 시간(공강) 계획 */
+.spare-plan ol { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.spare-plan ol > li { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--card); }
+.spare-plan ol > li.now { border-color: #f0a92e; box-shadow: 0 0 0 2px rgba(240, 169, 46, 0.25); }
+.spare-plan ol > li.past { opacity: 0.6; }
+.spare-plan .spare-slot-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.spare-plan .spare-empty { margin: 2px 0; }
+.spare-plan ul.mine { margin: 4px 0 0; }
+.period-pick { font-size: 0.8rem; padding: 2px 4px; max-width: 92px; }
+.spare-planned { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.spare-planned li.done label { text-decoration: line-through; opacity: 0.6; }

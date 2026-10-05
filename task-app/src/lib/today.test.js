@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildToday, moveItem } from './today.js';
+import { autoPlan, buildToday, loadSince, moveItem, scopeRange } from './today.js';
 
 const today = '2026-10-04';
 const tasks = [
@@ -34,4 +34,34 @@ test('순서 바꾸기', () => {
   const { mine } = buildToday([], [], items, today);
   assert.deepEqual(moveItem(mine, 'i3', -1), [{ id: 'i3', position: 0 }, { id: 'i1', position: 1 }]);
   assert.deepEqual(moveItem(mine, 'i1', -1), []); // 맨 위
+});
+
+test('주간·월간 목록과 기간 마감', () => {
+  const all = [
+    ...items,
+    { id: 'w1', scope: 'week', day: '2026-09-28', title: '주간 회의 준비', position: 0, done: false },
+    { id: 'w0', scope: 'week', day: '2026-09-21', title: '지난주 못 한 일', position: 0, done: false },
+    { id: 'm1', scope: 'month', day: '2026-10-01', title: '월말 통계', position: 0, done: false },
+    { id: 'wd', scope: 'week', day: today, title: '오늘 목록에 섞이면 안 됨', position: 9, done: false },
+  ];
+  assert.ok(!buildToday(tasks, reminders, all, today).mine.some((i) => i.id === 'wd'));
+  const w = buildToday(tasks, reminders, all, today, 'week'); // 10/4(일) → 9/28~10/4
+  assert.deepEqual(w.mine.map((i) => i.id), ['w1']);
+  assert.deepEqual(w.carry.map((i) => i.id), ['w0']);
+  assert.deepEqual(w.due.map((d) => d.key), ['t:b', 's:s1', 's:s2']);
+  const m = buildToday(tasks, reminders, all, today, 'month');
+  assert.deepEqual(m.mine.map((i) => i.id), ['m1']);
+  assert.deepEqual(m.due.map((d) => d.key), ['t:b', 's:s1', 's:s2', 't:c']); // 10/20 마감도 이번 달
+  assert.deepEqual(m.reminders.map((r) => r.id), ['r1', 'r2']);
+  assert.deepEqual(scopeRange('month', '2026-02-10'), { from: '2026-02-01', to: '2026-02-28', key: '2026-02-01' });
+  assert.equal(loadSince('2026-01-15'), '2025-12-01');
+});
+
+test('남은 공강에 차례로 넣기', () => {
+  const mine = [
+    { id: 'a', done: false, period: null }, { id: 'b', done: false, period: 3 },
+    { id: 'c', done: true, period: null }, { id: 'd', done: false, period: null }, { id: 'e', done: false },
+  ];
+  const free = [{ period: 2, past: true }, { period: 3 }, { period: 5 }, { period: 6 }];
+  assert.deepEqual(autoPlan(mine, free), [{ id: 'a', period: 5 }, { id: 'd', period: 6 }]);
 });
