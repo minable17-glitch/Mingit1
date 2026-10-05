@@ -694,6 +694,22 @@ export async function updateTodayItems(rows) {
   await Promise.all(rows.map(({ id, ...patch }) => updateTodayItem(id, patch)));
 }
 
+// ── 던져 둔 것 (나중에 분류) ──────────────────
+
+export async function loadThrows() {
+  const { data, error } = await supabase.from('throw_items').select('*').order('created_at', { ascending: false });
+  if (error) return null; // schema_throw.sql 실행 전
+  return data;
+}
+
+export async function addThrow(content) {
+  return check(await supabase.from('throw_items').insert({ content: content.trim() }).select().single());
+}
+
+export async function deleteThrow(id) {
+  check(await supabase.from('throw_items').delete().eq('id', id));
+}
+
 // ── 관리자 ──────────────────────────────────
 
 export async function adminOverview() {

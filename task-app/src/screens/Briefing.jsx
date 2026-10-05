@@ -1,18 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import * as api from '../lib/api.js';
 import { assess, sortForBriefing } from '../lib/briefing.js';
 import { dueLabel, formatShort, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
-import { pickDeadline, triageText } from '../lib/rules.js';
+import { pickDeadline } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
 import { taskState } from '../lib/balance.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
-import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
+import { remindLabel } from '../lib/remindTime.js';
 import { principleOfDay } from '../lib/thoughts.js';
 import TodayCard from './TodayCard.jsx';
+import { ThrowBox, ThrowIn } from './ThrowBox.jsx';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [],
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [], throwItems = [],
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -86,6 +87,8 @@ export default function Briefing({
         onAdded={reload}
         onOpenScreen={onOpenScreen}
       />
+
+      <ThrowBox items={throwItems} tasks={tasks} categories={categories} todayItems={todayItems} reload={reload} onOpenScreen={onOpenScreen} />
 
       <div className="chips">
         <button className={!filter ? 'chip on' : 'chip'} onClick={() => setFilter(null)}>전체</button>
@@ -272,7 +275,7 @@ function InputArea(props) {
         ))}
       </div>
       {mode === 'new' && <QuickAdd {...props} />}
-      {mode === 'throw' && <ThrowIn {...props} />}
+      {mode === 'throw' && <ThrowIn settings={props.settings} onAdded={props.onAdded} />}
       {mode === 'doc' && <PasteDocument {...props} />}
     </div>
   );
@@ -354,141 +357,6 @@ function openLongText(text, categories, onOpenScreen, options, categoryId) {
   const { draft, source } = extractFromLongText(text, categories, todayKST(), options);
   if (categoryId) draft.category_id = categoryId;
   onOpenScreen({ type: 'draft', draft, source, sourceText: text });
-}
-
-const ATTACH_OPTIONS = [
-  { key: 'step', label: '할 일(단계)로 추가' },
-  { key: 'note', label: '메모로 남기기' },
-  { key: 'next_action', label: '다음 행동으로' },
-];
-
-// 던져넣기: 규칙으로 어느 업무 것인지 추측 → 사용자가 고쳐서 반영.
-function ThrowIn({ tasks, categories, settings, onAdded, onOpenScreen }) {
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [proposal, setProposal] = useState(null);
-  const [pushOn, setPushOn] = useState(true);
-  useEffect(() => { api.pushState().then((st) => setPushOn(st === 'on')).catch(() => {}); }, []);
-
-  // 분류를 따로 고르지 않으면 '기타'로 (처음 한 번은 '기타' 분류를 만듦)
-  async function etcId() {
-    const { category, created } = await api.ensureEtcCategory(categories);
-    if (created) await onAdded();
-    return category.id;
-  }
-
-  async function sortOut(e) {
-    e.preventDefault();
-    if (!text.trim()) return;
-    try {
-      const etc = await etcId();
-      if (isLongText(text)) {
-        openLongText(text, categories, onOpenScreen, {}, etc);
-        setText('');
-        return;
-      }
-      const p = triageText(text.trim(), tasks, categories, todayKST());
-      // 글에 시간이 있으면("3시", "점심 전", "5교시 후") 그 시간에 알림
-      const remind = parseRemindTime(text, Date.now(), settings?.bell_schedule);
-      setProposal({ ...p, category_id: etc, remind_at: remind?.at ?? '', remind_why: remind?.why ?? '' });
-    } catch (err) {
-      alert(`정리하지 못했어요: ${err.message}`);
-    }
-  }
-
-  async function confirm() {
-    setBusy(true);
-    try {
-      const taskId = await api.applyTriage(proposal, tasks);
-      if (proposal.remind_at) {
-        try {
-          await api.addReminder({ taskId, title: proposal.content, remindAt: localToISO(proposal.remind_at) });
-        } catch (err) {
-          alert(`업무는 저장했지만 알림은 저장하지 못했어요: ${err.message}`);
-        }
-      }
-      setProposal(null);
-      setText('');
-      await onAdded();
-    } catch (err) {
-      alert(`반영하지 못했어요: ${err.message}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const set = (patch) => setProposal({ ...proposal, ...patch });
-  const isNew = proposal?.attach_as === 'new';
-  // 추측 후보를 목록 위쪽에
-  const rankOf = (id) => {
-    const i = proposal?.candidates?.indexOf(id) ?? -1;
-    return i === -1 ? 99 : i;
-  };
-  const ordered = [...tasks].sort((a, b) => rankOf(a.id) - rankOf(b.id));
-
-  return (
-    <div className="stack">
-      <form className="quick-add" onSubmit={sortOut}>
-        <input
-          className="grow"
-          placeholder="떠오른 걸 그냥 적으세요 (예: 운영비 영수증 금요일까지 내야 함)"
-          value={text}
-          onChange={(e) => { setText(e.target.value); setProposal(null); }}
-        />
-        <button className="primary" disabled={!text.trim()}>정리하기</button>
-      </form>
-      {proposal && (
-        <div className="proposal stack">
-          <label className="row wrap">
-            <span className="small muted">어디에</span>
-            <select
-              className="grow"
-              value={isNew ? '' : proposal.task_id}
-              onChange={(e) => set(e.target.value
-                ? { task_id: e.target.value, attach_as: isNew ? 'note' : proposal.attach_as }
-                : { task_id: '', attach_as: 'new', category_id: proposal.category_id || categories.find((c) => c.name === api.ETC_CATEGORY)?.id || categories[0]?.id })}
-            >
-              <option value="">➕ 새 업무로 만들기</option>
-              {ordered.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-          </label>
-          {isNew ? (
-            <div className="row wrap">
-              <select value={proposal.category_id} onChange={(e) => set({ category_id: e.target.value })}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <input type="date" value={proposal.due_date ?? ''} onChange={(e) => set({ due_date: e.target.value })} title="마감(선택)" />
-            </div>
-          ) : (
-            <div className="row wrap">
-              <select value={proposal.attach_as} onChange={(e) => set({ attach_as: e.target.value })}>
-                {ATTACH_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-              {proposal.attach_as === 'step' && (
-                <input type="date" value={proposal.due_date ?? ''} onChange={(e) => set({ due_date: e.target.value })} title="단계 마감(선택)" />
-              )}
-            </div>
-          )}
-          <input value={proposal.content} onChange={(e) => set({ content: e.target.value })} />
-          <div className="remind-row">
-            <label className="row wrap">
-              <span className="small">🔔 알림</span>
-              <input type="datetime-local" value={proposal.remind_at} onChange={(e) => set({ remind_at: e.target.value, remind_why: '' })} />
-              {proposal.remind_at
-                ? <button type="button" className="link small" onClick={() => set({ remind_at: '', remind_why: '' })}>알림 없음</button>
-                : <span className="small muted">(선택)</span>}
-            </label>
-            {proposal.remind_at && proposal.remind_why && <p className="small muted">글의 “{proposal.remind_why}”을 보고 {remindLabel(localToISO(proposal.remind_at))}에 알려 드릴게요.</p>}
-            {proposal.remind_at && !pushOn && <p className="small warn">이 기기에서 알림 받기가 꺼져 있어요. 설정 → 시간 알림에서 켜 주세요.</p>}
-          </div>
-          <div className="row">
-            <button className="primary" disabled={busy || !proposal.content.trim()} onClick={confirm}>반영</button>
-            <button className="link" onClick={() => setProposal(null)}>취소</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // 붙여넣기: 공문이면 제목·기한·붙임을, AI와 나눈 대화면 할 일 목록을 이야기한 순서대로 뽑아 초안

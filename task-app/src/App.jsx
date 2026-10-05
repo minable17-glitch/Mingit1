@@ -100,6 +100,7 @@ function Main({ userId, features }) {
   const [reminders, setReminders] = useState([]);
   const [thoughts, setThoughts] = useState([]);
   const [todayItems, setTodayItems] = useState([]);
+  const [throwItems, setThrowItems] = useState([]);
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [error, setError] = useState('');
@@ -107,7 +108,7 @@ function Main({ userId, features }) {
 
   const reload = useCallback(async () => {
     try {
-      const [cats, active, st, tpls, inbox, lnks, rems, notes, todays] = await Promise.all([
+      const [cats, active, st, tpls, inbox, lnks, rems, notes, todays, throws] = await Promise.all([
         api.loadCategories(), api.loadActiveTasks(), api.loadSettings(),
         api.loadTemplates().catch(() => []),
         // 받은 제안함(Gmail)은 고급 구글 연동 사용자만
@@ -116,6 +117,7 @@ function Main({ userId, features }) {
         api.loadReminders(),
         api.loadThoughts(),
         api.loadTodayItems(addDays(todayKST(), -7)),
+        api.loadThrows(),
       ]);
       setCategories(cats);
       setTasks(active);
@@ -126,6 +128,7 @@ function Main({ userId, features }) {
       setReminders(rems);
       setThoughts(notes);
       setTodayItems(todays);
+      setThrowItems(throws);
       setError('');
       return active;
     } catch (e) {
@@ -180,7 +183,7 @@ function Main({ userId, features }) {
   const openTask = (id) => setOverlay({ type: 'task', id });
   const close = () => { setOverlay(null); reload(); };
   const shared = {
-    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems,
+    categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems, throwItems,
     onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
   };
 
@@ -206,6 +209,7 @@ function Main({ userId, features }) {
         onCancel={close}
         onConfirm={async (draft) => {
           const task = await api.createFromDraft(draft);
+          if (overlay.throwId) await api.deleteThrow(overlay.throwId).catch(() => {}); // 던져 둔 것에서 만든 업무면 보관함에서 빼기
           await reload();
           setOverlay({ type: 'task', id: task.id });
         }}

@@ -28,7 +28,7 @@ test('마감 모으기: 전체·분류·업무 하나', () => {
   assert.deepEqual(all['2026-10-10'].map((e) => e.key), ['t:a', 't:b', 's:s3']);
   assert.equal(all['2026-10-06'], undefined); // 끝낸 단계는 전체 보기에서 뺌
   assert.equal(all['2026-10-03'][0].overdue, true);
-  assert.equal(all['2026-10-07'][0].sub, '🔔 12:00');
+  assert.equal(all['2026-10-07'][0].sub, '12:00');
   const cat = calendarEvents(tasks, cats, { kind: 'category', id: 'c1' }, reminders);
   assert.deepEqual(Object.keys(cat), ['2026-10-10']);
   const one = calendarEvents(tasks, cats, { kind: 'task', id: 'a' }, reminders);

@@ -50,7 +50,7 @@ export function calendarEvents(tasks, categories, filter = { kind: 'all' }, remi
   for (const r of reminders) {
     if (filter.kind !== 'all' && !ids.has(r.task_id)) continue;
     const local = isoToLocal(r.remind_at);
-    push(local.slice(0, 10), { key: `r:${r.id}`, kind: 'reminder', title: r.title, sub: `🔔 ${local.slice(11)}`, taskId: r.task_id, color: '#4f7cff', done: false, overdue: false });
+    push(local.slice(0, 10), { key: `r:${r.id}`, kind: 'reminder', title: r.title, sub: local.slice(11), taskId: r.task_id, color: '#4f7cff', done: false, overdue: false });
   }
   // 하루 안에서: 업무 마감 → 단계 → 알림
   const order = { task: 0, step: 1, reminder: 2 };
@@ -62,4 +62,15 @@ export function calendarEvents(tasks, categories, filter = { kind: 'all' }, remi
 export function taskTimeline(task) {
   return [...(task.steps ?? [])].sort((a, b) => a.position - b.position)
     .map((s) => ({ key: s.id, title: s.title, date: s.due_date, done: s.done }));
+}
+
+// 그 날짜가 들어 있는 주(일요일 시작)의 7일
+export function weekDays(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(d);
+    x.setUTCDate(d.getUTCDate() + i);
+    return x.toISOString().slice(0, 10);
+  });
 }
