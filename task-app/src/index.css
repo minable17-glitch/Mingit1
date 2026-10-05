@@ -555,3 +555,30 @@ p.warn { color: #b45309; }
 .classroom textarea { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .danger-text { color: #d03b3b; }
 .privacy-line { margin-top: 16px; }
+
+/* 📒 일지 */
+.pl-day { display: flex; flex-direction: column; gap: 10px; position: relative; }
+.pl-status { position: absolute; right: 0; top: -26px; }
+.pl-box { display: flex; flex-direction: column; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 14px 14px; background-position: -1px -1px; }
+.pl-box { background-blend-mode: normal; }
+.pl-box textarea, .pl-box input { background: color-mix(in srgb, var(--card) 88%, transparent); }
+.pl-label { font-weight: 800; font-size: 0.9rem; color: #2f8f6f; }
+.pl-box textarea { width: 100%; font: inherit; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+.pl-periods { width: 100%; border-collapse: collapse; }
+.pl-periods th { width: 3em; background: #dff3ec; color: #2f8f6f; font-weight: 400; text-align: center; padding: 2px; border-bottom: 1px solid #b8e0d2; }
+@media (prefers-color-scheme: dark) { .pl-periods th { background: #1d3a31; color: #8fd3b9; border-color: #2c5246; } .pl-label { color: #8fd3b9; } }
+.pl-periods th b { display: block; font-size: 0.95rem; }
+.pl-periods th span { display: block; font-size: 0.6rem; opacity: 0.8; }
+.pl-periods td { border-bottom: 1px solid var(--line); padding: 2px 3px; }
+.pl-periods td.pl-a { width: 32%; border-right: 1px solid #b8e0d2; }
+.pl-periods input { width: 100%; border: none; padding: 6px 4px; border-radius: 4px; }
+.pl-checks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.pl-checks li { display: flex; align-items: center; gap: 8px; }
+.pl-checks li.done span { color: var(--muted); text-decoration: line-through; }
+.pl-week { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.pl-week > li { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.pl-week > li.today { border: 2px solid #2f8f6f; }
+.pl-week-day { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: none; padding: 0 0 4px; }
+.pl-week-body p { margin: 2px 0; overflow-wrap: anywhere; }
+.pl-mini { font-size: 0.6rem; color: var(--muted); }

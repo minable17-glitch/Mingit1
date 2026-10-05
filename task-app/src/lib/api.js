@@ -729,6 +729,19 @@ export async function loadClassMonth(month) {
 }
 
 // 명렬표 저장: replace=true 면 기존 학생(과 그 기록)을 지우고 새로
+// 던져 둔 것을 학급으로 보낼 때 쓰는 명렬표 (표가 없으면 [])
+export async function loadStudents() {
+  const { data, error } = await supabase.from('class_students').select('*').eq('active', true).order('number');
+  return error ? [] : data;
+}
+
+// 일지 메모 끝에 한 줄 덧붙이기
+export async function appendPlannerMemo(day, line) {
+  const { data } = await supabase.from('planner_days').select('memo').eq('day', day).maybeSingle();
+  const memo = data?.memo?.trim() ? `${data.memo.trim()}\n${line.trim()}` : line.trim();
+  check(await supabase.from('planner_days').upsert({ day, memo, updated_at: now() }, { onConflict: 'user_id,day' }));
+}
+
 export async function saveRoster(rows, { replace = false } = {}) {
   if (replace) check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
   if (rows.length) check(await supabase.from('class_students').insert(rows.map((r) => ({ number: r.number, name: r.name.trim() }))));
@@ -778,6 +791,21 @@ export async function deleteClassNote(id) {
 export async function clearClassData() {
   check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
   check(await supabase.from('class_notices').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
+}
+
+// ── 일지(플래너): 날짜마다 메모·교시별 기록·하루 기록 ──────
+// 표가 아직 없으면 null
+export async function loadPlannerRange(from, to) {
+  const [days, items] = await Promise.all([
+    supabase.from('planner_days').select('*').gte('day', from).lte('day', to),
+    supabase.from('today_items').select('*').gte('day', from).lte('day', to).order('position'),
+  ]);
+  if (days.error) return null;
+  return { days: days.data, items: items.data ?? [] };
+}
+
+export async function savePlannerDay(day, patch) {
+  check(await supabase.from('planner_days').upsert({ day, ...patch, updated_at: now() }, { onConflict: 'user_id,day' }));
 }
 
 // ── 관리자 ──────────────────────────────────

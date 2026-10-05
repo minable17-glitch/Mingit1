@@ -1,4 +1,4 @@
--- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + 관리자 이메일 등록)
+-- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + schema_planner.sql + 관리자 이메일 등록)
 -- 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에 전체를 붙여넣고 Run 한 번. 여러 번 실행해도 안전합니다.
 -- (GitHub 배포 작업이 배포할 때마다 이 파일을 자동으로 실행합니다.)
 -- ※ schema*.sql 을 고치면 이 파일도 같이 고쳐야 합니다.
@@ -735,6 +735,39 @@ comment on table public.class_notes is 'task-keeper';
 alter table public.class_notes enable row level security;
 drop policy if exists owner_all on public.class_notes;
 create policy owner_all on public.class_notes for all
+  using (user_id = auth.uid() and public.is_allowed())
+  with check (user_id = auth.uid() and public.is_allowed());
+
+-- 업무 챙김 11 — 일지(플래너): 날짜마다 메모·교시별 기록(0~7교시)·하루 기록. schema_class.sql 다음에 실행. 여러 번 실행해도 안전합니다.
+-- 체크리스트는 오늘 할 일(today_items)을 날짜별로 같이 씁니다.
+
+-- 안전장치: 업무 챙김 전용 프로젝트에서만 실행
+do $$
+declare others text;
+begin
+  select string_agg(table_name, ', ' order by table_name) into others
+  from information_schema.tables
+  where table_schema = 'public'
+    and obj_description(format('public.%I', table_name)::regclass, 'pg_class') is distinct from 'task-keeper';
+  if others is not null then
+    raise exception '다른 앱이 쓰고 있는 프로젝트입니다 (이미 있는 표: %). 업무 챙김용으로 새로 만든 빈 프로젝트의 SQL Editor에서 실행하세요. 아무것도 바뀌지 않았습니다.', others;
+  end if;
+end $$;
+
+create table if not exists public.planner_days (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  day date not null,
+  memo text not null default '',
+  periods jsonb not null default '[]'::jsonb,
+  reflection text not null default '',
+  updated_at timestamptz not null default now(),
+  unique (user_id, day)
+);
+comment on table public.planner_days is 'task-keeper';
+alter table public.planner_days enable row level security;
+drop policy if exists owner_all on public.planner_days;
+create policy owner_all on public.planner_days for all
   using (user_id = auth.uid() and public.is_allowed())
   with check (user_id = auth.uid() and public.is_allowed());
 

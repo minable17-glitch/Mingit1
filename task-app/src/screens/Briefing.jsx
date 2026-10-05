@@ -13,7 +13,7 @@ import TodayCard from './TodayCard.jsx';
 import { ThrowBox, ThrowIn } from './ThrowBox.jsx';
 
 export default function Briefing({
-  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [], throwItems = [],
+  tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [], throwItems = [], showClass = true,
 }) {
   const today = todayKST();
   const [filter, setFilter] = useState(null); // 분류 ID 또는 null(전체)
@@ -88,7 +88,7 @@ export default function Briefing({
         onOpenScreen={onOpenScreen}
       />
 
-      <ThrowBox items={throwItems} tasks={tasks} categories={categories} todayItems={todayItems} reload={reload} onOpenScreen={onOpenScreen} />
+      <ThrowBox items={throwItems} tasks={tasks} categories={categories} todayItems={todayItems} showClass={showClass} reload={reload} onOpenScreen={onOpenScreen} />
 
       <div className="chips">
         <button className={!filter ? 'chip on' : 'chip'} onClick={() => setFilter(null)}>전체</button>

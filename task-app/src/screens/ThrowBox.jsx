@@ -6,6 +6,7 @@ import { todayKST } from '../lib/date.js';
 import { triageText } from '../lib/rules.js';
 import { extractFromLongText, isLongText } from '../lib/notice.js';
 import { localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
+import { looksClassRelated } from '../lib/planner.js';
 
 export function ThrowIn({ settings, onAdded }) {
   const [text, setText] = useState('');
@@ -58,7 +59,7 @@ function ago(iso) {
 }
 
 // 📥 나중에 분류: 던져 둔 것 목록과 하나씩 정리하기
-export function ThrowBox({ items, tasks, categories, todayItems, reload, onOpenScreen }) {
+export function ThrowBox({ items, tasks, categories, todayItems, showClass, reload, onOpenScreen }) {
   const [open, setOpen] = useState(null);
   if (!items?.length) return null;
   return (
@@ -72,7 +73,7 @@ export function ThrowBox({ items, tasks, categories, todayItems, reload, onOpenS
               <span className="small muted">{ago(it.created_at)}</span>
             </button>
             {open === it.id && (
-              <SortPanel item={it} tasks={tasks} categories={categories} todayItems={todayItems} reload={reload} onOpenScreen={onOpenScreen} onDone={() => setOpen(null)} />
+              <SortPanel item={it} tasks={tasks} categories={categories} todayItems={todayItems} showClass={showClass} reload={reload} onOpenScreen={onOpenScreen} onDone={() => setOpen(null)} />
             )}
           </li>
         ))}
@@ -87,10 +88,17 @@ const ATTACH_OPTIONS = [
   { key: 'next_action', label: '다음 행동으로' },
 ];
 
-function SortPanel({ item, tasks, categories, todayItems, reload, onOpenScreen, onDone }) {
+function SortPanel({ item, tasks, categories, todayItems, showClass, reload, onOpenScreen, onDone }) {
   const today = todayKST();
   const etc = categories.find((c) => c.name.trim() === api.ETC_CATEGORY)?.id ?? categories[0]?.id;
-  const [mode, setMode] = useState(null); // null | 'task'
+  const [mode, setMode] = useState(null); // null | 'task' | 'class'
+  const [students, setStudents] = useState(null);
+  const [studentId, setStudentId] = useState('');
+  const classy = showClass && looksClassRelated(item.content);
+  async function openClass() {
+    setMode('class');
+    if (students === null) setStudents(await api.loadStudents());
+  }
   const [proposal, setProposal] = useState(() => ({ ...triageText(item.content, tasks, categories, today), category_id: etc }));
   const [busy, setBusy] = useState(false);
   const set = (patch) => setProposal((p) => ({ ...p, ...patch }));
@@ -128,14 +136,33 @@ function SortPanel({ item, tasks, categories, todayItems, reload, onOpenScreen, 
 
   return (
     <div className="sort-panel stack">
-      {mode !== 'task' ? (
+      {mode === 'class' ? (
+        <div className="proposal stack">
+          <p className="small muted">🏫 학급으로 보내기 ({Number(today.slice(5, 7))}/{Number(today.slice(8))} 기준)</p>
+          <div className="sort-actions">
+            <button disabled={busy} onClick={() => finish(() => api.addNotice({ day: today, kind: 'morning', body: item.content, position: Date.now() % 100000 }))}>☀️ 조회 전달사항</button>
+            <button disabled={busy} onClick={() => finish(() => api.addNotice({ day: today, kind: 'closing', body: item.content, position: Date.now() % 100000 }))}>🌙 종례 전달사항</button>
+            <button disabled={busy} onClick={() => finish(() => api.appendPlannerMemo(today, item.content))}>📒 오늘 일지 메모</button>
+          </div>
+          <div className="row wrap">
+            <select value={studentId} onChange={(e) => setStudentId(e.target.value)} aria-label="학생">
+              <option value="">{students === null ? '명렬표 불러오는 중…' : students.length ? '학생 고르기' : '명렬표 없음'}</option>
+              {(students ?? []).map((st) => <option key={st.id} value={st.id}>{st.number}번 {st.name}</option>)}
+            </select>
+            <button disabled={busy || !studentId} onClick={() => finish(() => api.addClassNote({ studentId, day: today, body: item.content }))}>📝 학생 특이사항으로</button>
+          </div>
+          <button className="link" onClick={() => setMode(null)}>뒤로</button>
+        </div>
+      ) : mode !== 'task' ? (
         <div className="sort-actions">
+          {classy && <button className="primary" disabled={busy} onClick={openClass}>🏫 학급으로</button>}
           {isLongText(item.content)
             ? <button className="primary" disabled={busy} onClick={longDraft}>📄 업무로 정리하기</button>
-            : <button className="primary" disabled={busy} onClick={() => setMode('task')}>📂 업무로 · 업무에 넣기</button>}
+            : <button className={classy ? '' : 'primary'} disabled={busy} onClick={() => setMode('task')}>📂 업무로 · 업무에 넣기</button>}
           {!isLongText(item.content) && <button disabled={busy} onClick={() => finish(toNewTaskQuick)}>➕ 그대로 새 업무(기타)</button>}
           {todayItems !== null && <button disabled={busy} onClick={() => finish(() => api.addTodayItem({ day: today, title: item.content, position: mine.reduce((m, i) => Math.max(m, i.position + 1), 0) }))}>☀️ 오늘 할 일로</button>}
           <button disabled={busy} onClick={() => finish(() => api.addThought({ body: item.content, kind: 'thought' }))}>💭 생각 노트로</button>
+          {showClass && !classy && <button disabled={busy} onClick={openClass}>🏫 학급으로</button>}
           <button className="link" disabled={busy} onClick={() => finish(async () => {})}>🗑 지우기</button>
         </div>
       ) : (

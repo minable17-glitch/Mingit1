@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { addDays, dueLabel, todayKST } from '../lib/date.js';
+import Planner from './Planner.jsx';
 import { ATT_REASONS, ATT_TYPES, daySummary, monthSummary, monthSummaryText, noticesText, parseRoster, reasonLabel, typeLabel } from '../lib/classroom.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 const SECTIONS = [
+  { key: 'planner', label: '📒 일지' },
   { key: 'morning', label: '☀️ 조회' },
   { key: 'closing', label: '🌙 종례' },
   { key: 'attendance', label: '✅ 출결' },
@@ -24,10 +26,10 @@ async function copyText(text) {
   }
 }
 
-export default function ClassRoom({ tasks, categories }) {
+export default function ClassRoom({ tasks, categories, settings }) {
   const today = todayKST();
   const [day, setDay] = useState(today);
-  const [section, setSection] = useState(() => { try { return localStorage.getItem('task-keeper.class-section') || 'morning'; } catch { return 'morning'; } });
+  const [section, setSection] = useState(() => { try { return localStorage.getItem('task-keeper.class-section') || 'planner'; } catch { return 'morning'; } });
   const [data, setData] = useState(undefined); // undefined = 불러오는 중, null = 표 준비 전
   const month = day.slice(0, 7);
 
@@ -50,7 +52,7 @@ export default function ClassRoom({ tasks, categories }) {
 
   const dow = new Date(`${day}T00:00:00Z`).getUTCDay();
   const students = data?.students ?? [];
-  const needRoster = !students.length && section !== 'roster' && section !== 'morning' && section !== 'closing';
+  const needRoster = !students.length && (section === 'attendance' || section === 'notes');
 
   return (
     <section className="classroom">
@@ -78,6 +80,7 @@ export default function ClassRoom({ tasks, categories }) {
           <button className="primary" onClick={() => pick('roster')}>명렬표 넣으러 가기</button>
         </div>
       )}
+      {section === 'planner' && <Planner day={day} setDay={setDay} bell={settings?.bell_schedule ?? []} />}
       {data && !needRoster && (section === 'morning' || section === 'closing') && (
         <Notices kind={section} day={day} today={today} notices={data.notices} tasks={tasks} categories={categories} run={run} />
       )}
