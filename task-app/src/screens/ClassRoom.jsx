@@ -63,6 +63,10 @@ export default function ClassRoom({ tasks, categories, settings }) {
     return () => { alive = false; };
   }, [month]);
   const pick = (k) => { setSection(k); try { localStorage.setItem('task-keeper.class-section', k); } catch { /* 괜찮음 */ } };
+  // 각 칸의 '🖨 인쇄·저장' → 저장·인쇄 칸을 그 기록 종류로 열기
+  const [exportKind, setExportKind] = useState('school');
+  const toExport = (kind) => { setExportKind(kind); pick('export'); };
+
 
   const run = async (fn) => {
     try {
@@ -103,18 +107,29 @@ export default function ClassRoom({ tasks, categories, settings }) {
           <button className="primary" onClick={() => pick('roster')}>명렬표 넣으러 가기</button>
         </div>
       )}
-      {section === 'planner' && <Planner day={day} setDay={setDay} bell={settings?.bell_schedule ?? []} />}
+      {section === 'planner' && <><Planner day={day} setDay={setDay} bell={settings?.bell_schedule ?? []} /><PrintBar label="일지" onClick={() => toExport('planner')} /></>}
       {data && !needRoster && (section === 'morning' || section === 'closing') && (
-        <Notices kind={section} day={day} today={today} notices={data.notices} tasks={tasks} categories={categories} run={run} />
+        <><Notices kind={section} day={day} today={today} notices={data.notices} tasks={tasks} categories={categories} run={run} /><PrintBar label="조회·종례 전달사항" onClick={() => toExport('notices')} /></>
       )}
-      {data && !needRoster && section === 'attendance' && <Attendance day={day} month={month} students={students} records={data.attendance} run={run} />}
-      {data && !needRoster && section === 'notes' && <Notes day={day} students={students} notes={data.notes} run={run} />}
+      {data && !needRoster && section === 'attendance' && (
+        <>
+          <div className="print-bar">
+            <button className="primary" onClick={() => toExport('school')}>🧾 출결처리현황(학교 양식) 인쇄·엑셀</button>
+          </div>
+          <Attendance day={day} month={month} students={students} records={data.attendance} run={run} />
+        </>
+      )}
+      {data && !needRoster && section === 'notes' && <><Notes day={day} students={students} notes={data.notes} run={run} /><PrintBar label="특이사항" onClick={() => toExport('notes')} /></>}
       {data && section === 'roster' && <Roster students={students} run={run} />}
-      {section === 'export' && <ClassExport day={day} />}
+      {section === 'export' && <ClassExport key={exportKind} day={day} initialKind={exportKind} />}
 
       <p className="small muted privacy-line">🔒 학급 기록은 선생님 본인만 볼 수 있어요. 건강·가정사 같은 민감한 내용은 적지 말고, 학교의 개인정보 지침을 따라 주세요.</p>
     </section>
   );
+}
+
+function PrintBar({ label, onClick }) {
+  return <div className="print-bar"><button onClick={onClick}>🖨 {label} 인쇄·시트로 저장</button></div>;
 }
 
 // ── 조회·종례 전달사항 ─────────────────────

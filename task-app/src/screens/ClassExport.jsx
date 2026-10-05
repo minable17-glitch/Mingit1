@@ -29,10 +29,10 @@ function monthRange(day) {
   return [`${day.slice(0, 7)}-01`, `${day.slice(0, 7)}-${String(last).padStart(2, '0')}`];
 }
 
-export default function ClassExport({ day }) {
+export default function ClassExport({ day, initialKind = 'school' }) {
   const [range, setRange] = useState('month');
   const [custom, setCustom] = useState(() => monthRange(day));
-  const [kind, setKind] = useState('school');
+  const [kind, setKind] = useState(initialKind);
   const [offText, setOffText] = useState(() => { try { return localStorage.getItem('task-keeper.school-off') || ''; } catch { return ''; } });
   const extraOff = new Set((offText.match(/\d{4}-\d{2}-\d{2}/g) ?? []));
   const [className, setClassName] = useState(() => { try { return localStorage.getItem('task-keeper.class-name') || ''; } catch { return ''; } });
