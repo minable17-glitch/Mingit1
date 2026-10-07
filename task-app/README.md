@@ -58,11 +58,11 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 
 | 구분 | 새싹책방 (그대로) | 업무 챙김 (새로 만듦) |
 | --- | --- | --- |
-| 앱 주소 | `minable17-glitch.github.io/Mingit1/` (GitHub Pages) | `task-keeper.netlify.app` 등 (Netlify) |
+| 앱 주소 | `minable17-glitch.github.io/Mingit1/` (GitHub Pages) | `task-keeper-teacher.pages.dev` (Cloudflare Pages) |
 | 데이터 저장소 | Supabase 프로젝트 `ikljkokebcqaxpctcjpy` | Supabase 새 프로젝트 `task-keeper` (새 ID) |
 | 서버 기능 주소 | `ikljkokebcqaxpctcjpy.supabase.co/functions/...` | `<새 ID>.supabase.co/functions/...` |
 | 로그인 | 학생 PIN·카카오 | 구글 (새 구글 클라우드 프로젝트 `task-keeper`) |
-| 자동 배포 | `deploy.yml` (새싹책방 브랜치) | `task-app-functions.yml` (업무 챙김 브랜치), Netlify |
+| 자동 배포 | `deploy.yml` (새싹책방 브랜치) | `task-app-functions.yml` (업무 챙김 브랜치), Cloudflare Pages |
 | 코드 | 저장소 루트 | `task-app/` 폴더 안에만 |
 
 - 주소(도메인)가 다르므로 브라우저 저장공간·홈 화면 앱·오프라인 캐시도 서로 섞이지 않습니다.
@@ -115,30 +115,31 @@ PRD(2026-09-23 초안)의 1단계·2단계 기능을 구현하고, **누구나 �
 3. 저장소 **Actions** 탭 → 왼쪽 **업무 챙김 서버 기능 배포** → 가장 최근 실행(빨간 ✕) 클릭 → 오른쪽 위 **Re-run all jobs**
 4. 초록 ✓가 되면 끝. Supabase **Edge Functions** 메뉴에 함수 6개가 보입니다.
 
-### 4단계 · 앱 화면 올리기 (Netlify, 무료)
+### 4단계 · 앱 화면 올리기 (Cloudflare Pages, 무료)
 
-빌드 설정(`netlify.toml`)과 공개용 Supabase 주소·키(`.env.production`)는 저장소에 들어 있어서 따로 입력할 필요가 없습니다.
+공개용 Supabase 주소·키(`.env.production`)와 응답 머리글(`public/_headers`)은 저장소에 들어 있어서 따로 입력할 필요가 없습니다.
+(처음엔 Netlify를 썼지만 무료 사용량이 한 달 약 20번 배포라 금방 막혀서 옮겼습니다. Cloudflare Pages는 무료로 한 달 500번, 판매용으로 써도 됩니다.)
 
-1. [app.netlify.com/start](https://app.netlify.com/start) → **GitHub**으로 가입/로그인 → 저장소 목록에서 `Mingit1` 선택
-   (GitHub 권한 창이 뜨면 **Only select repositories → Mingit1**만 허용)
-2. 설정 화면:
-   - **Branch to deploy**: `claude/new-session-oe1y4k`
-   - **Base directory**: `task-app` (나머지 칸은 자동으로 채워짐)
-3. **Deploy** → 1~2분 뒤 `https://…netlify.app` 주소가 생김
-4. **Site configuration → Change site name** → `task-keeper` 등으로 바꾸면 주소가 `https://task-keeper.netlify.app`처럼 됨
-5. Supabase **Authentication → URL Configuration**: **Site URL**과 **Redirect URLs**에 이 주소 넣고 저장
+1. [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up) 가입
+2. [Pages → GitHub에서 가져오기](https://dash.cloudflare.com/?to=/:account/pages/new/provider/github) → **Connect GitHub** → **Only select repositories → Mingit1**
+3. 설정 화면:
+   - **Project name**: `task-keeper-teacher` → 주소 `https://task-keeper-teacher.pages.dev`
+   - **Production branch**: `claude/new-session-oe1y4k` (기본값인 새싹책방 브랜치 그대로 두지 말 것)
+   - **Build command**: `npm run build` · **Build output directory**: `dist` · **Root directory**: `task-app`
+4. **Save and Deploy**. 나중에 **Settings → Build → Branch control**에서 Preview 브랜치는 **None**
+5. Supabase **Authentication → URL Configuration**: **Site URL**과 **Redirect URLs**(`https://task-keeper-teacher.pages.dev/**`)에 이 주소 넣고 저장
 
-Netlify는 지정한 브랜치에 올라온 변경만 배포하므로, 새싹책방 브랜치를 고쳐도 영향이 없습니다.
+Cloudflare는 지정한 브랜치에 올라온 변경만 배포하므로, 새싹책방 브랜치를 고쳐도 영향이 없습니다.
 
 ### 5단계 · 공개 전 확인
 
 - `public/privacy.html`, `public/terms.html`의 “(운영자 문의 이메일)”을 실제 문의 주소로 바꾸기
-- 구글 클라우드 **Google 인증 플랫폼 → 브랜딩**에 앱 홈페이지(Netlify 주소), 개인정보처리방침(`…/privacy.html`), 서비스 약관(`…/terms.html`) 주소 넣기
+- 구글 클라우드 **Google 인증 플랫폼 → 브랜딩**에 앱 홈페이지(Cloudflare Pages 주소), 개인정보처리방침(`…/privacy.html`), 서비스 약관(`…/terms.html`) 주소 넣기
 - 가입을 잠시 막고 싶으면: 앱 **설정 → 관리자 → 새 가입 받기** 끄기
 
 ### 6단계 · 첫 로그인
 
-Netlify 주소 접속 → **구글 계정으로 시작하기** → 브리핑 화면이 나오면 성공.
+`https://task-keeper-teacher.pages.dev` 접속 → **구글 계정으로 시작하기** → 브리핑 화면이 나오면 성공.
 관리자는 **설정 → 고급 구글 연동 → 구글 캘린더·Gmail 연결**을 한 번 눌러 캘린더 즉시 반영·Gmail 가져오기를 켭니다.
 폰에서는 브라우저 메뉴의 **홈 화면에 추가**로 앱처럼 쓸 수 있습니다.
 
