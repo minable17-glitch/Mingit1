@@ -409,6 +409,7 @@ function Account() {
       <p className="small">
         <a href="/privacy.html" target="_blank">개인정보처리방침</a> · <a href="/terms.html" target="_blank">이용약관</a>
       </p>
+      <p className="small muted">앱 버전 {typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '개발용'}</p>
       <div className="row"><button onClick={api.signOut}>로그아웃</button></div>
       {!open ? (
         <button className="link danger-text" onClick={() => setOpen(true)}>회원 탈퇴</button>
