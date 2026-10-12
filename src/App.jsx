@@ -957,20 +957,32 @@ export default function App() {
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
+  // 오늘 멈춰둔 기록이 몇 초째까지 읽었는지 (목표/자유 어느 쪽으로 멈췄든 "읽은 시간"으로 통일)
+  // 보너스 읽기와 오늘 목표 읽기는 서로 섞이지 않도록 따로 봄
+  const getResumeElapsed = (bonus) => {
+    const saved = progressKey ? getReadingProgress(progressKey) : null;
+    if (!saved) return 0;
+    if (bonus ? saved.mode !== "bonus" : saved.mode === "bonus") return 0;
+    // 보너스 읽기는 이미 오늘 목표를 채운 뒤라 doneToday가 true인 게 정상이라, 그 경우엔 막지 않음
+    if (!bonus && doneToday) return 0;
+    const elapsed = saved.mode === "target" ? dailyTargetMinutes * 60 - saved.secs : saved.secs;
+    return Math.max(0, elapsed);
+  };
+
   const startReading = (mode, bonus = false) => {
     setIsBonusRead(bonus);
-    const progressMode = bonus ? "bonus" : mode;
-    const saved = progressKey ? getReadingProgress(progressKey) : null;
-    // 보너스 읽기는 이미 오늘 목표를 채운 뒤라 doneToday가 true인 게 정상이라, 그 경우엔 막지 않음
-    const resumable = saved && saved.mode === progressMode && (bonus || !doneToday);
-    setReadMode(mode);
-    setSecs(resumable ? saved.secs : (mode === "free" ? 0 : dailyTargetMinutes * 60));
+    const elapsed = getResumeElapsed(bonus);
+    // 목표 읽기를 눌렀어도 이미 목표 시간을 넘게 읽어둔 상태면 자유 읽기로 이어감
+    // (목표를 채우면 자동으로 자유 읽기로 바뀌므로, 멈췄다 다시 와도 같은 상태로 이어져야 함)
+    const nextMode = mode === "target" && elapsed >= dailyTargetMinutes * 60 ? "free" : mode;
+    const nextSecs = nextMode === "target" ? dailyTargetMinutes * 60 - elapsed : elapsed;
+    setReadMode(nextMode);
+    setSecs(nextSecs);
     setReading(true);
     syncReadingSession(true);
-    if (resumable) {
-      showToast(`아까 멈춘 곳부터 이어서 읽어요 (${bonus ? `${Math.floor(saved.secs / 60)}분째` : `남은 ${Math.ceil(saved.secs / 60)}분`}) ⏱️`);
-    } else if (progressKey) {
-      setReadingProgress(progressKey, { mode: progressMode, secs: mode === "free" ? 0 : dailyTargetMinutes * 60 });
+    if (progressKey) setReadingProgress(progressKey, { mode: bonus ? "bonus" : nextMode, secs: nextSecs });
+    if (elapsed > 0) {
+      showToast(`아까 멈춘 곳부터 이어서 읽어요 (${Math.floor(elapsed / 60)}분 읽음) ⏱️`);
     }
   };
 
@@ -1957,7 +1969,9 @@ export default function App() {
                             더 읽고 싶으면 자유롭게 읽어서 우리 반 나무에 보너스로 기여하고 악세서리도 받아보세요!</div>
                           <button onClick={() => startReading("free", true)} className="cs-jua" style={{ padding: "13px 22px", borderRadius: 18,
                             fontSize: 14.5, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
-                            ⏱ 자유롭게 더 읽기 (보너스)</button>
+                            {getResumeElapsed(true) > 0
+                              ? `▶ 보너스 이어서 읽기 (${Math.floor(getResumeElapsed(true) / 60)}분 읽음)`
+                              : "⏱ 자유롭게 더 읽기 (보너스)"}</button>
                         </>
                       )}
                     </>
@@ -1976,7 +1990,9 @@ export default function App() {
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 280 }}>
                         <button onClick={() => startReading("target")} className="cs-jua" style={{ border: "none", padding: "16px 20px", borderRadius: 20,
                           fontSize: 18, color: "#fff", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, boxShadow: "0 6px 16px #3f7e4e55" }}>
-                          📖 {dailyTargetMinutes}분 읽기 시작</button>
+                          {getResumeElapsed(false) > 0
+                            ? `▶ 이어서 읽기 (${Math.floor(getResumeElapsed(false) / 60)}분 읽음)`
+                            : `📖 ${dailyTargetMinutes}분 읽기 시작`}</button>
                         <button onClick={() => startReading("free")} className="cs-jua" style={{ padding: "14px 20px", borderRadius: 20,
                           fontSize: 15, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                           ⏱ 자유롭게 읽기</button>
