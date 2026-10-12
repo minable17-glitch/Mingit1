@@ -418,3 +418,17 @@ export async function getBestsellers() {
   if (error) throw error;
   return data?.books || [];
 }
+
+// 새 챌린지 시작: 지금 숲을 "지난 숲 앨범"에 저장하고, 학생 나무를 새싹부터 다시 키움
+export async function startNewChallenge(classId) {
+  const { data, error } = await supabase.rpc('start_new_challenge', { p_class_id: classId });
+  if (error) throw error;
+  return data[0];
+}
+
+// 지난 숲 앨범 목록 (최신순). 선생님은 모든 학생 독후감, 학생은 자기 독후감만 들어 있음
+export async function getForestAlbums(classId) {
+  const { data, error } = await supabase.rpc('get_forest_albums', { p_class_id: classId });
+  if (error) throw error;
+  return data || [];
+}
