@@ -58,14 +58,14 @@ export default function Briefing({
 
       <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} settings={settings} reload={reload} onOpen={onOpen} onOpenTimetable={() => onOpenScreen({ type: 'timetable' })} />
 
-      {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
+      <div className="stat-row">
+        <div className="stat"><span>진행 중</span><b>{tasks.length}</b></div>
+        <div className={`stat${counts.due ? ' hot' : ''}`}><span>마감 임박</span><b>{counts.due}</b></div>
+        <div className={`stat${counts.noReply ? ' warm' : ''}`}><span>무응답</span><b>{counts.noReply}</b></div>
+        <div className={`stat${counts.neglected ? ' warm' : ''}`}><span>방치</span><b>{counts.neglected}</b></div>
+      </div>
 
-      <p className="summary">
-        진행 중 <b>{tasks.length}</b>
-        {counts.due > 0 && <> · 마감 임박 <b className="warn">{counts.due}</b></>}
-        {counts.noReply > 0 && <> · 무응답 <b className="warn">{counts.noReply}</b></>}
-        {counts.neglected > 0 && <> · 방치 <b className="warn">{counts.neglected}</b></>}
-      </p>
+      {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
 
       {inboxCount > 0 && (
         <button className="banner" onClick={() => onOpenScreen({ type: 'inbox' })}>
@@ -453,13 +453,16 @@ function PrivacyNotice() {
 // ── 업무 밸런스: 분류마다 업무가 얼마나 몰려 있고, 그중 위험한 게 몇 개인지 ─────
 // 색은 상태만 뜻함(아이콘+글자와 함께). 막대 길이는 모든 분류가 같은 기준(가장 많은 분류 = 전체 폭).
 const BAL = [
-  { key: 'critical', color: '#d03b3b', icon: '●', label: '위험', hint: '마감 지남·임박' },
-  { key: 'warning', color: '#fab219', icon: '▲', label: '주의', hint: '방치·무응답·앞 업무 지연' },
-  { key: 'good', color: '#0ca30c', icon: '■', label: '순조', hint: '' },
+  { key: 'critical', color: '#e5484d', icon: '●', label: '위험', hint: '마감 지남·임박' },
+  { key: 'warning', color: '#f5a524', icon: '▲', label: '주의', hint: '방치·무응답·지연' },
+  { key: 'good', color: '#30a46c', icon: '■', label: '순조', hint: '' },
 ];
+
+const BAL_SHOWN = 6; // 처음엔 급한 분류부터 6개만, 나머지는 '모두 보기'
 
 function BalancePanel({ tasks, categories, settings, links, today }) {
   const [picked, setPicked] = useState(null);
+  const [all, setAll] = useState(false);
   const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
   const rows = categories.map((c) => {
     const mine = tasks.filter((t) => t.category_id === c.id);
@@ -473,7 +476,8 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
       doneSteps += t.steps?.filter((x) => x.done).length ?? 0;
     }
     return { c, total: mine.length, count, progress: steps ? Math.round((doneSteps / steps) * 100) : null };
-  }).filter((r) => r.total > 0);
+  }).filter((r) => r.total > 0)
+    .sort((a, b) => b.count.critical - a.count.critical || b.count.warning - a.count.warning || b.total - a.total);
   const max = Math.max(...rows.map((r) => r.total), 1);
 
   // 한 줄 요약: 위험이 가장 많은 분류, 없으면 가장 바쁜 분류
@@ -486,14 +490,17 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
 
   return (
     <details className="balance block" open>
-      <summary><b>업무 밸런스</b> <span className="muted small">{summary}</span></summary>
+      <summary>
+        <span className="bal-title">업무 밸런스</span>
+        <span className="bal-summary">{summary}</span>
+      </summary>
       <ul className="bal-legend" aria-label="범례">
         {BAL.map((b) => (
-          <li key={b.key}><span style={{ color: b.color }} aria-hidden="true">{b.icon}</span> {b.label}{b.hint && <span className="muted"> ({b.hint})</span>}</li>
+          <li key={b.key} title={b.hint}><span className="bal-key" style={{ background: b.color }} aria-hidden="true" />{b.label}{b.hint && <span className="muted"> · {b.hint}</span>}</li>
         ))}
       </ul>
       <ul className="bal-rows">
-        {rows.map((r) => (
+        {(all ? rows : rows.slice(0, BAL_SHOWN)).map((r) => (
           <li key={r.c.id}>
             <button
               type="button"
@@ -501,9 +508,9 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
               aria-expanded={picked === r.c.id}
               onClick={() => setPicked(picked === r.c.id ? null : r.c.id)}
             >
-              <span className="bal-name"><span className="dot" style={{ background: r.c.color }} aria-hidden="true" />{r.c.name}</span>
+              <span className="bal-name" title={r.c.name}><span className="dot" style={{ background: r.c.color }} aria-hidden="true" /><span className="bal-name-text">{r.c.name}</span></span>
               <span className="bal-track">
-                <span className="bal-bar" style={{ width: `${(r.total / max) * 100}%` }}>
+                <span className="bal-rail"><span className="bal-bar" style={{ width: `${(r.total / max) * 100}%` }}>
                   {BAL.filter((b) => r.count[b.key] > 0).map((b) => (
                     <span
                       key={b.key}
@@ -512,7 +519,7 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
                       title={`${r.c.name} · ${b.label} ${r.count[b.key]}건`}
                     />
                   ))}
-                </span>
+                </span></span>
                 <span className="bal-value">{r.total}건</span>
               </span>
             </button>
@@ -525,6 +532,9 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
           </li>
         ))}
       </ul>
+      {rows.length > BAL_SHOWN && (
+        <button type="button" className="link small bal-more" onClick={() => setAll(!all)}>{all ? '접기' : `분류 ${rows.length}개 모두 보기`}</button>
+      )}
     </details>
   );
 }

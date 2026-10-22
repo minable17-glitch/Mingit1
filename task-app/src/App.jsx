@@ -18,6 +18,15 @@ import Thoughts from './screens/Thoughts.jsx';
 import Calendar from './screens/Calendar.jsx';
 import ClassRoom from './screens/ClassRoom.jsx';
 
+// 아래 탭: 선 아이콘(24×24, currentColor) + 이름
+const ICON = {
+  briefing: <><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" /><circle cx="12" cy="12" r="4" /></>,
+  balance: <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>,
+  class: <><path d="M3 10l9-6 9 6" /><path d="M5 10v9h14v-9" /><path d="M10 19v-5h4v5" /></>,
+  thoughts: <><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></>,
+  archive: <><rect x="3" y="4" width="18" height="5" rx="1.5" /><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
+};
 const TABS = [
   { key: 'briefing', label: '브리핑' },
   { key: 'balance', label: '한눈에' },
@@ -236,12 +245,15 @@ function Main({ userId, features }) {
             {tab === 'thoughts' && <Thoughts {...shared} />}
             {tab === 'settings' && <Settings {...shared} />}
           </main>
-          <nav className="tabs">
-            {TABS.filter((t) => t.key !== 'class' || showClass).map((t) => (
-              <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
-                {t.label}
-              </button>
-            ))}
+          <nav className="tabs" aria-label="화면">
+            <div className="tabs-inner">
+              {TABS.filter((t) => t.key !== 'class' || showClass).map((t) => (
+                <button key={t.key} className={tab === t.key ? 'active' : ''} aria-current={tab === t.key ? 'page' : undefined} onClick={() => setTab(t.key)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{ICON[t.key]}</svg>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
           </nav>
         </>
       )}
