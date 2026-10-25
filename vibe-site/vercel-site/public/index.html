@@ -259,7 +259,7 @@ textarea.mono{font-family:var(--font-mono);font-size:.88rem}
 @media (max-width:860px){
   .shell{grid-template-columns:minmax(0,1fr);gap:0}
   .burger{display:block}
-  .nav{position:fixed;z-index:70;top:0;bottom:0;left:0;width:min(86vw,320px);max-height:none;background:var(--surface);padding:calc(env(safe-area-inset-top,0px) + 16px) 12px 24px max(12px,env(safe-area-inset-left,0px));transform:translateX(-104%);transition:transform .2s;border-right:1px solid var(--line)}
+  .nav{position:fixed;z-index:70;top:0;bottom:0;left:0;width:min(86vw,320px);max-height:none;align-self:stretch;height:100%;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--surface);padding:calc(env(safe-area-inset-top,0px) + 16px) 12px 24px max(12px,env(safe-area-inset-left,0px));transform:translateX(-104%);transition:transform .2s;border-right:1px solid var(--line)}
   .nav.open{transform:none}
   .scrim.open{display:block;position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.5)}
   .steps .body{padding-left:16px}
