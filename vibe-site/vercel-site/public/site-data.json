@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 17,
+ "rev": 18,
  "pages": [
   {
    "id": "home",
@@ -1467,11 +1467,101 @@
    "title": "API활용 예시",
    "parent": "api",
    "tag": "",
-   "desc": "",
+   "desc": "파라런 — 1km 구간 기록을 AI API에 보내 러닝 코치 피드백 받기",
    "blocks": [
     {
      "t": "h",
-     "text": "API활용 예시"
+     "text": "파라런 AI 코치 — 구간 기록으로 피드백 받기"
+    },
+    {
+     "t": "p",
+     "text": "파라런(달리기 수업 웹앱)에서 학생이 레벨 달리기를 마치고 **\"AI 피드백 받기\"**를 누르면, 1km마다 걸린 시간을 보고 AI가 **다음 달리기 조언**을 써 줘요.\n앱이 AI를 직접 만든 게 아니라, 기록 숫자를 **AI API(Groq)**에 보내고 답을 받아 보여 주는 거예요. 앞에서 본 쇼핑몰 결제와 같은 구조예요."
+    },
+    {
+     "t": "cards",
+     "num": true,
+     "items": [
+      {
+       "title": "학생 화면",
+       "body": "\"AI 피드백 받기\" 단추. 구간 시간·지난 최고 페이스 **숫자만** 보내요. 이름·학번은 안 보내요"
+      },
+      {
+       "title": "우리 서버",
+       "body": "숫자를 **코치 프롬프트**로 바꾸고, 숨겨 둔 **API 키**를 붙여 AI에게 보내요"
+      },
+      {
+       "title": "AI API (Groq)",
+       "body": "프롬프트를 읽고 3~4문장 피드백을 써서 돌려줘요"
+      },
+      {
+       "title": "AI가 안 될 때",
+       "body": "앱에 넣어 둔 **규칙**(지난 기록과 비교, 전반·후반 페이스 비교)으로 피드백을 만들어 보여 줘요. 학생은 늘 답을 받아요"
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "직접 해 보기"
+    },
+    {
+     "t": "p",
+     "text": "왼쪽에 1km 구간 시간을 넣고(예: 5:40) **🤖 AI 피드백 받기**를 누르세요. 오른쪽에 ① 보낸 숫자 → ② AI에게 간 프롬프트 → ③ 돌아온 피드백이 차례로 켜져요. \"예시\" 단추로 초반 오버페이스·후반 스퍼트 기록도 넣어 보세요."
+    },
+    {
+     "t": "html",
+     "title": "파라런 AI 코치 — 랩별 기록으로 피드백 받기",
+     "height": 980,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>파라런 AI 코치 — 랩별 기록으로 피드백 받기</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--acc:#ff6b35;--acc-ink:#b8410f;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:18px}\n  h1{font-size:20px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 14px}\n  .grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:14px;align-items:start}\n  @media (max-width:640px){.grid{grid-template-columns:1fr}body{padding:12px}}\n  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}\n  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}\n  .lap{display:grid;grid-template-columns:52px 1fr 64px 28px;gap:8px;align-items:center;margin-bottom:6px}\n  .lap b{font-size:13px;color:var(--muted)}\n  .lap input{width:100%;font:inherit;font-size:16px;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  .bar{height:10px;border-radius:6px;background:var(--acc);opacity:.85;transition:width .2s}\n  .x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}\n  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}\n  .row label{font-size:13px;color:var(--muted)}\n  .row input{width:90px;font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  button.small{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer}\n  button.go{width:100%;margin-top:12px;font:inherit;font-size:16px;font-weight:800;padding:12px;border:0;border-radius:12px;background:var(--acc);color:#fff;cursor:pointer}\n  button.go:disabled{opacity:.6;cursor:wait}\n  .sum{margin-top:10px;font-size:13px;color:var(--muted)}\n  .sum b{color:var(--ink)}\n  .err{color:var(--bad);font-size:13px;margin-top:6px;min-height:1em}\n  .steps{display:flex;flex-direction:column;gap:10px}\n  .step{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;transition:border-color .2s,box-shadow .2s}\n  .step.on{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.15)}\n  .step h3{font-size:13px;margin:0 0 6px;display:flex;gap:8px;align-items:center}\n  .step h3 .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;font-size:11px}\n  .step p{margin:0 0 6px;font-size:12.5px;color:var(--muted)}\n  pre{margin:0;background:var(--code);color:var(--code-ink);font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:9px 11px;border-radius:9px;white-space:pre-wrap;word-break:break-all;max-height:190px;overflow:auto}\n  .k{color:#7dd3fc}.v{color:#fde68a}.hide{color:#f87171}\n  .fb{font-size:15px;line-height:1.7;white-space:pre-wrap}\n  .badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:auto}\n  .badge.ai{background:#ede9fe;color:#5b21b6}.badge.rule{background:#f1f5f9;color:#475569}\n  .why{font-size:12px;color:var(--muted);margin-top:6px}\n</style>\n</head>\n<body>\n  <h1>🏃 파라런 AI 코치 — 랩별 기록으로 피드백 받기</h1>\n  <p class=\"lede\">1km마다 걸린 시간을 넣고 <b>AI 피드백 받기</b>를 누르면, 실제 파라런 앱처럼 <b>AI API</b>가 다음 달리기 조언을 써 줘요. 오른쪽에서 무엇이 오가는지 확인해 보세요.</p>\n\n  <div class=\"grid\">\n    <div class=\"card\">\n      <h2>⏱ 1km 구간 기록</h2>\n      <div id=\"laps\"></div>\n      <div class=\"row\">\n        <button class=\"small\" type=\"button\" id=\"add\">＋ 구간 추가</button>\n        <button class=\"small\" type=\"button\" id=\"ex1\">예시: 초반 오버페이스</button>\n        <button class=\"small\" type=\"button\" id=\"ex2\">예시: 후반 스퍼트</button>\n      </div>\n      <div class=\"row\">\n        <label for=\"best\">지난 최고 페이스</label>\n        <input id=\"best\" value=\"6:00\" placeholder=\"없으면 비움\">\n        <label>/km</label>\n      </div>\n      <div class=\"sum\" id=\"sum\"></div>\n      <button class=\"go\" id=\"go\" type=\"button\">🤖 AI 피드백 받기</button>\n      <div class=\"err\" id=\"err\"></div>\n    </div>\n\n    <div class=\"steps\">\n      <div class=\"step\" id=\"s1\">\n        <h3><span class=\"n\">1</span>내 화면 → 우리 서버 <small style=\"color:var(--muted);font-weight:400\">· 숫자만 보내요</small></h3>\n        <p>이름·학번 없이 구간 시간(초)과 지난 최고 페이스만 보내요.</p>\n        <pre id=\"req\">아직 보내지 않았어요.</pre>\n      </div>\n      <div class=\"step\" id=\"s2\">\n        <h3><span class=\"n\">2</span>우리 서버 → AI API (Groq)</h3>\n        <p>서버가 숫자를 <b>프롬프트</b>로 바꿔 보내요. <b>API 키는 서버에만</b> 있어서 화면에는 안 보여요.</p>\n        <pre id=\"prompt\">—</pre>\n      </div>\n      <div class=\"step\" id=\"s3\">\n        <h3><span class=\"n\">3</span>AI 응답 → 학생 화면 <span class=\"badge\" id=\"badge\" hidden></span></h3>\n        <div class=\"fb\" id=\"fb\">여기에 피드백이 나와요.</div>\n        <div class=\"why\" id=\"why\"></div>\n      </div>\n    </div>\n  </div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nconst ENDPOINT = new URL('/api/feedback', document.baseURI).href;\nlet laps = ['5:40', '5:52', '6:05', '6:21'];\n\nfunction toSec(t) {\n  t = String(t).trim().replace(/[’'′]/g, ':').replace(/[\"″]/g, '');\n  const m = /^(\\d{1,2})[:.](\\d{1,2})$/.exec(t);\n  if (m) return +m[1] * 60 + +m[2];\n  if (/^\\d{1,2}$/.test(t)) return +t * 60;\n  return NaN;\n}\nfunction fmt(sec) { const m = Math.floor(sec / 60), s = Math.round(sec % 60); return `${m}'${String(s).padStart(2, '0')}\"`; }\nfunction on(id) { ['s1', 's2', 's3'].forEach((s) => $(s).classList.toggle('on', s === id)); }\n\nfunction draw() {\n  const box = $('laps'); box.textContent = '';\n  laps.forEach((v, i) => {\n    const row = document.createElement('div'); row.className = 'lap';\n    const inp = document.createElement('input'); inp.value = v; inp.inputMode = 'numeric'; inp.setAttribute('aria-label', (i + 1) + 'km 구간 시간');\n    inp.addEventListener('input', () => { laps[i] = inp.value; summary(); bars(); });\n    const bar = document.createElement('div'); bar.className = 'bar';\n    const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '✕'; x.title = '구간 빼기';\n    x.onclick = () => { if (laps.length > 1) { laps.splice(i, 1); draw(); } };\n    const lab = document.createElement('b'); lab.textContent = (i + 1) + 'km';\n    row.append(lab, inp, bar, x); box.append(row);\n  });\n  bars(); summary();\n  function bars() {\n    const s2 = laps.map(toSec), ok2 = s2.filter((s) => s > 0), mx = Math.max(...ok2, 1), mn = Math.min(...ok2, mx);\n    box.querySelectorAll('.bar').forEach((b, i) => { const s = s2[i]; b.style.width = s > 0 ? (30 + 70 * (s - mn) / Math.max(1, mx - mn)) + '%' : '0'; });\n  }\n}\nfunction summary() {\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s > 0))) { $('sum').textContent = '시간은 5:40 처럼 분:초로 적어요.'; return; }\n  const avg = secs.reduce((a, b) => a + b, 0) / secs.length;\n  $('sum').innerHTML = `거리 <b>${secs.length}km</b> · 평균 페이스 <b>${fmt(avg)}</b>/km · ${avg > 600 ? '<b style=\"color:#dc2626\">걷기 기준(10\\'00\") 넘음</b>' : '달리기'}`;\n}\n$('add').onclick = () => { if (laps.length < 10) { laps.push(laps[laps.length - 1] || '6:00'); draw(); } };\n$('ex1').onclick = () => { laps = ['5:10', '5:35', '6:10', '6:45']; $('best').value = '5:45'; draw(); };\n$('ex2').onclick = () => { laps = ['6:20', '6:15', '6:02', '5:41']; $('best').value = '6:10'; draw(); };\n\nasync function ask() {\n  $('err').textContent = '';\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s >= 120 && s <= 1800))) { $('err').textContent = '구간 시간은 2:00 ~ 30:00 사이로, 5:40 처럼 적어 주세요.'; return; }\n  const best = $('best').value.trim() ? toSec($('best').value) : 0;\n  const body = { laps: secs, best: best > 0 ? best : 0 };\n  $('go').disabled = true; $('go').textContent = '🤖 AI가 쓰는 중…';\n  on('s1');\n  $('req').innerHTML = `<span class=\"k\">POST</span> /api/feedback\\n` + JSON.stringify(body, null, 1)\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:') + `\\n\\n<span class=\"k\">// 구간 시간은 초 단위 (5:40 → 340)</span>`;\n  $('prompt').textContent = '서버가 프롬프트를 만드는 중…'; $('fb').textContent = '…'; $('badge').hidden = true; $('why').textContent = '';\n  await sleep(500);\n  on('s2');\n  let r;\n  try {\n    const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n    r = await res.json();\n    if (!res.ok) throw new Error(r.error || '서버 오류');\n  } catch (e) {\n    $('prompt').textContent = '—'; $('fb').textContent = '서버에 연결하지 못했어요.'; $('err').textContent = e.message || '';\n    $('go').disabled = false; $('go').textContent = '🤖 AI 피드백 받기'; return;\n  }\n  const esc = (t) => t.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));\n  $('prompt').innerHTML = `<span class=\"k\">POST</span> https://api.groq.com/openai/v1/chat/completions\\n<span class=\"k\">Authorization:</span> Bearer <span class=\"hide\">gsk_•••••••• (서버에만 있음)</span>\\n\\n` + esc(r.prompt);\n  await sleep(600);\n  on('s3');\n  $('fb').textContent = r.feedback;\n  $('badge').hidden = false;\n  $('badge').className = 'badge ' + (r.source === 'ai' ? 'ai' : 'rule');\n  $('badge').textContent = r.source === 'ai' ? '🤖 AI가 쓴 피드백' : '📏 규칙 피드백';\n  $('why').textContent = r.source === 'ai' ? `모델: ${r.model}` : `${r.reason ? r.reason + ' — ' : ''}AI 대신 앱에 넣어 둔 규칙(페이스 비교·전후반 배분)으로 만든 피드백이에요. 실제 앱도 AI가 안 될 때 이렇게 해요.`;\n  $('go').disabled = false; $('go').textContent = '🤖 다시 받기';\n}\n$('go').onclick = ask;\ndraw();\n</script>\n</body>\n</html>\n"
+    },
+    {
+     "t": "h",
+     "text": "AI에게 보낸 프롬프트의 핵심"
+    },
+    {
+     "t": "box",
+     "title": "좋은 피드백을 받으려고 넣은 규칙",
+     "text": "- **역할**: \"너는 중고생 러닝 코치야\"\n- **분량**: 3~4문장, 한국어\n- **금지**: 기록 숫자를 그대로 읊지 않기 (\"5분에서 6분으로 느려졌어요\" ✕)\n- **꼭**: \"다음번엔 이렇게 해 보자\"로 끝내기, 다정한 말투\n- **구간 기록이 있으면**: 초반 오버페이스·후반 처짐·꾸준함 중 무엇인지 보고 **페이스 배분** 조언 넣기",
+     "tone": "soft"
+    },
+    {
+     "t": "note",
+     "tone": "info",
+     "text": "파라런 관리자 화면에는 **\"AI 피드백 방향/스타일\"** 칸이 있어서, 선생님이 \"칭찬을 먼저 해 줘\" 같은 지침을 적으면 프롬프트에 그대로 덧붙여져요. 프롬프트도 결국 수업 설계예요."
+    },
+    {
+     "t": "h",
+     "text": "이 예시에서 볼 점"
+    },
+    {
+     "t": "cols",
+     "items": [
+      {
+       "title": "🔑 키는 서버에만",
+       "text": "API 키를 화면 코드에 넣으면 누구나 볼 수 있어요. 그래서 화면 → **우리 서버** → AI 순서로 보내고, 키는 Vercel **환경 변수**에만 둬요."
+      },
+      {
+       "title": "🙈 개인정보는 안 보내기",
+       "text": "AI 회사로 가는 건 **숫자뿐**이에요. 학생 이름·학번·소감 글은 보내지 않아요. 학생 데이터를 외부 API에 보낼 때 가장 먼저 챙길 것이에요."
+      },
+      {
+       "title": "🛟 실패해도 답하기",
+       "text": "AI 서비스가 느리거나 멈출 수 있어요. 그래서 **규칙 피드백**을 대신 준비해 뒀어요. 외부 API를 쓰는 앱이라면 \"안 될 때\"를 꼭 정해 둬요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "AI에게 이렇게 부탁해요"
+    },
+    {
+     "t": "prompt",
+     "label": "구간 기록 AI 피드백 기능 만들기",
+     "text": "달리기 기록 웹앱에 'AI 피드백 받기' 기능을 붙여 줘.\n- 학생 화면은 1km 구간 시간(초) 목록과 지난 최고 페이스만 서버로 보내. 이름·학번은 보내지 마\n- 서버(Vercel 함수 api/feedback.js)가 이 숫자로 프롬프트를 만들어 Groq API(openai/gpt-oss-20b)에 보내. API 키는 환경 변수 GROQ_API_KEY 에서 읽어\n- 프롬프트: 중고생 러닝 코치 역할, 3~4문장 한국어, 숫자를 나열하지 말고 페이스 배분(초반 오버페이스/후반 처짐/꾸준함)에 대한 '다음번엔 이렇게 해 보자' 조언으로 끝내기\n- AI가 실패하면 지난 기록 비교와 전반·후반 평균 비교로 만든 규칙 피드백을 대신 보여 줘\n- 서버는 숫자만 받고, 구간은 1~10개, 한 구간 2~30분 사이일 때만 받게 검사해 줘"
+    },
+    {
+     "t": "fold",
+     "title": "선생님용 — 이 체험의 AI 연결 켜기",
+     "text": "이 체험은 연수 사이트의 서버 함수(`api/feedback.js`)가 Groq API를 불러요.\n1. console.groq.com 에서 API 키 만들기 (무료 등급 있음)\n2. Vercel 프로젝트(pevibecode) → Settings → Environment Variables 에 `GROQ_API_KEY` 이름으로 넣기\n3. Deployments 에서 다시 배포(Redeploy)\n키가 없으면 \"📏 규칙 피드백\"으로 나와요. 한 사람이 한 시간에 30번까지만 AI를 불러요."
     }
    ]
   },
