@@ -99,5 +99,5 @@
 - API활용 예시(2026-10-25): 파라런 AI 코치 체험. 화면(실습 블록)은 1km 구간 시간(초)·지난 최고 페이스만 `POST /api/feedback`(새 함수 `api/feedback.js`)로 보내고,
   함수가 파라런 `src/lib/feedback.ts` 와 같은 프롬프트로 Groq(`GROQ_API_KEY`, 모델 `GROQ_MODEL` 기본 openai/gpt-oss-20b)를 부른다. 키가 없거나 실패하면 같은 규칙 피드백.
   숫자만 받음(구간 1~10개, 2~30분), IP당 한 시간 30번(서버 인스턴스 안에서만 셈). **AI 로 나오게 하려면 Vercel pevibecode 에 GROQ_API_KEY 를 넣고 다시 배포.**
-- API 실습(2026-10-25): 퀴즈 웹앱 + AI 피드백. 참가자는 **앱스크립트 + Gemini API**(키는 스크립트 속성 GEMINI_API_KEY)로 만든다 — 단계·프롬프트·참고 Code.gs 가 페이지에 있음.
-  맨 위 "완성 모습" 농구 규칙 퀴즈는 사이트 함수 `api/quiz-feedback.js`(문제·정답은 함수 안, 화면은 고른 보기 번호만 보냄)가 Groq 를 부른다. Groq 공통 코드는 `api/_groq.js`(밑줄 = 주소로 안 열림, feedback.js 도 같이 씀).
+- API 실습(2026-10-25): **파라런 구간 기록장 시작 코드**(AI 칸만 비어 있고 맨 아래 TODO)를 실습 상자로 주고, 참가자가 **앱스크립트 + Gemini API**(키는 스크립트 속성 GEMINI_API_KEY)로 AI 코치 피드백을 넣는다. 미션·단계·프롬프트·도전·참고 Code.gs/TODO 코드가 페이지에 있음.
+  완성 모습은 API활용 예시(api-ex)의 AI 코치. Groq 공통 코드는 `api/_groq.js`(밑줄 = 주소로 안 열림, feedback.js 가 씀).

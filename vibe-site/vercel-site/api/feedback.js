@@ -8,7 +8,7 @@ const WALK_PACE = 600; // 10'00"/km 보다 느리면 걷기 (파라런 학생 �
 const { askGroq, limited, cors, bodyOf } = require('./_groq');
 
 function pace(sec) {
-  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60;
   return `${m}'${String(s).padStart(2, '0')}"`;
 }
 
