@@ -28,6 +28,8 @@ out = here/'vercel-site'
 (out/'public'/'images').mkdir(parents=True, exist_ok=True)
 (out/'public'/'images'/'.gitkeep').touch()
 (out/'public'/'index.html').write_text(doc,encoding='utf8')
+# /admin opens the same page (cleanUrls serves admin.html there); the script then shows the login.
+(out/'public'/'admin.html').write_text(doc,encoding='utf8')
 # Site icon (dark tile + red bar, like the banner) so the Vercel project does not show another app's icon.
 (out/'public'/'favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#121418"/>'
   '<text x="32" y="38" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="26" fill="#fff">VC</text>'
@@ -39,7 +41,6 @@ if '--reset' in sys.argv or not data_file.exists():
 # Own package.json so api/*.js stay CommonJS (the repo root package.json says "type": "module").
 (out/'package.json').write_text(json.dumps({"private":True,"type":"commonjs"},indent=2)+"\n",encoding='utf8')
 (out/'vercel.json').write_text(json.dumps({"framework":None,"buildCommand":"","outputDirectory":"public","cleanUrls":True,
-  "rewrites":[{"source":"/admin","destination":"/index.html"}],
   "headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]}]},indent=2),encoding='utf8')
 (out/'README.md').write_text("""# 바이브 코딩 연수(체육) 사이트
 
