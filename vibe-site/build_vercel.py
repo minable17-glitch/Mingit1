@@ -30,6 +30,12 @@ out = here/'vercel-site'
 (out/'public'/'index.html').write_text(doc,encoding='utf8')
 # /admin opens the same page (cleanUrls serves admin.html there); the script then shows the login.
 (out/'public'/'admin.html').write_text(doc,encoding='utf8')
+# Extra sites: public/sites.json lists them; each is served at /<slug> by a copy of the page.
+sites_file = out/'public'/'sites.json'
+if not sites_file.exists():
+    sites_file.write_text(json.dumps([{"slug":"","title":"바이브 코딩 연수(체육)"}],ensure_ascii=False,indent=1)+"\n",encoding='utf8')
+for s in json.loads(sites_file.read_text(encoding='utf8')):
+    if s.get('slug'): (out/'public'/(s['slug']+'.html')).write_text(doc,encoding='utf8')
 # Site icon (dark tile + red bar, like the banner) so the Vercel project does not show another app's icon.
 (out/'public'/'favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#121418"/>'
   '<text x="32" y="38" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="26" fill="#fff">VC</text>'

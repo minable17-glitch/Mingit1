@@ -66,3 +66,12 @@
 - Vercel 환경 변수: `GITHUB_TOKEN`(fine-grained, Mingit1 저장소 Contents 읽기/쓰기), `GOOGLE_CLIENT_ID`(Google Cloud OAuth 웹 클라이언트, 승인된 JavaScript 원본 = 사이트 주소),
   `ADMIN_EMAILS`(쉼표로 여러 개), 선택: `ADMIN_PASSWORD`(예비 비밀번호 로그인).
 - `vercel-site/package.json`의 `"type":"commonjs"`는 지우지 말 것(저장소 맨 위 package.json이 ESM이라 api/admin.js가 깨짐).
+
+## 여러 사이트 (2026-10-25 추가)
+- 한 Vercel 프로젝트에 사이트 여러 개. `public/sites.json` = 목록 `[{slug,title}]`.
+  - 첫 사이트(slug `""`) = `public/site-data.json`, 주소 `/`
+  - 나머지 = `public/sites/<slug>.json`, 주소 `/<slug>` (같은 화면 파일의 사본 `public/<slug>.html`을 cleanUrls가 연결)
+- 관리자 화면 위 **사이트 관리**: 목록·다른 사이트 고치기(`/admin?site=<slug>`)·새 사이트(빈 사이트 / 지금 사이트 복사)·지우기.
+  만들기·지우기는 Git Data API로 파일 3개를 **커밋 하나**로 올린다(api `createSite`/`deleteSite`). 사이트마다 버전 기록이 따로다.
+- 화면 틀(template.html)을 고친 뒤 `python3 build_vercel.py` 를 돌리면 `sites.json` 에 있는 모든 `<slug>.html` 사본도 새로 만든다.
+- 주소 이름 금지어: admin, api, images, sites, index, favicon, site-data.

@@ -1,5 +1,7 @@
-// Admin API for the site editor. Saving commits public/site-data.json to GitHub;
+// Admin API for the site editor. Saving commits a site's data file to GitHub;
 // Vercel redeploys on that commit, and the commit log doubles as version history.
+// Several sites share this project: public/sites.json lists them; the main site ('' slug)
+// lives in public/site-data.json and is served at /, others in public/sites/<slug>.json at /<slug>.
 // Env: GITHUB_TOKEN (fine-grained, Contents read/write on the repo),
 //      GOOGLE_CLIENT_ID + ADMIN_EMAILS (comma separated) for Google sign-in,
 //      ADMIN_PASSWORD (optional fallback login).
@@ -8,7 +10,39 @@ const crypto = require('crypto');
 const REPO = process.env.GITHUB_REPO || 'minable17-glitch/Mingit1';
 const BRANCH = process.env.GITHUB_BRANCH || 'claude/new-session-f7zx6a';
 const DIR = 'vibe-site/vercel-site/public/';
-const DATA = DIR + 'site-data.json';
+const SITES = DIR + 'sites.json';
+const RESERVED = new Set(['admin', 'api', 'images', 'sites', 'index', 'favicon', 'site-data']);
+function dataPath(slug) { return slug ? DIR + 'sites/' + slug + '.json' : DIR + 'site-data.json'; }
+function validSlug(x) { return typeof x === 'string' && /^[a-z0-9][a-z0-9-]{0,29}$/.test(x) && !RESERVED.has(x); }
+async function siteList() {
+  try { return JSON.parse((await readFile(SITES, BRANCH)).text); }
+  catch (e) { return [{ slug: '', title: '바이브 코딩 연수(체육)' }]; } // before the first extra site existed
+}
+async function slugOf(b) { // the site a request is about; must be a listed one
+  const slug = b.site || '';
+  if (slug && !(await siteList()).some((x) => x.slug === slug)) throw fail('no_site', '그런 사이트가 없어요.', 404);
+  return slug;
+}
+// Several files in ONE commit (one Vercel deploy) through the Git Data API. content null = delete.
+async function commitFiles(files, message) {
+  const ref = await gh('/git/ref/heads/' + encodeURIComponent(BRANCH));
+  if (!ref.ok) throw fail('github', 'GitHub 브랜치를 읽지 못했어요 (' + ref.status + ')');
+  const head = (await ref.json()).object.sha;
+  const base = (await (await gh('/git/commits/' + head)).json()).tree.sha;
+  const tree = await gh('/git/trees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base_tree: base, tree: files.map((f) => f.content === null
+      ? { path: f.path, mode: '100644', type: 'blob', sha: null }
+      : { path: f.path, mode: '100644', type: 'blob', content: f.content }) }) });
+  if (!tree.ok) throw fail('github', 'GitHub에 저장하지 못했어요 (' + tree.status + ')');
+  const commit = await gh('/git/commits', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, tree: (await tree.json()).sha, parents: [head] }) });
+  if (!commit.ok) throw fail('github', 'GitHub에 저장하지 못했어요 (' + commit.status + ')');
+  const upd = await gh('/git/refs/heads/' + encodeURIComponent(BRANCH), { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sha: (await commit.json()).sha }) });
+  if (upd.status === 409 || upd.status === 422) throw fail('conflict', '다른 곳에서 먼저 저장한 내용이 있어요. 잠시 뒤 다시 해 주세요.', 409);
+  if (!upd.ok) throw fail('github', 'GitHub에 저장하지 못했어요 (' + upd.status + ')');
+}
+const json = (d) => JSON.stringify(d, null, 1) + '\n';
 const PW = process.env.ADMIN_PASSWORD || '';
 const GH = process.env.GITHUB_TOKEN || '';
 const GOOGLE_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -94,7 +128,7 @@ function checkSite(d) {
   }
   if (!ids.has('home')) throw fail('bad_data', '홈 페이지가 없어요.', 400);
 }
-async function commitSite(d, message) {
+async function commitSite(DATA, d, message) {
   const cur = await readFile(DATA, BRANCH);
   const now = JSON.parse(cur.text);
   d.rev = (now.rev || 0) + 1;
@@ -124,7 +158,43 @@ module.exports = async (req, res) => {
     }
     if (!validToken(b.token)) return res.status(401).json({ error: 'auth', message: '다시 로그인해 주세요.' });
 
+    const DATA = b.action === 'upload' || b.action === 'sites' || b.action === 'createSite' ? null : dataPath(await slugOf(b));
     switch (b.action) {
+      case 'sites':
+        return res.json({ sites: await siteList() });
+      case 'createSite': {
+        const slug = b.slug, title = String(b.title || '').trim().slice(0, 60);
+        if (!validSlug(slug)) throw fail('bad_slug', '주소 이름은 영어 소문자·숫자·- 로 30자까지 써 주세요. (admin, api, images, sites는 쓸 수 없어요)', 400);
+        if (!title) throw fail('bad_data', '사이트 이름을 넣어 주세요.', 400);
+        const list = await siteList();
+        if (list.some((x) => x.slug === slug)) throw fail('dup_slug', '이미 있는 주소예요. 다른 이름을 써 주세요.', 409);
+        let d;
+        if (typeof b.copyFrom === 'string') {
+          if (!list.some((x) => x.slug === b.copyFrom)) throw fail('no_site', '복사할 사이트가 없어요.', 404);
+          d = JSON.parse((await readFile(dataPath(b.copyFrom), BRANCH)).text);
+        } else {
+          d = { v: 1, pages: [{ id: 'home', title: '홈', parent: null, tag: '', desc: '', blocks: [
+            { t: 'h', text: title }, { t: 'p', text: '관리자 화면에서 "편집"을 눌러 내용을 채워 주세요.' }] }] };
+        }
+        d.site = { ...(d.site || {}), title }; d.rev = 0; d.updated = new Date().toISOString();
+        const page = (await readFile(DIR + 'index.html', BRANCH)).text;
+        await commitFiles([
+          { path: dataPath(slug), content: json(d) },
+          { path: DIR + slug + '.html', content: page }, // served at /<slug> (cleanUrls)
+          { path: SITES, content: json(list.concat([{ slug, title }])) },
+        ], '새 사이트 만들기: ' + title + ' (/' + slug + ')');
+        return res.json({ slug, data: d });
+      }
+      case 'deleteSite': {
+        const slug = await slugOf(b);
+        if (!slug) throw fail('bad_data', '첫 사이트는 지울 수 없어요.', 400);
+        const list = (await siteList()).filter((x) => x.slug !== slug);
+        await commitFiles([
+          { path: dataPath(slug), content: null }, { path: DIR + slug + '.html', content: null },
+          { path: SITES, content: json(list) },
+        ], '사이트 삭제: /' + slug);
+        return res.json({ ok: true });
+      }
       case 'load': {
         const f = await readFile(DATA, BRANCH);
         return res.json({ data: JSON.parse(f.text) });
@@ -133,7 +203,7 @@ module.exports = async (req, res) => {
         checkSite(b.data);
         const cur = JSON.parse((await readFile(DATA, BRANCH)).text);
         if ((cur.rev || 0) !== (b.baseRev || 0)) throw fail('conflict', '다른 곳에서 먼저 저장한 내용이 있어요.', 409);
-        const r = await commitSite(b.data, '사이트 편집 (관리자 화면)');
+        const r = await commitSite(DATA, b.data, '사이트 편집 (관리자 화면)' + (b.site ? ' /' + b.site : ''));
         return res.json({ rev: r.rev, updated: r.updated });
       }
       case 'history': {
@@ -150,7 +220,7 @@ module.exports = async (req, res) => {
         if (!/^[0-9a-f]{40}$/.test(b.sha || '')) throw fail('bad_data', '버전 정보가 올바르지 않아요.', 400);
         const old = JSON.parse((await readFile(DATA, b.sha)).text);
         checkSite(old);
-        await commitSite(old, '예전 버전으로 되돌리기 (' + b.sha.slice(0, 7) + ')');
+        await commitSite(DATA, old, '예전 버전으로 되돌리기 (' + b.sha.slice(0, 7) + ')' + (b.site ? ' /' + b.site : ''));
         return res.json({ data: old });
       }
       case 'upload': {

@@ -228,6 +228,13 @@ var REMOTE=!data; // Vercel build: pages come from /site-data.json, edits go thr
 if(!data) data={v:1,pages:[{id:'home',title:'불러오는 중…',parent:null,tag:'',desc:'',blocks:[]}]};
 var orig=JSON.stringify(data);
 var API='/api/admin';
+// Which site this page shows: /sheets → 'sheets', / → '' (the main site). ?site= wins (used right after creating a site).
+var SLUG=(function(){
+  try{var q=new URLSearchParams(location.search).get('site');if(q!==null)return q;}catch(e){}
+  var m=location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)(\.html)?\/?$/);
+  return m&&m[1]!=='admin'&&m[1]!=='index'?m[1]:'';
+})();
+function siteHome(slug){return slug?'/'+slug:'/';}
 var PREVIEW={}; // uploaded image path -> local data URL, until the next deploy serves the file
 var S={cur:'home',edit:false,dirty:false,can:false,ns:null,eb:null,nav:false,arm:null,saving:false,msg:'',err:false,admin:false,token:null,ins:null};
 var PROPS={value:1,checked:1,selected:1,srcdoc:1,disabled:1,hidden:1};
@@ -302,6 +309,7 @@ function renderTop(){
     el('button',{class:'burger',type:'button','aria-label':'메뉴 열기',onclick:function(){S.nav=true;renderNav();}},'☰'),
     el('a',{class:'brand',href:'#home',onclick:function(e){e.preventDefault();go('home');}},siteTitle()),
     el('div',{class:'top-actions'},
+      S.admin?el('button',{class:'top-edit',type:'button',onclick:openSites},'사이트 관리'):null,
       S.admin?el('button',{class:'top-edit',type:'button',onclick:openHistory},'버전 기록'):null,
       S.can?el('button',{class:'top-edit',type:'button',disabled:S.edit,onclick:function(){S.edit=true;renderAll();}},S.edit?'편집 중':'편집'):null,
       S.admin?el('button',{class:'top-edit',type:'button',onclick:logout},'로그아웃'):null)
@@ -675,6 +683,7 @@ function addBlockRow(p,at){
 /* ---------- admin (Vercel build) ---------- */
 function api(body){
   if(S.token) body.token=S.token;
+  if(body.site===undefined) body.site=SLUG;
   return fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
     return r.json().catch(function(){return {};}).then(function(j){
       if(r.ok) return j;
@@ -714,7 +723,7 @@ function openDlg(title,body){
   dlgEl.hidden=false;
 }
 function isAdminUrl(){return /\/admin\/?$/.test(location.pathname);}
-function leaveAdminUrl(){try{if(isAdminUrl())history.replaceState(null,'','/'+location.hash);}catch(e){}}
+function leaveAdminUrl(){try{if(isAdminUrl()||location.search)history.replaceState(null,'',siteHome(SLUG)+location.hash);}catch(e){}}
 function loadGsi(){
   if(window.google&&google.accounts&&google.accounts.id) return Promise.resolve();
   return new Promise(function(ok,no){
@@ -771,6 +780,7 @@ function startAdmin(){
 function logout(){
   if(S.dirty&&!window.confirm('저장하지 않은 수정이 사라져요. 로그아웃할까요?')) return;
   store('vc-admin',null);
+  if(location.search){try{history.replaceState(null,'',siteHome(SLUG)+location.hash);}catch(e){}}
   S.admin=false; S.can=false; S.edit=false; S.dirty=false; S.token=null; S.eb=null; S.ins=null; S.msg='';
   renderAll(); loadPublic();
 }
@@ -798,8 +808,57 @@ function openHistory(){
     });
   },function(e){list.textContent=(e&&e.message)||'기록을 불러오지 못했어요.';});
 }
+function openSites(){
+  var list=el('div',{class:'hist'},el('p',{class:'para'},'불러오는 중이에요…'));
+  var name=el('input',{type:'text',placeholder:'예: 구글 시트 연수','aria-label':'새 사이트 이름'});
+  var slug=el('input',{type:'text',placeholder:'예: sheets','aria-label':'주소 뒤 이름',autocapitalize:'off',spellcheck:'false'});
+  var from=el('select',{'aria-label':'시작 방법'},el('option',{value:'blank'},'빈 사이트로 시작'),el('option',{value:'copy'},'지금 보고 있는 사이트를 복사해서 시작'));
+  var st=el('div',{class:'foot',role:'status'});
+  var mk=el('button',{class:'btn pri',type:'submit'},'만들기');
+  var preview=el('div',{class:'foot'},location.origin+'/…');
+  slug.addEventListener('input',function(){slug.value=slug.value.toLowerCase().replace(/[^a-z0-9-]/g,'');preview.textContent=location.origin+'/'+(slug.value||'…');});
+  var form=el('form',{class:'tbox',onsubmit:function(e){
+    e.preventDefault();
+    if(!name.value.trim()){name.focus();return;}
+    if(!slug.value){slug.focus();return;}
+    mk.disabled=true; st.textContent='만드는 중이에요…';
+    var body={action:'createSite',title:name.value.trim(),slug:slug.value};
+    if(from.value==='copy') body.copyFrom=SLUG;
+    api(body).then(function(r){
+      var go_=el('a',{class:'btn pri',href:'/admin?site='+r.slug},'새 사이트 고치러 가기 →');
+      form.textContent='';
+      form.append(el('div',{class:'tt'},'“'+body.title+'” 사이트를 만들었어요'),
+        el('div',null,'주소: '+location.origin+'/'+r.slug),
+        el('div',{class:'foot'},'고치기는 바로 할 수 있어요. 다른 사람이 위 주소로 보는 건 1~2분 뒤부터 돼요.'),go_);
+    },function(e){mk.disabled=false;st.textContent=(e&&e.message)||'만들지 못했어요.';});
+  }},el('div',{class:'tt'},'＋ 새 사이트 만들기'),fld('사이트 이름 (맨 위 검은 줄에 보여요)',name),fld('주소 뒤 이름 (영어 소문자·숫자·-)',slug),preview,fld('시작 방법',from),el('div',{class:'addrow'},mk),st);
+  openDlg('사이트 관리',el('div',{class:'hist'},
+    el('p',{class:'foot'},'사이트마다 주소, 메뉴, 페이지, 버전 기록이 따로 있어요. 한 사이트를 고쳐도 다른 사이트는 그대로예요.'),
+    list,form,el('div',{class:'addrow'},el('button',{class:'btn',type:'button',onclick:closeDlg},'닫기'))));
+  api({action:'sites'}).then(function(r){
+    list.textContent='';
+    r.sites.forEach(function(x){
+      var here=x.slug===SLUG, armed=false;
+      var del=x.slug?el('button',{class:'btn small danger',type:'button'},'지우기'):null;
+      if(del) del.addEventListener('click',function(){
+        if(!armed){armed=true;del.textContent='정말 지우기 (되돌릴 수 없어요)';return;}
+        del.disabled=true;
+        api({action:'deleteSite',site:x.slug}).then(function(){
+          if(here){store('vc-admin',S.token);location.href='/admin';return;}
+          openSites();
+        },function(e){del.disabled=false;armed=false;del.textContent='지우기';window.alert(e.message||'지우지 못했어요.');});
+      });
+      list.append(el('div',{class:'hist-row'},
+        el('b',null,x.title+(here?' (지금 고치는 중)':'')),
+        el('small',null,location.origin+siteHome(x.slug)),
+        el('div',{class:'addrow'},
+          here?null:el('a',{class:'btn small',href:x.slug?'/admin?site='+x.slug:'/admin'},'이 사이트 고치기'),
+          el('a',{class:'btn small',href:siteHome(x.slug),target:'_blank',rel:'noopener'},'새 창에서 보기 ↗'),del)));
+    });
+  },function(e){list.textContent=(e&&e.message)||'목록을 불러오지 못했어요.';});
+}
 function loadPublic(){
-  fetch('/site-data.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(d){
+  fetch(SLUG?'/sites/'+SLUG+'.json':'/site-data.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(d){
     if(S.admin) return;
     data=d; orig=JSON.stringify(d);
     var h=location.hash.slice(1); if(h&&byId(h)) S.cur=h;
