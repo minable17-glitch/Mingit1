@@ -21,12 +21,17 @@ assert "__DATA__" in tpl
 body = tpl.replace("__DATA__","null")
 doc = ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+       '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n'
        '<style>html{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>\n'
        '</head>\n<body>\n' + body + '\n</body>\n</html>\n')
 out = here/'vercel-site'
 (out/'public'/'images').mkdir(parents=True, exist_ok=True)
 (out/'public'/'images'/'.gitkeep').touch()
 (out/'public'/'index.html').write_text(doc,encoding='utf8')
+# Site icon (dark tile + red bar, like the banner) so the Vercel project does not show another app's icon.
+(out/'public'/'favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#121418"/>'
+  '<text x="32" y="38" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="26" fill="#fff">VC</text>'
+  '<rect x="14" y="46" width="36" height="6" fill="#e5393a"/></svg>\n',encoding='utf8')
 data_file = out/'public'/'site-data.json'
 if '--reset' in sys.argv or not data_file.exists():
     # Only on first build (or --reset): after that the admin screen owns this file.
