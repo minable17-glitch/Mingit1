@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 52,
+ "rev": 53,
  "pages": [
   {
    "id": "home",
@@ -2185,6 +2185,84 @@
      "title": "게임형 과제 웹앱",
      "url": "https://script.google.com/macros/s/AKfycbydwS2Y_sXrTbaVie_0W0L4wm0MUqhRJu70mlmQgj7IqW60GLZTiBC1gY2VDJUvr7D-1g/exec",
      "height": 700
+    }
+   ]
+  },
+  {
+   "id": "ex-crew",
+   "title": "러닝크루 신청(실제 사례)",
+   "parent": "po3je4n",
+   "tag": "",
+   "desc": "",
+   "blocks": [
+    {
+     "t": "h",
+     "text": "앱스크립트 실제 사례"
+    },
+    {
+     "t": "h",
+     "text": "(매1런 러닝크루 신청)"
+    },
+    {
+     "t": "p",
+     "text": "매1런 번외 경기로 **러닝크루**를 모집할 때 쓴 신청 웹앱이에요. 크루 대표가 안내지의 QR을 찍어 크루 이름과 크루원을 적어 내면, 구글 시트에 쌓이고 선생님이 확인해 승인했어요.\n신청을 받아 **크루 5개 · 22명**이 만들어졌어요."
+    },
+    {
+     "t": "img",
+     "src": "images/crew-flyer.jpg",
+     "width": 70,
+     "caption": "실제로 나눠 준 모집 안내지 — 오른쪽 위 QR이 앱스크립트 신청서로 연결돼요"
+    },
+    {
+     "t": "links",
+     "items": [
+      {
+       "label": "실제 신청서 (bit.ly/runcrew2) — 실제 학교 시트로 들어가니 둘러보기만 해 주세요",
+       "url": "https://bit.ly/runcrew2"
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "어떻게 돌아갔나"
+    },
+    {
+     "t": "cards",
+     "num": true,
+     "items": [
+      {
+       "title": "크루 대표가 QR로 신청",
+       "body": "크루 이름, 대표 학년·반·번호·이름·연락처, **크루원 명단**, 주로 뛸 장소·시간, 비밀번호를 적어 내요."
+      },
+      {
+       "title": "'신청' 탭에 한 줄씩 저장",
+       "body": "접수일시와 **신청번호**(C+월일시각, 예: C1008100030)가 저절로 붙어요."
+      },
+      {
+       "title": "신청번호 + 비밀번호로 고치기",
+       "body": "크루원을 빼먹었으면 대표가 직접 고쳐요. 고친 날은 **수정일시** 칸에 남아요. 비밀번호는 그대로 적지 않고 **암호화**해서 저장해요."
+      },
+      {
+       "title": "선생님이 승인·반려",
+       "body": "상태를 승인으로 바꾸면 **크루 참여 코드**(6자리)가 만들어지고 **'크루목록' 탭**에 정리돼요. 반려하면 반려 사유를 남겨요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "실제 시트 ('신청' 탭)"
+    },
+    {
+     "t": "html",
+     "title": "매1런 러닝크루 신청 시트",
+     "height": "330",
+     "fit": true,
+     "code": "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>\nbody{margin:0;padding:10px;font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:#fff;color:#1f2937}\n.tabs{display:flex;gap:4px;margin-bottom:0}.tabs span{font-size:12px;padding:4px 10px;border-radius:6px 6px 0 0;background:#e5e7eb;color:#4b5563}.tabs span.on{background:#188038;color:#fff;font-weight:700}\n.wrap{overflow-x:auto;border:1px solid #d1d5db}\ntable{border-collapse:collapse;font-size:12.5px;white-space:nowrap}\nth{background:#f1f3f4;font-weight:700;padding:6px 8px;border:1px solid #d1d5db;text-align:left}\ntd{padding:5px 8px;border:1px solid #e5e7eb}\ntd:nth-child(9){color:#188038;font-weight:700}\np{font-size:12px;color:#6b7280;margin:6px 0 0}\n</style></head><body>\n<div class=\"tabs\"><span>시트1</span><span class=\"on\">신청</span><span>크루목록</span><span>학생명단</span></div>\n<div class=\"wrap\"><table><tr><th>접수일시</th><th>신청번호</th><th>크루 이름</th><th>대표</th><th>대표 연락처</th><th>크루원 명단</th><th>인원</th><th>주로 뛸 장소·시간</th><th>상태</th><th>크루 참여 코드</th><th>반려 사유</th><th>처리일시</th><th>수정일시</th><th>비밀번호(암호화)</th></tr><tr><td>10. 7 오후 11:16</td><td>C1007231618</td><td>미니언즈</td><td>3-5-16 원**</td><td>010-****-****</td><td>원** 외 4명</td><td>5</td><td>낙원중 운동장 7시30분</td><td>승인</td><td>AVC***</td><td></td><td>10. 8</td><td></td><td>7bcb…(64자리)</td></tr><tr><td>10. 8 오전 10:00</td><td>C1008100030</td><td>○○○크루보다잘뛰는크루</td><td>3-6-25 정**</td><td>010-****-****</td><td>정** 외 2명</td><td>3</td><td></td><td>승인</td><td>VKY***</td><td></td><td>10. 8</td><td>10. 8</td><td>7bcb…(64자리)</td></tr><tr><td>10. 8 오전 10:57</td><td>C1008105705</td><td>불멸의 러닝크루</td><td>3-3-4 김**</td><td>010-****-****</td><td>김** 외 9명</td><td>10</td><td>탄천</td><td>승인</td><td>XHQ***</td><td></td><td>10. 8</td><td></td><td>7bcb…(64자리)</td></tr><tr><td>10. 8 오후 4:52</td><td>C1008165202</td><td>24크루</td><td>2-3-10 김**</td><td>010-****-****</td><td>김** 외 1명</td><td>2</td><td>학교 건물 주위 목 7:30 / 월화수금 8:30</td><td>승인</td><td>TWE***</td><td></td><td>10. 9</td><td>10. 8</td><td>7bcb…(64자리)</td></tr><tr><td>10. 8 오후 5:35</td><td>C1008173523</td><td>낙원 매일런 모둠 202/3</td><td>2-2-30 최**</td><td>010-****-****</td><td>최** 외 1명</td><td>2</td><td>학교, 7시 또는 8:20</td><td>승인</td><td>MHD***</td><td></td><td>10. 9</td><td></td><td>7bcb…(64자리)</td></tr></table></div>\n<p>← 옆으로 밀어 보세요. 학생 이름·연락처·코드 일부는 가렸어요.</p>\n</body></html>"
+    },
+    {
+     "t": "note",
+     "tone": "tip",
+     "text": "**운영하면서 바뀐 점** — 처음엔 승인되면 크루 참여 코드를 받아 앱에 넣게 했는데, 중간에 **코드 없이 선생님이 앱에서 크루로 묶어 주는** 방식으로 바꾸고 마감도 이틀 늘렸어요. 안내지의 주황색 '바뀐 점'이 그 흔적이에요. 웹앱은 **그때그때 고쳐 쓰기 쉽다**는 게 장점이에요."
     }
    ]
   }
