@@ -83,3 +83,9 @@
 - 편집: 블록 ⧉ 복제, 페이지 복제, ↶ 되돌리기/↷ 다시 하기(`S.hist`/`S.fut`, touch 때마다 저장), 👀 미리보기(PC·휴대폰 틀).
 - ⚙ 사이트 설정(`data.site`): 이름·로고·강조색(`ACCENTS`, `applyTheme`)·머리 배경(dots/plain/accent)·📢 공지 배너(notice {on,text,link}, 닫으면 그 탭에서 숨김)·꼬리말(footer). 페이지마다 머리 배경 사진(`page.cover`).
 - 방문자: 왼쪽 메뉴 위 사이트 검색(`pageText`), 맨 위로 버튼.
+
+## 앱 설치(PWA)·위 줄 정리 (2026-10-25 추가)
+- 위 줄: 넓은 화면은 단추 그대로(`.top-wide`), 휴대폰은 **편집 + ⋯ 메뉴**(사이트 관리·버전 기록·앱으로 설치·로그아웃). 편집 줄은 아이콘 단추로 한 줄(`.ebtns`, 글자 `.lbl` 은 휴대폰에서 숨김).
+- 사이트마다 manifest: `manifest.webmanifest`(첫 사이트), `manifest-<slug>.webmanifest`(나머지) — `build_vercel.py manifest_for` 와 `api/admin.js manifestFor` 가 같은 규칙. 화면이 `/<slug>` 이면 manifest 링크를 바꿔 끼운다.
+- `sw.js`: 페이지·.json 은 네트워크 먼저(늘 최신 편집), 끊기면 저장해 둔 것. 사진은 한 번 보면 저장. `/api` 는 안 건드림. 캐시 이름 `vc-v1` 을 바꾸면 옛 캐시가 지워진다.
+- 아이콘 `icon-192.png`·`icon-512.png`·`apple-touch-icon.png` 는 `make_icons.py` 로 만듦. 크롬·삼성 인터넷은 위 줄 "📲 앱 설치" 단추(beforeinstallprompt), 아이폰은 사파리 공유 → 홈 화면에 추가.

@@ -22,6 +22,12 @@ body = tpl.replace("__DATA__","null")
 doc = ('<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
        '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n'
+       '<link rel="manifest" href="/manifest.webmanifest">\n'
+       '<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n'
+       '<meta name="theme-color" content="#121418">\n'
+       '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+       '<meta name="mobile-web-app-capable" content="yes">\n'
+       '<meta name="apple-mobile-web-app-status-bar-style" content="black">\n'
        '<style>html{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>\n'
        '</head>\n<body>\n' + body + '\n</body>\n</html>\n')
 out = here/'vercel-site'
@@ -34,8 +40,35 @@ out = here/'vercel-site'
 sites_file = out/'public'/'sites.json'
 if not sites_file.exists():
     sites_file.write_text(json.dumps([{"slug":"","title":"바이브 코딩 연수(체육)"}],ensure_ascii=False,indent=1)+"\n",encoding='utf8')
+# App install (PWA): one manifest per site (same rule as api/admin.js manifestFor), plus the service worker.
+def manifest_for(slug, title):
+    start = '/' + slug if slug else '/'
+    return json.dumps({"id": start, "name": title, "short_name": title[:12], "start_url": start, "scope": "/",
+        "display": "standalone", "background_color": "#f3f4f7", "theme_color": "#121418", "lang": "ko",
+        "icons": [{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+                  {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]},
+        ensure_ascii=False, indent=1) + "\n"
 for s in json.loads(sites_file.read_text(encoding='utf8')):
     if s.get('slug'): (out/'public'/(s['slug']+'.html')).write_text(doc,encoding='utf8')
+    (out/'public'/('manifest-'+s['slug']+'.webmanifest' if s.get('slug') else 'manifest.webmanifest')).write_text(manifest_for(s.get('slug',''), s['title']),encoding='utf8')
+(out/'public'/'sw.js').write_text("""// Network first for pages and site data (always the newest edit), cache only as an offline fallback.
+// Pictures are cached after the first view. The admin API is never touched.
+const C = 'vc-v1';
+self.addEventListener('install', (e) => { self.skipWaiting(); e.waitUntil(caches.open(C).then((c) => c.addAll(['/', '/favicon.svg', '/icon-192.png'])).catch(() => {})); });
+self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
+function keep(req, res) { if (res.ok) { const copy = res.clone(); caches.open(C).then((c) => c.put(req, copy)); } return res; }
+self.addEventListener('fetch', (e) => {
+  const req = e.request; if (req.method !== 'GET') return;
+  const u = new URL(req.url); if (u.origin !== location.origin || u.pathname.startsWith('/api/')) return;
+  if (req.mode === 'navigate' || u.pathname.endsWith('.json') || u.pathname.endsWith('.webmanifest')) {
+    e.respondWith(fetch(req).then((res) => keep(req, res)).catch(() => caches.match(req, { ignoreSearch: true }).then((m) => m || caches.match('/'))));
+    return;
+  }
+  if (/\\.(png|jpe?g|gif|webp|svg)$/.test(u.pathname)) {
+    e.respondWith(caches.match(req).then((m) => m || fetch(req).then((res) => keep(req, res))));
+  }
+});
+""",encoding='utf8')
 # Site icon (dark tile + red bar, like the banner) so the Vercel project does not show another app's icon.
 (out/'public'/'favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#121418"/>'
   '<text x="32" y="38" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="26" fill="#fff">VC</text>'
@@ -47,7 +80,9 @@ if '--reset' in sys.argv or not data_file.exists():
 # Own package.json so api/*.js stay CommonJS (the repo root package.json says "type": "module").
 (out/'package.json').write_text(json.dumps({"private":True,"type":"commonjs"},indent=2)+"\n",encoding='utf8')
 (out/'vercel.json').write_text(json.dumps({"framework":None,"buildCommand":"","outputDirectory":"public","cleanUrls":True,
-  "headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]}]},indent=2),encoding='utf8')
+  "headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]},
+    {"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]},
+    {"source":"/(.*).webmanifest","headers":[{"key":"Content-Type","value":"application/manifest+json"}]}]},indent=2),encoding='utf8')
 (out/'README.md').write_text("""# 바이브 코딩 연수(체육) 사이트
 
 - `public/index.html` : 화면 틀 (template.html에서 만들어짐)

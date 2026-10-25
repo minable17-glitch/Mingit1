@@ -43,6 +43,14 @@ async function commitFiles(files, message) {
   if (!upd.ok) throw fail('github', 'GitHub에 저장하지 못했어요 (' + upd.status + ')');
 }
 const json = (d) => JSON.stringify(d, null, 1) + '\n';
+// App install file for one site — same shape as build_vercel.py manifest_for.
+function manifestFor(slug, title) {
+  const start = slug ? '/' + slug : '/';
+  return json({ id: start, name: title, short_name: title.slice(0, 12), start_url: start, scope: '/',
+    display: 'standalone', background_color: '#f3f4f7', theme_color: '#121418', lang: 'ko',
+    icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] });
+}
 const PW = process.env.ADMIN_PASSWORD || '';
 const GH = process.env.GITHUB_TOKEN || '';
 const GOOGLE_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -181,6 +189,7 @@ module.exports = async (req, res) => {
         await commitFiles([
           { path: dataPath(slug), content: json(d) },
           { path: DIR + slug + '.html', content: page }, // served at /<slug> (cleanUrls)
+          { path: DIR + 'manifest-' + slug + '.webmanifest', content: manifestFor(slug, title) },
           { path: SITES, content: json(list.concat([{ slug, title }])) },
         ], '새 사이트 만들기: ' + title + ' (/' + slug + ')');
         return res.json({ slug, data: d });
@@ -191,6 +200,8 @@ module.exports = async (req, res) => {
         const list = (await siteList()).filter((x) => x.slug !== slug);
         await commitFiles([
           { path: dataPath(slug), content: null }, { path: DIR + slug + '.html', content: null },
+          ...((await gh('/contents/' + DIR + 'manifest-' + slug + '.webmanifest?ref=' + encodeURIComponent(BRANCH))).ok
+            ? [{ path: DIR + 'manifest-' + slug + '.webmanifest', content: null }] : []), // sites made before app install had none
           { path: SITES, content: json(list) },
         ], '사이트 삭제: /' + slug);
         return res.json({ ok: true });

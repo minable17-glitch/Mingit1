@@ -168,6 +168,28 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hist-row small{color:var(--muted)}
 .chk{display:flex;align-items:center;gap:8px}
 .gbox{min-height:44px}
+.top .wrap{position:relative}
+.top-actions{flex-wrap:nowrap!important}
+.top-more{display:none!important;font-size:1.2rem;line-height:1;padding:4px 12px!important}
+.top-menu{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:52px;z-index:80;min-width:200px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+.top-menu button{background:none;border:0;border-bottom:1px solid var(--line);padding:13px 16px;text-align:left;font-size:1rem;cursor:pointer;color:inherit}
+.top-menu button:last-child{border-bottom:0}.top-menu button:hover{background:var(--soft)}.top-menu .danger{color:var(--bad)}
+.top-install{white-space:nowrap}
+.ebtns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ebtns .ic{min-width:40px;justify-content:center}
+@media (max-width:860px){
+  .top-wide{display:none!important}
+  .top-more{display:inline-flex!important}
+  .top .wrap{gap:8px}
+  .editbar{padding-top:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .editbar .in{gap:6px}
+  .editbar .st{flex-basis:100%;font-size:.84rem;line-height:1.4}
+  .ebtns{flex-wrap:nowrap;width:100%;overflow-x:auto;scrollbar-width:none}
+  .ebtns::-webkit-scrollbar{display:none}
+  .ebtns .btn{padding:7px 10px;flex:0 0 auto}
+  .ebtns .lbl{display:none}
+  .ebtns .grow{margin-left:auto}
+}
 .flist{margin:4px 0;padding-left:1.4em}.flist li{margin:2px 0}
 mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .para a,.tbox a,.card a,.note a,.fold a,.col a,.site-foot a{color:var(--accent-text);text-decoration:underline}
@@ -277,7 +299,7 @@ var SLUG=(function(){
 })();
 function siteHome(slug){return slug?'/'+slug:'/';}
 var PREVIEW={}; // uploaded image path -> local data URL, until the next deploy serves the file
-var S={cur:'home',edit:false,dirty:false,can:false,ns:null,eb:null,nav:false,arm:null,saving:false,msg:'',err:false,admin:false,token:null,ins:null,hist:[],fut:[],preview:false,q:''};
+var S={cur:'home',edit:false,dirty:false,can:false,ns:null,eb:null,nav:false,arm:null,saving:false,msg:'',err:false,admin:false,token:null,ins:null,hist:[],fut:[],preview:false,q:'',menu:false};
 var PROPS={value:1,checked:1,selected:1,srcdoc:1,disabled:1,hidden:1};
 
 function el(tag,props){
@@ -376,6 +398,16 @@ var dlgEl=el('div',{class:'dlg-back',hidden:true});
 var footEl=el('div',{class:'wrap foot-admin',hidden:true},el('a',{href:'/admin',onclick:function(e){e.preventDefault();showLogin();}},'관리자'));
 var noticeEl=el('div',{class:'site-notice',hidden:true});
 var siteFootEl=el('footer',{class:'wrap site-foot',hidden:true});
+document.addEventListener('click',function(e){if(S.menu&&!topEl.contains(e.target)){S.menu=false;renderTop();}});
+// App install (PWA): Chrome/삼성 인터넷 offer an install prompt; we show our own button for it.
+var installPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installPrompt=e;renderTop();});
+window.addEventListener('appinstalled',function(){installPrompt=null;renderTop();});
+function installApp(){if(!installPrompt)return;var ev=installPrompt;installPrompt=null;ev.prompt();(ev.userChoice||Promise.resolve()).then(function(){renderTop();});}
+if(REMOTE){
+  if(SLUG){var ml=document.querySelector('link[rel=manifest]');if(ml)ml.href='/manifest-'+SLUG+'.webmanifest';}
+  if('serviceWorker' in navigator) window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});
+}
 var totopEl=el('button',{class:'totop',type:'button',hidden:true,'aria-label':'맨 위로',onclick:function(){window.scrollTo({top:0,behavior:'smooth'});}},'↑');
 var searchIn=el('input',{type:'search',placeholder:'🔍 사이트에서 찾기','aria-label':'사이트에서 찾기'});
 var navList=el('div');
@@ -403,10 +435,17 @@ function renderTop(){
     el('a',{class:'brand',href:'#home',onclick:function(e){e.preventDefault();go('home');}},
       imgSrc((data.site||{}).logo)?el('img',{class:'brand-logo',src:imgSrc(data.site.logo),alt:''}):null,siteTitle()),
     el('div',{class:'top-actions'},
-      S.admin&&!S.preview?el('button',{class:'top-edit',type:'button',onclick:openSites},'사이트 관리'):null,
-      S.admin&&!S.preview?el('button',{class:'top-edit',type:'button',onclick:openHistory},'버전 기록'):null,
+      installPrompt&&!S.admin?el('button',{class:'top-edit top-install',type:'button',onclick:installApp},'📲 앱 설치'):null,
+      S.admin&&!S.preview?el('button',{class:'top-edit top-wide',type:'button',onclick:openSites},'사이트 관리'):null,
+      S.admin&&!S.preview?el('button',{class:'top-edit top-wide',type:'button',onclick:openHistory},'버전 기록'):null,
       S.can&&!S.preview?el('button',{class:'top-edit',type:'button',disabled:S.edit,onclick:enterEdit},S.edit?'편집 중':'편집'):null,
-      S.admin&&!S.preview?el('button',{class:'top-edit',type:'button',onclick:logout},'로그아웃'):null)
+      S.admin&&!S.preview?el('button',{class:'top-edit top-wide',type:'button',onclick:logout},'로그아웃'):null,
+      S.admin&&!S.preview?el('button',{class:'top-edit top-more',type:'button','aria-label':'관리 메뉴','aria-expanded':S.menu?'true':'false',onclick:function(e){e.stopPropagation();S.menu=!S.menu;renderTop();}},'⋯'):null),
+    S.menu&&S.admin&&!S.preview?el('div',{class:'top-menu',role:'menu'},
+      el('button',{type:'button',role:'menuitem',onclick:function(){S.menu=false;renderTop();openSites();}},'🗂 사이트 관리'),
+      el('button',{type:'button',role:'menuitem',onclick:function(){S.menu=false;renderTop();openHistory();}},'🕘 버전 기록'),
+      installPrompt?el('button',{type:'button',role:'menuitem',onclick:function(){S.menu=false;renderTop();installApp();}},'📲 앱으로 설치'):null,
+      el('button',{type:'button',role:'menuitem',class:'danger',onclick:function(){S.menu=false;logout();}},'로그아웃')):null
   ));
   document.title=siteTitle();
   footEl.hidden=!REMOTE||S.admin;
@@ -1166,12 +1205,13 @@ function renderBar(){
   if(!S.edit) return;
   barEl.append(el('div',{class:'in'},
     el('div',{class:'st'+(S.err?' err':'')},S.msg||(S.dirty?'저장하지 않은 수정이 있어요.':'편집 중이에요. 고친 뒤 “저장하고 게시”를 누르세요.')),
-    el('button',{class:'btn',type:'button',title:'되돌리기',disabled:S.hist.length<2,onclick:undo},'↶ 되돌리기'),
-    el('button',{class:'btn',type:'button',title:'다시 하기',disabled:!S.fut.length,onclick:redo},'↷'),
-    el('button',{class:'btn',type:'button',onclick:openSiteSettings},'⚙ 사이트 설정'),
-    el('button',{class:'btn',type:'button',onclick:function(){S.preview='pc';S.edit=false;S.eb=null;S.ins=null;renderAll();}},'👀 미리보기'),
-    el('button',{class:'btn',type:'button',disabled:S.saving,onclick:cancel},S.dirty?'취소':'편집 끝내기'),
-    el('button',{class:'btn pri',type:'button',disabled:S.saving||!S.dirty,onclick:save},'저장하고 게시')));
+    el('div',{class:'ebtns'},
+    el('button',{class:'btn ic',type:'button',title:'되돌리기','aria-label':'되돌리기',disabled:S.hist.length<2,onclick:undo},'↶',el('span',{class:'lbl'},' 되돌리기')),
+    el('button',{class:'btn ic',type:'button',title:'다시 하기','aria-label':'다시 하기',disabled:!S.fut.length,onclick:redo},'↷'),
+    el('button',{class:'btn ic',type:'button',title:'사이트 설정','aria-label':'사이트 설정',onclick:openSiteSettings},'⚙',el('span',{class:'lbl'},' 사이트 설정')),
+    el('button',{class:'btn ic',type:'button',title:'미리보기','aria-label':'미리보기',onclick:function(){S.preview='pc';S.edit=false;S.eb=null;S.ins=null;renderAll();}},'👀',el('span',{class:'lbl'},' 미리보기')),
+    el('button',{class:'btn grow',type:'button',disabled:S.saving,onclick:cancel},S.dirty?'취소':el('span',null,el('span',{class:'lbl'},'편집 '),'끝내기')),
+    el('button',{class:'btn pri',type:'button',disabled:S.saving||!S.dirty,onclick:save},'저장',el('span',{class:'lbl'},'하고 게시')))));
 }
 
 renderAll();
