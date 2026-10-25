@@ -102,3 +102,4 @@
 - API 실습(2026-10-25 최종): **PAPS 맞춤 운동 처방** — Code.gs + index.html 두 파일을 그대로 붙여 넣는 실습(sheets.new → Apps Script → 스크립트 속성 GEMINI_API_KEY → 웹앱 배포). 처방은 시트 'PAPS처방' 탭에 쌓임.
   페이지의 미리보기는 index.html 에 가짜 google.script.run(예시 처방)을 붙인 것. 코드 블록 두 개가 원본. `api/_groq.js` 는 API활용 예시(feedback.js)가 씀.
 - 왼쪽 메뉴 접기(2026-10-25): 하위 페이지는 접혀 있고 지금 페이지까지의 길만 저절로 펼침(`navOpen`). 위 페이지를 누르면 펼치며 이동, 지금 페이지를 한 번 더 누르면 접힘, 오른쪽 화살표(`.nav-caret`)는 이동 없이 펴고 접기. 편집 중엔 끌어 옮기기를 위해 전부 펼침. 상태는 `S.open`(새로고침하면 처음으로).
+- 숨김 상자(fold)에 사진도 넣을 수 있음(`b.imgs` [{src,caption}], 편집기에서 올리기·목록). 퀴즈형 웹앱 페이지에 "💡 힌트 — Gemini Canvas로 만드는 과정"(images/canvas-1~3.jpg, 왼쪽 대화 목록·계정은 잘라 냄).

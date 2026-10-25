@@ -80,6 +80,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .fold>summary .hint{margin-left:auto;color:var(--muted);font-weight:400;font-size:.85rem}
 .fold[open]>summary .hint{display:none}
 .fold>.fb{padding:0 16px 16px 16px}
+.fold-fig{margin:14px 0 0}.fold-fig img{border:1px solid var(--line);border-radius:10px}
 .fold>.fb .codebox{margin-top:2px}
 .nav a.on{background:var(--soft);color:var(--accent-text);font-weight:700}
 .mv{display:flex;gap:2px}
@@ -893,7 +894,8 @@ function blockView(b){
       var box=el('div',{class:'codebox'},el('div',{class:'hd'},el('span',null,b.label||'복사해서 쓰세요'),cb),el('pre',null,b.text||''));
       return b.hide?el('details',{class:'fold'},el('summary',null,b.label||'눌러서 보기',el('span',{class:'hint'},'눌러서 보기')),el('div',{class:'fb'},box)):box;
     case 'box': return el('div',{class:'tbox'+(b.tone&&b.tone!=='plain'?' '+b.tone:'')},b.title?el('div',{class:'tt'},fmt(b.title)):null,el('div',null,fmt(b.text)));
-    case 'fold': return el('details',{class:'fold'},el('summary',null,fmt(b.title||'더 보기'),el('span',{class:'hint'},'눌러서 보기')),el('div',{class:'fb'},fmt(b.text)));
+    case 'fold': return el('details',{class:'fold'},el('summary',null,fmt(b.title||'더 보기'),el('span',{class:'hint'},'눌러서 보기')),
+      el('div',{class:'fb'},b.text?fmt(b.text):null,(b.imgs||[]).map(function(it){var s_=imgSrc(it.src);return s_?el('figure',{class:'figure fold-fig'},el('img',{src:s_,alt:it.caption||'',loading:'lazy'}),it.caption?el('figcaption',null,fmt(it.caption)):null):null;})));
     case 'img':
       var isrc=imgSrc(b.src);
       if(!isrc) return el('p',{class:'para'},'(사진이 없어요)');
@@ -1116,6 +1118,20 @@ function editorFor(b){
   else if(b.t==='fold'){
     var ft=inp(b.title),fx=rta(b.text,8);
     f('보이는 제목 (누르면 아래 내용이 펼쳐져요)',ft,function(){b.title=ft.value;});f('숨겨 둘 내용 (줄바꿈 가능, **굵게**)',fx,function(){b.text=fx.value;});
+    // 숨김 상자 안 사진 (글 아래에 차례로)
+    var fl=ta((b.imgs||[]).map(function(it){return it.src+' | '+(it.caption||'');}).join('\n'),3,true);
+    var ff=el('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',multiple:true}), fst=el('div',{class:'foot'});
+    ff.addEventListener('change',function(){
+      var files=[].slice.call(ff.files||[]); if(!files.length) return;
+      fst.textContent='사진 '+files.length+'장을 올리는 중이에요…';
+      files.reduce(function(pr,file){return pr.then(function(){return uploadImage(file).then(function(src){fl.value=(fl.value.trim()?fl.value.trim()+'\n':'')+src+' | ';});});},Promise.resolve())
+        .then(function(){fst.textContent='올렸어요. 설명을 적고 “적용”을 누르세요.';},function(e){fst.textContent=(e&&e.message)||'사진을 올리지 못했어요.';});
+    });
+    fields.push(fld('펼치면 보일 사진 올리기 (선택, 여러 장 가능)',el('div',null,ff,fst)));
+    f('사진 목록 (한 줄에 “사진주소 | 사진 아래 설명”)',fl,function(){
+      var it=fl.value.split('\n').map(function(l){var k=l.indexOf('|');var src=(k<0?l:l.slice(0,k)).trim();return src?{src:src,caption:k<0?'':l.slice(k+1).trim()}:null;}).filter(Boolean);
+      if(it.length) b.imgs=it; else delete b.imgs;
+    });
   }
   else if(b.t==='html'){
     var tt=inp(b.title),hh=el('input',{type:'number',value:b.height||320,min:120,max:900});n=ta(b.code,16,true);
