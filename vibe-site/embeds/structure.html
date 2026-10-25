@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>보이는 쇼핑몰 — 프론트엔드와 백엔드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16202b; --muted:#5b6b7b; --paper:#ffffff; --stage:#e7ecf1; --line:#d7dee6;
+    --shop:#f76707; --shop-ink:#9a3d04; --shop-soft:#fff1e8;
+    --srv:#151b24; --srv-2:#1d2632; --srv-line:#2d3a49; --srv-text:#c3cfdc; --srv-dim:#7c8ba0;
+    --ok:#4ade80; --warn:#fbbf24; --in:#60a5fa;
+    --req:#f76707; --res:#22c55e;
+    --sans:'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--stage); color:var(--ink); font-family:var(--sans); line-height:1.55;
+       padding:20px; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px; margin:0 auto}
+  header.top{margin-bottom:18px}
+  header.top h1{font-size:24px; font-weight:600; margin:0 0 4px; letter-spacing:-.01em}
+  header.top p{margin:0; color:var(--muted); font-size:15px; max-width:64ch}
+  .tag{display:inline-block; font-size:12px; font-weight:500; color:var(--shop-ink);
+       background:var(--shop-soft); border:1px solid #f7c9ac; padding:2px 9px; border-radius:999px; margin-bottom:10px}
+
+  .stage{position:relative; display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media (max-width:800px){ .stage{grid-template-columns:1fr} body{padding:14px} }
+
+  .panel{border-radius:16px; overflow:hidden; border:1px solid var(--line)}
+  .phead{display:flex; align-items:baseline; gap:8px; padding:12px 16px; font-weight:600; font-size:15px}
+  .phead small{font-weight:400; font-size:12.5px; opacity:.85}
+
+  /* ---- FRONTEND ---- */
+  .front{background:var(--paper)}
+  .front .phead{background:var(--shop); color:#fff}
+  .front .phead small{color:#ffe6d6}
+  .front .body{padding:16px}
+  .searchrow{display:flex; gap:8px; margin-bottom:14px}
+  .searchrow input{flex:1; min-width:0; font-family:var(--sans); font-size:15px; padding:10px 12px;
+        border:1px solid var(--line); border-radius:10px; color:var(--ink)}
+  .searchrow input:focus{outline:2px solid var(--shop); outline-offset:1px; border-color:var(--shop)}
+  .btn{font-family:var(--sans); font-size:14px; font-weight:500; border:0; border-radius:10px;
+       padding:10px 14px; cursor:pointer; transition:filter .12s}
+  .btn:hover{filter:brightness(.94)} .btn:active{filter:brightness(.88)}
+  .btn:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+  .btn.shop{background:var(--shop); color:#fff}
+  .btn.ghost{background:#fff; color:var(--ink); border:1px solid var(--line)}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .card{border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; background:#fff}
+  .card .emoji{font-size:30px; line-height:1}
+  .card .nm{font-weight:500; font-size:14.5px}
+  .card .pr{color:var(--shop-ink); font-weight:600; font-size:14px}
+  .card .soldout{font-size:12px; color:#b42318; font-weight:500}
+  .card .btn{width:100%; padding:8px}
+  .card .btn:disabled{background:#e9edf2; color:#9aa7b4; cursor:not-allowed; filter:none}
+
+  .cartbox{margin-top:14px; border-top:1px dashed var(--line); padding-top:14px}
+  .cartrow{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .cartrow .lbl{font-weight:500; font-size:14px}
+  .badge{background:var(--shop-soft); color:var(--shop-ink); border:1px solid #f7c9ac;
+         border-radius:999px; padding:2px 10px; font-weight:600; font-size:13px; font-variant-numeric:tabular-nums}
+  .total{color:var(--muted); font-size:13px; margin:8px 0 12px; font-variant-numeric:tabular-nums}
+  .btn.checkout{width:100%; background:var(--ink); color:#fff}
+  .done{margin-top:12px; background:#ecfdf3; border:1px solid #abe4c1; color:#116932;
+        border-radius:10px; padding:10px 12px; font-size:13.5px; display:none}
+  .done.show{display:block}
+
+  /* ---- BACKEND ---- */
+  .back{background:var(--srv)}
+  .back .phead{background:var(--srv-2); color:#eef3f8; border-bottom:1px solid var(--srv-line)}
+  .back .phead small{color:var(--srv-dim)}
+  .back .body{padding:14px}
+  .sublabel{font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--srv-dim); margin:0 0 6px}
+
+  .log{background:#0e131b; border:1px solid var(--srv-line); border-radius:10px; padding:10px 12px;
+       height:172px; overflow-y:auto; font-family:var(--mono); font-size:12.5px; line-height:1.7; margin-bottom:14px}
+  .log p{margin:0; white-space:pre-wrap; color:var(--srv-text)}
+  .log .req{color:var(--req)} .log .res{color:var(--ok)} .log .db{color:var(--warn)}
+  .log .proc{color:var(--srv-text)} .log .warn{color:#f87171}
+  .log .idle{color:var(--srv-dim)}
+
+  .tables{display:grid; grid-template-columns:1fr; gap:12px}
+  table{width:100%; border-collapse:collapse; font-size:12.5px; font-family:var(--mono)}
+  table caption{text-align:left; font-family:var(--mono); font-size:11px; letter-spacing:.04em;
+        color:var(--srv-dim); padding-bottom:5px}
+  th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--srv-line); color:var(--srv-text)}
+  th{color:var(--srv-dim); font-weight:500}
+  td.num{text-align:right; font-variant-numeric:tabular-nums}
+  tr.flash td{animation:flash .8s ease}
+  @keyframes flash{0%{background:#3a2f12}100%{background:transparent}}
+  .empty{color:var(--srv-dim); font-family:var(--mono); font-size:12px; padding:6px 8px}
+  .orders{margin-top:2px; font-family:var(--mono); font-size:12px; color:var(--srv-dim)}
+  .orders b{color:var(--ok); font-weight:500}
+
+  /* ---- PACKET ---- */
+  .packet{position:absolute; top:0; left:0; z-index:5; pointer-events:none;
+      font-family:var(--mono); font-size:11px; font-weight:500; color:#fff;
+      padding:3px 9px; border-radius:999px; white-space:nowrap;
+      box-shadow:0 4px 12px rgba(0,0,0,.25)}
+
+  footer.legend{display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:16px;
+      color:var(--muted); font-size:13px}
+  .key{display:inline-flex; align-items:center; gap:6px}
+  .dot{width:11px; height:11px; border-radius:50%; display:inline-block}
+  footer .spacer{flex:1}
+  .note{margin-top:10px; font-size:12.5px; color:var(--muted); max-width:70ch}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <span class="tag">프론트엔드 ↔ 백엔드 · 수업용</span>
+    <h1>보이는 쇼핑몰</h1>
+    <p>왼쪽은 손님이 보는 화면(프론트엔드), 오른쪽은 평소 숨어 있는 서버와 데이터베이스(백엔드)예요.
+       버튼을 눌러 보세요. 요청이 백엔드로 날아가고, 서버가 하는 일과 재고 변화가 그대로 보입니다.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <!-- FRONTEND -->
+    <section class="panel front">
+      <div class="phead">프론트엔드 <small>· 여러분이 보고 누르는 화면</small></div>
+      <div class="body">
+        <div class="searchrow">
+          <input id="kw" type="text" placeholder="상품 검색 (예: 운동화)" aria-label="상품 검색">
+          <button class="btn shop" id="searchBtn">검색</button>
+        </div>
+        <div class="grid" id="products"></div>
+
+        <div class="cartbox" id="cartBox">
+          <div class="cartrow">
+            <span class="lbl">장바구니</span>
+            <span class="badge" id="cartBadge">0개</span>
+          </div>
+          <div class="total" id="cartTotal">담긴 상품 없음</div>
+          <button class="btn checkout" id="checkoutBtn">결제하기</button>
+          <div class="done" id="done"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BACKEND -->
+    <section class="panel back">
+      <div class="phead">백엔드 <small>· 평소엔 안 보여요</small></div>
+      <div class="body" id="backendBody">
+        <p class="sublabel">서버 로그 — 서버가 하는 일</p>
+        <div class="log" id="log"></div>
+
+        <p class="sublabel">데이터베이스 — 진짜 데이터가 저장된 곳</p>
+        <div class="tables">
+          <table id="prodTable">
+            <caption>상품 (products)</caption>
+            <thead><tr><th>상품</th><th class="num">가격</th><th class="num">재고</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div>
+            <table id="cartTable">
+              <caption>장바구니 (cart)</caption>
+              <thead><tr><th>상품</th><th class="num">수량</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div class="orders" id="orders">주문 완료: <b>0</b>건</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="legend">
+    <span class="key"><span class="dot" style="background:var(--req)"></span> 요청 (화면 → 서버)</span>
+    <span class="key"><span class="dot" style="background:var(--res)"></span> 응답 (서버 → 화면)</span>
+    <span class="spacer"></span>
+    <button class="btn ghost" id="resetBtn">처음으로 되돌리기</button>
+  </footer>
+  <p class="note">포인트: 재고 숫자는 백엔드(오른쪽)에만 있어요. 화면은 재고를 모릅니다. 그래서 품절 여부는 서버가 판단하고, 화면은 그 응답을 받을 뿐이에요.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const REQ="#f76707", RES="#22c55e";
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const won = n => n.toLocaleString('ko-KR') + '원';
+  const sleep = ms => new Promise(r=>setTimeout(r, reduce?0:ms));
+
+  const seed = () => ({
+    products:[
+      {id:1, name:'운동화',   emoji:'👟', price:59000, stock:5},
+      {id:2, name:'백팩',     emoji:'🎒', price:39000, stock:3},
+      {id:3, name:'텀블러',   emoji:'🥤', price:15000, stock:8},
+      {id:4, name:'무선이어폰', emoji:'🎧', price:89000, stock:2},
+    ],
+    cart:[],
+    orderCount:0
+  });
+  let db = seed();
+  let shown = db.products.map(p=>p.id); // ids currently on the frontend
+  let busy = false;
+
+  const $ = s => document.querySelector(s);
+  const stage=$('#stage'), logEl=$('#log'), backend=$('#backendBody');
+  const productsEl=$('#products'), cartBox=$('#cartBox');
+
+  function log(type, text){
+    const p=document.createElement('p');
+    p.className=type; p.textContent=text;
+    logEl.appendChild(p); logEl.scrollTop=logEl.scrollHeight;
+  }
+  function idle(){ logEl.innerHTML=''; log('idle','대기 중… 왼쪽에서 버튼을 눌러 보세요.'); }
+
+  function flyPacket(fromEl, toEl, color, label){
+    return new Promise(resolve=>{
+      if(reduce){ resolve(); return; }
+      const sb=stage.getBoundingClientRect();
+      const a=fromEl.getBoundingClientRect(), b=toEl.getBoundingClientRect();
+      const x1=a.left+a.width/2-sb.left, y1=a.top+a.height/2-sb.top;
+      const x2=b.left+b.width/2-sb.left, y2=b.top+b.height/2-sb.top;
+      const p=document.createElement('div');
+      p.className='packet'; p.textContent=label; p.style.background=color;
+      stage.appendChild(p);
+      const pw=p.offsetWidth/2, ph=p.offsetHeight/2;
+      const from=`translate(${x1-pw}px,${y1-ph}px)`, to=`translate(${x2-pw}px,${y2-ph}px)`;
+      const anim=p.animate([
+        {transform:from, opacity:0},
+        {transform:from, opacity:1, offset:.12},
+        {transform:to,   opacity:1, offset:.88},
+        {transform:to,   opacity:0}
+      ], {duration:850, easing:'cubic-bezier(.4,0,.2,1)'});
+      anim.onfinish=()=>{ p.remove(); resolve(); };
+    });
+  }
+
+  // ---------- rendering ----------
+  function renderProducts(){
+    productsEl.innerHTML='';
+    const list = db.products.filter(p=>shown.includes(p.id));
+    if(list.length===0){
+      productsEl.innerHTML='<div style="grid-column:1/-1;color:var(--muted);font-size:14px;padding:8px">검색 결과가 없어요.</div>';
+      return;
+    }
+    for(const p of list){
+      const inCart=(db.cart.find(c=>c.id===p.id)||{}).qty||0;
+      const sold = p.stock - inCart <= 0;
+      const card=document.createElement('div'); card.className='card';
+      card.innerHTML=`<span class="emoji">${p.emoji}</span>
+        <span class="nm">${p.name}</span>
+        <span class="pr">${won(p.price)}</span>
+        ${sold?'<span class="soldout">품절</span>':''}
+        <button class="btn shop" data-add="${p.id}" ${sold?'disabled':''}>담기</button>`;
+      productsEl.appendChild(card);
+    }
+  }
+  function cartCount(){ return db.cart.reduce((s,c)=>s+c.qty,0); }
+  function cartTotal(){ return db.cart.reduce((s,c)=>s+c.qty*db.products.find(p=>p.id===c.id).price,0); }
+  function renderCart(){
+    const n=cartCount();
+    $('#cartBadge').textContent=n+'개';
+    $('#cartTotal').textContent = n? '합계 '+won(cartTotal()) : '담긴 상품 없음';
+  }
+  function renderDB(flashId){
+    const tb=$('#prodTable tbody'); tb.innerHTML='';
+    for(const p of db.products){
+      const tr=document.createElement('tr');
+      if(flashId===p.id) tr.className='flash';
+      tr.innerHTML=`<td>${p.emoji} ${p.name}</td><td class="num">${won(p.price)}</td><td class="num">${p.stock}</td>`;
+      tb.appendChild(tr);
+    }
+    const ctb=$('#cartTable tbody'); ctb.innerHTML='';
+    if(db.cart.length===0){
+      ctb.innerHTML='<tr><td colspan="2" class="empty">비어 있음</td></tr>';
+    }else{
+      for(const c of db.cart){
+        const p=db.products.find(x=>x.id===c.id);
+        ctb.innerHTML+=`<tr><td>${p.name}</td><td class="num">${c.qty}</td></tr>`;
+      }
+    }
+    $('#orders').innerHTML='주문 완료: <b>'+db.orderCount+'</b>건';
+  }
+
+  // ---------- actions (frontend talks to backend only through server()) ----------
+  async function doSearch(){
+    if(busy) return; busy=true;
+    const kw=$('#kw').value.trim();
+    log('req', '요청 받음  →  검색("'+(kw||'전체')+'")');
+    await flyPacket($('#searchBtn'), backend, REQ, '요청');
+    await sleep(320);
+    const res=db.products.filter(p=>p.name.includes(kw));
+    log('db', '데이터베이스 조회  →  '+res.length+'개 상품 찾음');
+    await sleep(320);
+    log('res', '응답 전송  →  상품 목록 '+res.length+'개');
+    await flyPacket(backend, productsEl, RES, '응답');
+    shown=res.map(p=>p.id); renderProducts();
+    busy=false;
+  }
+
+  async function addToCart(id){
+    if(busy) return; busy=true;
+    const btn=document.querySelector('[data-add="'+id+'"]');
+    const p=db.products.find(x=>x.id===id);
+    log('req', '요청 받음  →  장바구니 담기('+p.name+')');
+    await flyPacket(btn||$('#searchBtn'), backend, REQ, '요청');
+    await sleep(300);
+    const inCart=(db.cart.find(c=>c.id===id)||{}).qty||0;
+    if(inCart+1 > p.stock){
+      log('warn', '재고 확인  →  '+p.name+' 부족 ✕  (남은 재고 '+p.stock+'개)');
+      await sleep(280);
+      log('res', '응답 전송  →  품절 안내');
+      await flyPacket(backend, cartBox, RES, '응답');
+      renderProducts(); busy=false; return;
+    }
+    log('db', '재고 확인  →  '+p.name+' '+p.stock+'개 있음 ✓');
+    await sleep(300);
+    const item=db.cart.find(c=>c.id===id);
+    if(item) item.qty++; else db.cart.push({id, qty:1});
+    log('proc', '장바구니에 저장 완료');
+    renderDB(); await sleep(300);
+    log('res', '응답 전송  →  장바구니 '+cartCount()+'개');
+    await flyPacket(backend, $('#cartBadge'), RES, '응답');
+    renderCart(); renderProducts();
+    busy=false;
+  }
+
+  async function checkout(){
+    if(busy) return;
+    if(db.cart.length===0){ idle(); log('warn','장바구니가 비어 있어요.'); return; }
+    busy=true; $('#done').classList.remove('show');
+    log('req', '요청 받음  →  결제하기(checkout)');
+    await flyPacket($('#checkoutBtn'), backend, REQ, '요청');
+    await sleep(320);
+    for(const c of db.cart){
+      const p=db.products.find(x=>x.id===c.id);
+      p.stock-=c.qty;
+      log('db', p.name+' 재고 차감  →  남은 재고 '+p.stock+'개');
+      renderDB(p.id); await sleep(360);
+    }
+    const total=cartTotal();
+    db.orderCount++;
+    log('proc', '주문 저장 완료  →  주문번호 #'+(1000+db.orderCount));
+    db.cart=[]; renderDB(); await sleep(300);
+    log('res', '응답 전송  →  주문 완료 ('+won(total)+')');
+    await flyPacket(backend, cartBox, RES, '응답');
+    renderCart(); renderProducts();
+    const done=$('#done'); done.textContent='주문이 완료됐어요 · 주문번호 #'+(1000+db.orderCount)+' · '+won(total);
+    done.classList.add('show');
+    busy=false;
+  }
+
+  function reset(){
+    if(busy) return;
+    db=seed(); shown=db.products.map(p=>p.id);
+    $('#done').classList.remove('show');
+    renderProducts(); renderCart(); renderDB(); idle();
+  }
+
+  // ---------- events ----------
+  productsEl.addEventListener('click', e=>{
+    const b=e.target.closest('[data-add]'); if(b) addToCart(+b.dataset.add);
+  });
+  $('#searchBtn').addEventListener('click', doSearch);
+  $('#kw').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
+  $('#checkoutBtn').addEventListener('click', checkout);
+  $('#resetBtn').addEventListener('click', reset);
+
+  // ---------- init ----------
+  renderProducts(); renderCart(); renderDB(); idle();
+})();
+</script>
+</body>
+</html>

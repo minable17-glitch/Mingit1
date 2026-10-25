@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>직접 만져보는 HTML · CSS · JavaScript</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16202b; --muted:#5b6b7b; --paper:#ffffff; --stage:#e7ecf1; --line:#d7dee6;
+    --shop:#f76707; --shop-ink:#9a3d04; --shop-soft:#fff1e8;
+    --srv:#151b24; --srv-line:#2d3a49; --srv-text:#c3cfdc; --srv-dim:#7c8ba0;
+    --html:#2563a8; --css:#f76707; --js:#7c5cff;
+    --sans:'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--stage); color:var(--ink); font-family:var(--sans);
+       line-height:1.6; padding:22px; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px; margin:0 auto}
+  .tag{display:inline-block; font-family:var(--mono); font-size:11.5px; letter-spacing:.03em;
+       color:var(--shop-ink); background:var(--shop-soft); border:1px solid #f7c9ac;
+       padding:3px 10px; border-radius:999px; margin-bottom:10px}
+  h1{font-size:24px; font-weight:600; margin:0 0 6px; letter-spacing:-.01em}
+  .lede{margin:0 0 20px; color:var(--muted); font-size:15px; max-width:64ch}
+
+  .stagegrid{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start}
+  @media (max-width:800px){ .stagegrid{grid-template-columns:1fr} body{padding:15px} }
+
+  /* ---- live preview ---- */
+  .preview{background:var(--paper); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  .chrome{display:flex; align-items:center; gap:8px; padding:9px 12px; background:#f2f4f7; border-bottom:1px solid var(--line)}
+  .dots{display:flex; gap:5px}
+  .dots i{width:9px; height:9px; border-radius:50%; background:#cfd6de; display:block}
+  .addr{flex:1; font-family:var(--mono); font-size:11px; color:var(--muted); background:#fff;
+        border:1px solid var(--line); border-radius:6px; padding:3px 8px}
+  .cart{font-size:12.5px; color:var(--shop-ink); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .cart.pop{animation:pop .3s ease}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .page{padding:22px; min-height:210px; display:flex; align-items:center; justify-content:center}
+
+  /* styled look (CSS on) */
+  .preview.styled .card{display:flex; flex-direction:column; align-items:center; gap:9px;
+      background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 26px; text-align:center}
+  .preview.styled .pv-img{font-size:56px; line-height:1}
+  .preview.styled .pv-name{font-weight:600; font-size:17px}
+  .preview.styled .pv-price{color:var(--shop-ink); font-weight:600; font-size:15px}
+  .preview.styled .pv-btn{margin-top:4px; color:#fff; border:0; cursor:pointer;
+      background:var(--btn-bg,#f76707);
+      border-radius:calc(var(--btn-radius,14) * 1px);
+      font-size:calc(var(--btn-size,14) * 1px);
+      padding:calc(var(--btn-size,14) * 0.6px) calc(var(--btn-size,14) * 1.15px);
+      font-family:var(--sans); font-weight:500; transition:filter .12s}
+  .preview.styled .pv-btn:hover{filter:brightness(.94)}
+
+  /* raw look (CSS off) — browser defaults, no colors */
+  .preview.raw .page{display:block; font-family:'Times New Roman', Times, serif}
+  .preview.raw .card{display:block}
+  .preview.raw .pv-img{font-size:40px}
+  .preview.raw .pv-name{font-size:17px; font-weight:bold; margin:6px 0}
+  .preview.raw .pv-price{margin:6px 0}
+  .preview.raw .pv-btn{margin:6px 0; font-family:var(--sans)}
+  .hidden{display:none !important}
+
+  .jsbanner{display:none; align-items:center; gap:6px; padding:9px 14px; font-size:12.5px;
+      background:#efeaff; color:#4a3aa0; border-top:1px solid #d9cffb; font-family:var(--mono)}
+  .preview.js-off .jsbanner{display:flex}
+  .pv-btn.dead{cursor:default !important}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+  .pv-btn.shake{animation:shake .32s ease}
+
+  .pv-cart{margin-top:6px; font-size:13.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .pv-cart b{color:var(--shop-ink); font-weight:600; font-size:15px}
+  .preview.raw .pv-cart{font-family:var(--sans)}
+  .pv-cart.pop b{animation:pop .32s ease; display:inline-block}
+
+  .layerbar{display:flex; gap:6px; margin-top:12px}
+  .lpill{font-family:var(--mono); font-size:11.5px; padding:4px 10px; border-radius:999px;
+         border:1px solid var(--line); background:#fff; color:var(--muted)}
+  .lpill.on{color:#fff; border-color:transparent}
+  .lpill.html.on{background:var(--html)} .lpill.css.on{background:var(--css)} .lpill.js.on{background:var(--js)}
+
+  /* ---- controls ---- */
+  .controls{display:flex; flex-direction:column; gap:12px}
+  .masters{background:var(--srv); border-radius:14px; padding:14px 16px; color:var(--srv-text)}
+  .masters .mrow{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 0}
+  .masters .mrow + .mrow{border-top:1px solid var(--srv-line)}
+  .masters .mlabel{font-size:14px} .masters .mlabel small{display:block; color:var(--srv-dim); font-size:11.5px}
+
+  .switch{position:relative; width:44px; height:24px; flex:none; cursor:pointer}
+  .switch input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer}
+  .track{position:absolute; inset:0; background:#3a475a; border-radius:999px; transition:background .18s}
+  .knob{position:absolute; top:3px; left:3px; width:18px; height:18px; background:#fff; border-radius:50%; transition:transform .18s}
+  .switch input:checked + .track{background:var(--res,#22c55e)}
+  .switch input:checked ~ .knob{transform:translateX(20px)}
+  .switch input:focus-visible + .track{outline:2px solid #fff; outline-offset:2px}
+
+  .panel{background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 15px; border-top:3px solid var(--acc)}
+  .panel .head{display:flex; align-items:baseline; gap:8px; margin-bottom:10px}
+  .panel .key{font-family:var(--mono); font-size:12px; font-weight:500; color:var(--acc)}
+  .panel .role{color:var(--muted); font-size:12px}
+  .panel.off{opacity:.5}
+  .panel.off .body{pointer-events:none}
+  .offnote{font-size:12px; color:var(--muted); font-family:var(--mono)}
+
+  .checks{display:flex; flex-wrap:wrap; gap:8px 14px}
+  .checks label{display:inline-flex; align-items:center; gap:6px; font-size:13.5px; cursor:pointer}
+  .checks input{width:15px; height:15px; accent-color:var(--html)}
+
+  .field{margin:9px 0}
+  .field .flabel{display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-bottom:3px}
+  .field .flabel b{color:var(--ink); font-weight:500; font-family:var(--mono)}
+  input[type=range]{width:100%; accent-color:var(--css)}
+  .swatches{display:flex; gap:7px; flex-wrap:wrap}
+  .sw{width:26px; height:26px; border-radius:7px; border:2px solid transparent; cursor:pointer; padding:0}
+  .sw[aria-pressed=true]{border-color:var(--ink)}
+  .sw:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+
+  .jsbody{font-size:13.5px}
+  .jsbody .live{margin-top:8px; font-family:var(--mono); font-size:12.5px; color:var(--muted)}
+
+  .code{font-family:var(--mono); font-size:11.5px; background:#0e131b; color:#e6ecf3;
+        border-radius:8px; padding:9px 11px; margin-top:11px; white-space:pre; overflow-x:auto; line-height:1.55}
+
+  .hint{margin-top:16px; font-size:13px; color:var(--muted); background:#fff; border:1px solid var(--line);
+        border-left:4px solid var(--shop); border-radius:0 12px 12px 0; padding:12px 15px}
+  .hint b{color:var(--ink)}
+
+  @media (prefers-reduced-motion: reduce){ .cart.pop{animation:none} .track,.knob{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="tag">직접 해보기</span>
+  <h1>껐다 켜보는 HTML · CSS · JavaScript</h1>
+  <p class="lede">오른쪽 스위치로 CSS와 JavaScript를 꺼보세요. 왼쪽 상품 카드가 어떻게 변하는지 보면, 세 언어가 각자 무슨 일을 하는지 몸으로 알게 됩니다.</p>
+
+  <div class="stagegrid">
+    <!-- LEFT: live preview -->
+    <div>
+      <div class="preview styled" id="preview">
+        <div class="chrome">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="addr" id="addr">shop.example</span>
+          <span class="cart" id="cart">🛒 0개</span>
+        </div>
+        <div class="page">
+          <div class="card" id="card">
+            <div class="pv-img" id="el-img">👟</div>
+            <div class="pv-name" id="el-name">운동화</div>
+            <div class="pv-price" id="el-price">59,000원</div>
+            <button class="pv-btn" id="pvBtn">담기</button>
+            <div class="pv-cart" id="pvCart">🛒 담긴 개수: <b>0</b></div>
+          </div>
+        </div>
+        <div class="jsbanner" id="jsBanner">⚡ JavaScript 꺼짐 — 담기 버튼을 눌러도 반응이 없어요</div>
+      </div>
+      <div class="layerbar">
+        <span class="lpill html on" id="p-html">HTML</span>
+        <span class="lpill css on" id="p-css">CSS</span>
+        <span class="lpill js on" id="p-js">JavaScript</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div class="controls">
+      <div class="masters">
+        <div class="mrow">
+          <span class="mlabel">CSS 스타일 <small>겉모습 · 꾸밈</small></span>
+          <label class="switch"><input type="checkbox" id="cssToggle" checked aria-label="CSS 스타일 켜기"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="mrow">
+          <span class="mlabel">JavaScript 동작 <small>누르면 일어나는 일</small></span>
+          <label class="switch"><input type="checkbox" id="jsToggle" checked aria-label="JavaScript 동작 켜기"><span class="track"></span><span class="knob"></span></label>
+        </div>
+      </div>
+
+      <div class="panel" id="htmlPanel" style="--acc:var(--html)">
+        <div class="head"><span class="key">HTML</span><span class="role">무엇이 있는가</span></div>
+        <div class="body">
+          <div class="checks">
+            <label><input type="checkbox" data-el="img" checked> 상품 사진</label>
+            <label><input type="checkbox" data-el="name" checked> 상품명</label>
+            <label><input type="checkbox" data-el="price" checked> 가격</label>
+            <label><input type="checkbox" data-el="btn" checked> 담기 버튼</label>
+          </div>
+          <div class="code" id="htmlCode"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="cssPanel" style="--acc:var(--css)">
+        <div class="head"><span class="key">CSS</span><span class="role">어떻게 보이는가</span> <span class="offnote" id="cssOff" style="display:none">— 꺼짐</span></div>
+        <div class="body">
+          <div class="field">
+            <div class="flabel">버튼 색</div>
+            <div class="swatches" id="swatches">
+              <button class="sw" style="background:#f76707" data-c="#f76707" aria-pressed="true" aria-label="주황"></button>
+              <button class="sw" style="background:#2563a8" data-c="#2563a8" aria-pressed="false" aria-label="파랑"></button>
+              <button class="sw" style="background:#16a34a" data-c="#16a34a" aria-pressed="false" aria-label="초록"></button>
+              <button class="sw" style="background:#e0518a" data-c="#e0518a" aria-pressed="false" aria-label="분홍"></button>
+              <button class="sw" style="background:#16202b" data-c="#16202b" aria-pressed="false" aria-label="검정"></button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="flabel">모서리 둥글기 <b id="radiusVal">14px</b></div>
+            <input type="range" id="radius" min="0" max="24" value="14">
+          </div>
+          <div class="field">
+            <div class="flabel">버튼 크기 <b id="sizeVal">14px</b></div>
+            <input type="range" id="size" min="12" max="22" value="14">
+          </div>
+          <div class="code" id="cssCode"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="jsPanel" style="--acc:var(--js)">
+        <div class="head"><span class="key">JavaScript</span><span class="role">무슨 일이 일어나는가</span></div>
+        <div class="jsbody">
+          <span id="jsNote">담기 버튼을 눌러 보세요. 장바구니 숫자가 올라갑니다.</span>
+          <div class="live" id="jsLive">지금까지 담은 횟수: 0</div>
+          <div class="code" id="jsCode"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">
+    <b>이렇게 짚어주세요.</b> CSS를 끄면 색도 모양도 사라진 '민낯 HTML'이 드러나고, JavaScript를 끄면 버튼이 예뻐도 눌러봤자 아무 일이 없어요. HTML은 뼈대, CSS는 겉모습, JavaScript는 움직임 — 셋이 다 있어야 우리가 아는 화면이 됩니다.
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var state = { css:true, js:true,
+    show:{img:true,name:true,price:true,btn:true},
+    color:'#f76707', radius:14, size:14, cart:0 };
+
+  var $ = function(s){ return document.querySelector(s); };
+  var preview=$('#preview'), card=$('#card'), addr=$('#addr'), cart=$('#cart');
+
+  function render(){
+    // layers
+    preview.classList.toggle('styled', state.css);
+    preview.classList.toggle('raw', !state.css);
+    preview.style.setProperty('--btn-bg', state.color);
+    preview.style.setProperty('--btn-radius', state.radius);
+    preview.style.setProperty('--btn-size', state.size);
+
+    // html show/hide
+    var elmap={img:'el-img', name:'el-name', price:'el-price', btn:'pvBtn'};
+    ['img','name','price','btn'].forEach(function(k){
+      document.getElementById(elmap[k]).classList.toggle('hidden', !state.show[k]);
+    });
+    document.getElementById('pvCart').classList.toggle('hidden', !state.show.btn);
+
+    // layer pills + address
+    $('#p-css').classList.toggle('on', state.css);
+    $('#p-js').classList.toggle('on', state.js);
+    preview.classList.toggle('js-off', !state.js);
+    $('#pvBtn').classList.toggle('dead', !state.js);
+    addr.textContent = state.css ? 'shop.example' : 'shop.example  (CSS 꺼짐 · HTML만)';
+
+    // css panel enabled state
+    $('#cssPanel').classList.toggle('off', !state.css);
+    $('#cssOff').style.display = state.css ? 'none' : 'inline';
+    $('#radiusVal').textContent = state.radius+'px';
+    $('#sizeVal').textContent = state.size+'px';
+
+    // js panel note
+    $('#jsNote').textContent = state.js
+      ? '담기 버튼을 눌러 보세요. 장바구니 숫자가 올라갑니다.'
+      : '동작이 꺼져 있어요. 버튼을 눌러도 아무 일도 없어요. 켜보세요.';
+    $('#jsLive').textContent = '지금까지 담은 횟수: ' + state.cart;
+    cart.textContent = '🛒 ' + state.cart + '개';
+    document.getElementById('pvCart').innerHTML = '🛒 담긴 개수: <b>' + state.cart + '</b>';
+
+    renderCode();
+  }
+
+  function renderCode(){
+    var h=[];
+    if(state.show.img)   h.push('<img src="운동화.jpg">');
+    if(state.show.name)  h.push('<h3>운동화</h3>');
+    if(state.show.price) h.push('<p>59,000원</p>');
+    if(state.show.btn)   h.push('<button>담기</button>');
+    $('#htmlCode').textContent = h.length ? h.join('\n') : '(내용이 없어요)';
+
+    $('#cssCode').textContent = state.css
+      ? '.담기버튼 {\n  background: '+state.color+';\n  border-radius: '+state.radius+'px;\n  font-size: '+state.size+'px;\n}'
+      : '/* CSS 꺼짐 — 꾸밈이 하나도 없어요 */';
+
+    $('#jsCode').textContent = state.js
+      ? '담기버튼.onclick = function() {\n  장바구니에_담기();\n};'
+      : '// 동작 없음 — 눌러도 반응이 없어요';
+  }
+
+  // events
+  $('#cssToggle').addEventListener('change', function(e){ state.css=e.target.checked; render(); });
+  $('#jsToggle').addEventListener('change', function(e){ state.js=e.target.checked; render(); });
+
+  document.querySelectorAll('.checks input').forEach(function(cb){
+    cb.addEventListener('change', function(){ state.show[cb.dataset.el]=cb.checked; render(); });
+  });
+
+  document.querySelectorAll('.sw').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.color=b.dataset.c;
+      document.querySelectorAll('.sw').forEach(function(x){ x.setAttribute('aria-pressed', x===b?'true':'false'); });
+      render();
+    });
+  });
+  $('#radius').addEventListener('input', function(e){ state.radius=+e.target.value; render(); });
+  $('#size').addEventListener('input', function(e){ state.size=+e.target.value; render(); });
+
+  $('#pvBtn').addEventListener('click', function(){
+    if(!state.js){                     // JS off → nothing happens, just shake
+      if(!reduce){ this.classList.remove('shake'); void this.offsetWidth; this.classList.add('shake'); }
+      return;
+    }
+    state.cart++;
+    render();
+    if(!reduce){
+      cart.classList.remove('pop'); void cart.offsetWidth; cart.classList.add('pop');
+      var pc=document.getElementById('pvCart');
+      pc.classList.remove('pop'); void pc.offsetWidth; pc.classList.add('pop');
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

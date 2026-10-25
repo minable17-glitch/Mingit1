@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>앱스크립트 프롬프트 — 실제로 이렇게 해요</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16202b; --muted:#5b6b7b; --stage:#e7ecf1; --line:#d7dee6;
+    --shop:#f76707; --shop-ink:#9a3d04; --shop-soft:#fff1e8;
+    --blue:#2563a8; --green:#16a34a; --green-soft:#f0fdf4; --sheet:#188038;
+    --srv:#151b24; --srv-text:#c3cfdc;
+    --sans:'IBM Plex Sans KR', system-ui, -apple-system, sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--stage); color:var(--ink); font-family:var(--sans); line-height:1.6; padding:24px; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px; margin:0 auto}
+  .tag{display:inline-block; font-family:var(--mono); font-size:12.5px; color:var(--shop-ink); background:var(--shop-soft); border:1px solid #f7c9ac; padding:4px 11px; border-radius:999px; margin-bottom:11px}
+  h1{font-size:27px; font-weight:600; margin:0 0 7px; letter-spacing:-.01em}
+  h2{font-size:19px; font-weight:600; margin:32px 0 10px}
+  .lede{margin:0 0 18px; color:var(--muted); font-size:16.5px; max-width:66ch}
+
+  .modes{display:flex; gap:8px; margin-bottom:14px}
+  .mode{flex:1; max-width:240px; font-family:var(--sans); font-size:14.5px; font-weight:500; padding:11px 12px; border-radius:11px; border:1.5px solid var(--line); background:#fff; color:var(--muted); cursor:pointer}
+  .mode.active{border-color:var(--shop); background:var(--shop-soft); color:var(--shop-ink)}
+  .mode-desc{font-size:14px; color:var(--muted); margin:0 0 14px; background:#fff; border:1px solid var(--line); border-left:3px solid var(--shop); border-radius:0 8px 8px 0; padding:9px 13px}
+  .only-new,.only-mig{display:none}
+  body[data-mode="new"] span.only-new{display:inline}
+  body[data-mode="migrate"] span.only-mig{display:inline}
+  body[data-mode="new"] .only-new{display:block}
+  body[data-mode="migrate"] .only-mig{display:block}
+  .pbox.only-new,.pbox.only-mig{display:none}
+  body[data-mode="new"] .pbox.only-new{display:block}
+  body[data-mode="migrate"] .pbox.only-mig{display:block}
+  .flow{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px}
+  @media (max-width:640px){ .flow{grid-template-columns:1fr 1fr} body{padding:16px} }
+  .fs{background:#fff; border:1px solid var(--line); border-radius:13px; padding:13px 12px; text-align:center; border-top:4px solid var(--a)}
+  .fs .n{font-family:var(--mono); font-size:12px; color:var(--a); font-weight:600}
+  .fs .t{font-weight:600; font-size:15px; margin-top:2px}
+  .fs .s{font-size:12px; color:var(--muted); margin-top:3px}
+
+  .step{background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:12px; border-left:4px solid var(--a)}
+  .step .sh{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  .step .num{width:28px; height:28px; flex:none; border-radius:50%; background:var(--a); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:600; font-size:14px}
+  .step .st{font-weight:600; font-size:17px}
+  .step .st small{font-weight:400; color:var(--muted); font-size:13.5px; margin-left:5px}
+  .step p{font-size:15px; margin:0 0 10px}
+  .pbox{background:#0e131b; border-radius:10px; overflow:hidden; margin:8px 0}
+  .pbox .ph{display:flex; align-items:center; padding:6px 12px; background:#1d2632; font-family:var(--mono); font-size:11.5px; color:#8fb0d6}
+  .pbox .ph .sp{flex:1}
+  .cp{font-family:var(--sans); font-size:12px; padding:4px 10px; border-radius:7px; border:1px solid #4b5a6e; background:transparent; color:#c3cfdc; cursor:pointer}
+  .cp:hover{background:#2d3a49; color:#fff}
+  .pbox pre{margin:0; padding:11px 13px; font-family:var(--mono); font-size:13.5px; line-height:1.6; color:#e6ecf3; white-space:pre-wrap; word-break:break-word}
+  .pbox pre .fill{color:#fbbf24}
+  .keys{display:flex; flex-direction:column; gap:7px; margin:8px 0 12px}
+  .key{display:flex; gap:10px; align-items:flex-start; background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:14.5px}
+  .key .kn{width:22px; height:22px; flex:none; border-radius:50%; background:var(--shop); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:12px; font-weight:600}
+  .key b{font-weight:600}
+  .key .why{display:block; color:var(--muted); font-size:13px; margin-top:1px}
+  .dtoggle{display:flex; gap:7px; margin:6px 0 8px}
+  .dt{font-family:var(--sans); font-size:13px; padding:7px 12px; border-radius:9px; border:1.5px solid var(--line); background:#fff; color:var(--muted); cursor:pointer}
+  .dt.active{border-color:var(--sheet); background:#e9f7ee; color:var(--sheet); font-weight:500}
+  .cols{display:flex; flex-direction:column; gap:6px; margin:6px 0 4px}
+  .colrow{display:flex; align-items:center; gap:7px}
+  .colrow .cl{font-family:var(--mono); font-size:12.5px; color:var(--sheet); width:32px; flex:none}
+  .colrow input{flex:1; font-family:var(--sans); font-size:14px; padding:7px 10px; border:1px solid var(--line); border-radius:8px}
+  .colrow .del{background:none; border:0; color:#c0c8d0; cursor:pointer; font-size:17px; padding:0 4px}
+  .addcol{font-family:var(--sans); font-size:12.5px; padding:5px 10px; border-radius:7px; border:1px dashed var(--sheet); background:#fff; color:var(--sheet); cursor:pointer; align-self:flex-start}
+  .appin{width:100%; font-family:var(--sans); font-size:14.5px; padding:8px 11px; border:1px solid var(--line); border-radius:9px; margin-top:4px}
+  .appin:focus{outline:2px solid var(--shop); outline-offset:1px; border-color:var(--shop)}
+  .tip{font-size:13.5px; color:var(--shop-ink); background:var(--shop-soft); border:1px solid #f7c9ac; border-radius:9px; padding:9px 12px; margin-top:8px}
+  .tip b{font-weight:600}
+  .big{background:var(--green-soft); border:1.5px solid #abe4c1; border-radius:12px; padding:14px 16px; font-size:16px; font-weight:600; color:#116932; text-align:center}
+
+  .check{background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 20px}
+  .check p{font-size:14.5px; color:var(--muted); margin:0 0 10px}
+  .check ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .check li{display:flex; gap:9px; font-size:15px; align-items:flex-start}
+  .check li::before{content:'☐'; color:var(--muted); flex:none}
+  .check b{font-weight:600}
+  .check .hot{color:var(--shop-ink)}
+  .check .hot::before{content:'⚠'; color:var(--shop)}
+
+  /* mini practice */
+  .mini{background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  .mh{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:#f8fafc; font-size:14px; font-weight:600}
+  .mh .dot{width:9px; height:9px; border-radius:50%; background:var(--green)}
+  .mh small{font-weight:400; color:var(--muted); font-size:12.5px}
+  .mh .sp{flex:1}
+  .mr{font-family:var(--sans); font-size:12.5px; padding:5px 10px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--muted); cursor:pointer}
+  .mmsgs{max-height:380px; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px}
+  .mm{display:flex; gap:8px; max-width:90%}
+  .mm .av{width:26px; height:26px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:13px}
+  .mm.ai .av{background:#e8eef7} .mm.me{align-self:flex-end; flex-direction:row-reverse} .mm.me .av{background:var(--shop-soft)}
+  .mb{padding:9px 12px; border-radius:12px; font-size:14px; line-height:1.55; white-space:pre-wrap}
+  .mm.ai .mb{background:#f3f6fa; border-top-left-radius:3px}
+  .mm.me .mb{background:var(--shop); color:#fff; border-top-right-radius:3px}
+  .mb ul{margin:4px 0 0; padding-left:17px} .mb li{margin:1px 0}
+  .mb .q{color:var(--blue); font-weight:600}
+  .mb.final{background:#0e131b; color:#e6ecf3; font-family:var(--mono); font-size:12.5px}
+  .mcoach{align-self:center; background:#fff8ed; border:1px solid #f7d9ac; color:#7a4a0c; border-radius:10px; padding:8px 12px; font-size:13px}
+  .min{border-top:1px solid var(--line); padding:11px 14px; display:flex; flex-direction:column; gap:7px}
+  .mlbl{font-size:12px; color:var(--muted); font-family:var(--mono)}
+  .mchips{display:flex; flex-wrap:wrap; gap:6px}
+  .mc{font-family:var(--sans); font-size:13px; padding:7px 11px; border-radius:9px; border:1.5px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; text-align:left}
+  .mc:hover{border-color:var(--shop); background:#fffaf5}
+  .mc.pick.on{background:#eef4fb; border-color:var(--blue); color:var(--blue); font-weight:500}
+  .mc.pick.on::before{content:'✓ '}
+  .mc.go{background:var(--shop); color:#fff; border-color:var(--shop); font-weight:500}
+  .mc.alt{border-style:dashed; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="tag">앱스크립트 프롬프트 · 실제로 이렇게 해요</span>
+  <h1>프롬프트는 외워서 쓰는 게 아니에요</h1>
+  <p class="lede">실제로는 AI와 몇 마디 주고받다가 마지막에 <b>"지금까지 얘기한 거 프롬프트로 정리해줘"</b> 하면 끝이에요. 그걸 새 대화에 붙여넣으면 코드가 나옵니다. 네 걸음이 전부예요.</p>
+
+  <div class="modes">
+    <button class="mode active" data-m="new" onclick="setMode('new')">✨ 새로 만들기</button>
+    <button class="mode" data-m="migrate" onclick="setMode('migrate')">🔄 기존 코드 옮기기</button>
+  </div>
+  <p class="mode-desc" id="modeDesc">처음부터 만들어요. 상황만 말하고 AI와 대화하며 조건을 뽑아요.</p>
+
+  <div class="flow">
+    <div class="fs" style="--a:var(--blue)"><div class="n">1</div><div class="t">대화하기</div><div class="s">상황 말하고 고르기</div></div>
+    <div class="fs" style="--a:var(--shop)"><div class="n">2</div><div class="t">정리해줘</div><div class="s">한마디</div></div>
+    <div class="fs" style="--a:var(--green)"><div class="n">3</div><div class="t">새 대화에 넣기</div><div class="s">코드 받기</div></div>
+    <div class="fs" style="--a:var(--muted)"><div class="n">4</div><div class="t">막히면</div><div class="s">뭐가 빠졌나 보기</div></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="step" style="--a:var(--blue)">
+    <div class="sh"><span class="num">1</span><span class="st">AI와 대화하기 <small>· 조건을 몰라도 돼요</small></span></div>
+    <p class="only-new">상황만 말하면 AI가 아이디어를 펼쳐요. 그중 필요한 것만 고르고, 더 정할 게 있으면 질문받아요. 이 세 마디면 충분해요.</p>
+    <p class="only-mig">이미 만든 화면 코드가 있으면 그걸 붙여주고 시작해요. 화면은 그대로 두고 <b>저장만 시트로</b> 바꾸는 게 핵심이라, 대화가 훨씬 짧아요.</p>
+    <div class="pbox only-new"><div class="ph">① 상황 말하기<span class="sp"></span><button class="cp" data-copy="p1">복사</button></div><pre id="p1">구글 앱스크립트로 <span class="fill">[무엇]</span>을 만들려고 해. <span class="fill">[상황·정원 등]</span>.
+어떤 기능이나 입력 항목이 필요할까? 코드는 만들지 말고 아이디어만 알려줘.</pre></div>
+    <div class="pbox only-mig"><div class="ph">① 코드 붙여주고 말하기<span class="sp"></span><button class="cp" data-copy="p1m">복사</button></div><pre id="p1m">아래는 내가 만든 <span class="fill">[무엇]</span> 앱 코드야. 지금은 브라우저에만 저장돼서 다른 기기에서 열면 기록이 없어.
+이걸 구글 앱스크립트로 옮겨서 시트에 저장되게 하려고 해. 화면은 그대로 두고 저장만 바꾸면 되는지, 더 정할 게 있는지 알려줘. 코드는 아직 만들지 마.
+
+<span class="fill">[기존 코드 붙여넣기]</span></pre></div>
+    <div class="pbox only-new"><div class="ph">② 고르기<span class="sp"></span><button class="cp" data-copy="p2">복사</button></div><pre id="p2"><span class="fill">[넣을 것]</span>은 넣고, <span class="fill">[뺄 것]</span>은 빼고 싶어.
+이대로 하면 실제로 쓸 때 생길 문제가 있을까?</pre></div>
+    <div class="pbox only-mig"><div class="ph">② (원하면) 기능 더하기<span class="sp"></span><button class="cp" data-copy="p2m">복사</button></div><pre id="p2m">옮기면서 <span class="fill">[추가하고 싶은 것]</span>도 넣고 싶어. 기존 기능은 그대로 유지해줘.
+이대로 하면 생길 문제가 있을까?</pre></div>
+    <div class="pbox"><div class="ph">③ 빈틈 질문받기<span class="sp"></span><button class="cp" data-copy="p3">복사</button></div><pre id="p3">내가 더 정해야 할 게 있으면 한 번에 하나씩 질문해줘.</pre></div>
+    <div class="tip"><b>"코드는 만들지 마"</b>가 핵심이에요. 이게 없으면 첫 마디에 코드가 쏟아져서 고를 기회가 없어요. 그리고 AI가 주는 걸 <b>다 넣지 마세요</b> — 고르는 건 내 몫이에요.</div>
+  </div>
+
+  <!-- 2 -->
+  <div class="step" style="--a:var(--shop)">
+    <div class="sh"><span class="num">2</span><span class="st">"정리해줘" <small>· 꼭 들어갈 것과 함께</small></span></div>
+    <p>그냥 "정리해줘"만 하면 핵심이 빠진 채 정리될 수 있어요. 아래 세 가지를 같이 말해요. 채우면 마지막 말이 완성됩니다.</p>
+    <div class="keys">
+      <div class="key"><span class="kn">1</span><div><b>무엇을 만드는지</b> — "구글 앱스크립트로 ○○ 앱"<span class="why">'구글 앱스크립트'가 빠지면 시트와 상관없는 일반 웹앱이 돼요. <span class="only-mig">옮길 땐 "화면은 그대로, 저장만 시트로"가 자동으로 붙어요.</span></span>
+        <input class="appin" id="appName" placeholder="예: 배드민턴 대회 신청 앱"></div></div>
+      <div class="key"><span class="kn">2</span><div><b>데이터</b> — 시트의 열 구조<span class="why">안 말하면 AI가 알아서 정해요. 원하면 직접 정할 수도 있어요.</span>
+        <div class="dtoggle"><button class="dt active" data-dm="auto" onclick="setDm('auto')">안 말함 (AI가 알아서)</button><button class="dt" data-dm="manual" onclick="setDm('manual')">직접 정하기</button></div>
+        <div id="colsWrap" style="display:none"><div class="cols" id="cols"></div><button class="addcol" onclick="addCol()">+ 열 추가</button></div></div></div>
+      <div class="key"><span class="kn">3</span><div><b>처음이니 하나씩</b> — "코드 넣는 것부터 공유하는 것까지 하나씩 알려줘"<span class="why">이게 없으면 설명이 어려워서 못 따라가요.</span></div></div>
+    </div>
+    <div class="pbox"><div class="ph">마지막에 보낼 말<span class="sp"></span><button class="cp" data-copy="p4">복사</button></div><pre id="p4"></pre></div>
+    <div class="tip">대화 중에 이미 말한 내용이라도 <b>여기서 한 번 더</b> 말해 두면 정리에서 빠지지 않아요.</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="step" style="--a:var(--green)">
+    <div class="sh"><span class="num">3</span><span class="st">새 대화에 붙여넣기 <small>· 코드 받기</small></span></div>
+    <p>AI가 정리해준 프롬프트를 복사해서 <b>새 대화창</b>에 붙여넣으면 코드와 따라 하기 설명이 나와요. 잘 되면 그걸로 끝이에요.</p>
+    <div class="big">✓ 잘 되면 끝. 점검 안 해도 돼요.</div>
+  </div>
+
+  <!-- 4 -->
+  <div class="step" style="--a:var(--muted)">
+    <div class="sh"><span class="num">4</span><span class="st">막혔을 때만 <small>· 뭐가 빠졌나 돌아보기</small></span></div>
+    <p>코드가 이상하거나 설명이 어려워서 못 따라가겠으면, 프롬프트에서 뭐가 빠졌는지 한 번 봐요. 보통 아래 둘 중 하나예요.</p>
+    <div class="check">
+      <p>빠진 게 있으면 AI에게 "이것도 넣어서 다시 정리해줘"라고 하면 돼요.</p>
+      <ul>
+        <li class="hot"><span><b>구글 앱스크립트로 ○○ 앱</b>이라고 했나? — 없으면 시트랑 상관없는 일반 웹앱이 돼요.</span></li>
+        <li class="hot"><span><b>시트에 저장</b>이 들어갔나? — 대화에서 저장 얘기를 안 했으면 새로고침하면 사라지는 앱이 될 수 있어요.</span></li>
+        <li class="hot"><span><b>"하나씩 알려줘"</b>가 들어갔나? — 없으면 설명이 어려워서 못 따라가요.</span></li>
+        <li><span><b>어떻게 동작</b>하는지(고른 조건들)가 다 들어갔나?</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>🎮 한 번 해보기 — 배드민턴 대회 신청</h2>
+  <p class="lede" style="margin-bottom:10px">위 네 걸음을 그대로 눌러보며 익혀요. (AI 답은 미리 짜둔 연습용이에요. 익힌 뒤엔 진짜 AI에서 내 상황으로!)</p>
+  <div class="mini">
+    <div class="mh"><span class="dot"></span>AI <small>· 연습용</small><span class="sp"></span><button class="mr" onclick="miniStart()">↺ 처음부터</button></div>
+    <div class="mmsgs" id="mmsgs"></div>
+    <div class="min" id="min"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* step 2 builder */
+  var dm='auto'; var COLS=['A열','B열','C열','D열','E열','F열'];
+  window.setDm=function(m){ dm=m; document.querySelectorAll('.dt').forEach(function(b){ b.classList.toggle('active', b.dataset.dm===m); });
+    document.getElementById('colsWrap').style.display = m==='manual' ? '' : 'none';
+    if(m==='manual' && !document.querySelectorAll('#cols input').length){ addCol(); addCol(); }
+    buildP4(); };
+  window.addCol=function(){ var row=document.createElement('div'); row.className='colrow';
+    row.innerHTML='<span class="cl"></span><input type="text" placeholder="예: 학생 이름"><button class="del" title="삭제">×</button>';
+    row.querySelector('input').addEventListener('input', buildP4);
+    row.querySelector('.del').onclick=function(){ if(document.querySelectorAll('#cols input').length>1){ row.remove(); relabel(); buildP4(); } };
+    document.getElementById('cols').appendChild(row); relabel(); buildP4(); };
+  function relabel(){ document.querySelectorAll('#cols .colrow').forEach(function(r,i){ r.querySelector('.cl').textContent=(COLS[i]||('열'+(i+1)))+':'; }); }
+  function buildP4(){
+    var app=(document.getElementById('appName').value||'').trim();
+    var lines=['지금까지 얘기한 내용을 프롬프트로 정리해줘.'];
+    if(document.body.dataset.mode==='migrate'){
+      lines.push('내가 만든 '+(app?app:'<span class="fill">[○○ 앱]</span>')+' 코드를 구글 앱스크립트로 옮기는 거야. 화면은 그대로 두고 저장만 시트로 바꿔줘. 기존 기능은 유지해줘.');
+    } else {
+      lines.push('구글 앱스크립트로 '+(app?app:'<span class="fill">[○○ 앱]</span>')+'을 만드는 거야.');
+    }
+    if(dm==='manual'){
+      var cs=Array.prototype.map.call(document.querySelectorAll('#cols input'), function(inp,i){ var v=inp.value.trim(); return (COLS[i]||('열'+(i+1)))+'에 '+(v?v:'<span class="fill">[저장될 것]</span>'); });
+      lines.push('시트의 '+cs.join(', ')+'을 저장해줘.');
+    }
+    lines.push('코드 넣는 것부터 공유하는 것까지 하나씩 알려줘.');
+    lines.push('코드는 아직 만들지 마.');
+    if(document.body.dataset.mode==='migrate') lines.push('\n<span class="fill">[기존 코드는 맨 아래에 붙여넣기]</span>');
+    document.getElementById('p4').innerHTML=lines.join('\n');
+  }
+  document.getElementById('appName').addEventListener('input', buildP4);
+  window.setMode=function(m){
+    document.body.dataset.mode=m;
+    document.querySelectorAll('.mode').forEach(function(b){ b.classList.toggle('active', b.dataset.m===m); });
+    document.getElementById('modeDesc').textContent = m==='new'
+      ? '처음부터 만들어요. 상황만 말하고 AI와 대화하며 조건을 뽑아요.'
+      : '이미 만든 화면 코드가 있을 때. 코드를 붙여주고, 저장만 시트로 바꿔요. 화면은 그대로!';
+    buildP4();
+  };
+  document.body.dataset.mode='new';
+  buildP4();
+
+  /* copy buttons */
+  document.querySelectorAll('.cp').forEach(function(b){
+    b.addEventListener('click', function(){
+      var text=document.getElementById(b.dataset.copy).innerText;
+      function done(){ b.textContent='복사됨!'; setTimeout(function(){ b.textContent='복사'; },1500); }
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(fb); } else { fb(); }
+      function fb(){ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta); }
+    });
+  });
+
+  /* mini practice */
+  var IDEAS=[
+    {k:'save', t:'신청 내용을 시트에 저장'},
+    {k:'name', t:'이름 입력'},
+    {k:'sid', t:'학번 입력 (필수)'},
+    {k:'phone', t:'연락처 입력'},
+    {k:'left', t:'남은 자리 표시'},
+    {k:'dup', t:'중복 신청 막기'},
+    {k:'cancel', t:'신청 취소 기능'},
+    {k:'list', t:'신청자 명단 공개'}
+  ];
+  var mmsgs=document.getElementById('mmsgs'), min=document.getElementById('min'), M;
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function add(who, html, cls){ var d=document.createElement('div'); d.className='mm '+who; d.innerHTML='<div class="av">'+(who==='ai'?'🤖':'🙋')+'</div><div class="mb'+(cls?' '+cls:'')+'">'+html+'</div>'; mmsgs.appendChild(d); mmsgs.scrollTop=mmsgs.scrollHeight; }
+  function coach(html){ var d=document.createElement('div'); d.className='mcoach'; d.innerHTML=html; mmsgs.appendChild(d); mmsgs.scrollTop=mmsgs.scrollHeight; }
+  function ai(html, cb, cls){ setTimeout(function(){ add('ai', html, cls); if(cb) cb(); }, 550); }
+  function chips(label, items){
+    min.innerHTML='';
+    if(label){ var l=document.createElement('div'); l.className='mlbl'; l.textContent=label; min.appendChild(l); }
+    var row=document.createElement('div'); row.className='mchips';
+    items.forEach(function(it){ var b=document.createElement('button'); b.className='mc'+(it.cls?' '+it.cls:''); b.textContent=it.t; b.onclick=it.fn; row.appendChild(b); });
+    min.appendChild(row);
+  }
+
+  window.miniStart=function(){
+    M={picked:{}, answers:[]}; mmsgs.innerHTML=''; min.innerHTML='';
+    ai('무엇을 만들고 싶으세요?', function(){
+      chips('1 · 대화하기 — 상황 말하기', [
+        {t:'구글 앱스크립트로 배드민턴 대회 신청 앱을 만들려고 해. 정원 20명. 어떤 기능이 필요할까? 코드는 만들지 말고 아이디어만.', cls:'go', fn:function(){ s1(true); }},
+        {t:'배드민턴 대회 신청 앱 만들어줘.', cls:'alt', fn:function(){ s1(false); }}
+      ]);
+    });
+  };
+  function s1(good){
+    if(!good){
+      add('me','배드민턴 대회 신청 앱 만들어줘.'); min.innerHTML='';
+      ai('function doGet(){ … }\n/* 코드 120줄 … */', function(){
+        coach('😅 바로 코드가 쏟아졌어요. 고를 기회가 없죠. <b>"코드는 만들지 말고 아이디어만"</b>이라고 해보세요.');
+        chips('', [{t:'다시: 코드는 만들지 말고 아이디어만 알려줘', cls:'go', fn:function(){ s1(true); }}]);
+      }, 'final'); return;
+    }
+    add('me','구글 앱스크립트로 배드민턴 대회 신청 앱을 만들려고 해. 정원 20명. 어떤 기능이 필요할까? 코드는 만들지 말고 아이디어만.'); min.innerHTML='';
+    ai('이런 것들을 생각해 볼 수 있어요.<ul>'+IDEAS.map(function(i){return '<li>'+i.t+'</li>';}).join('')+'</ul>필요한 것만 고르세요.', function(){
+      coach('💡 AI가 펼쳤어요. 이제 <b>내가 고를</b> 차례.'); s2();
+    });
+  }
+  function s2(){ IDEAS.forEach(function(i){ M.picked[i.k]=undefined; }); renderPick(); }
+  function renderPick(){
+    min.innerHTML='';
+    var l=document.createElement('div'); l.className='mlbl'; l.textContent='1 · 대화하기 — 고르기 (넣을 것을 체크)'; min.appendChild(l);
+    var row=document.createElement('div'); row.className='mchips';
+    IDEAS.forEach(function(it){ var b=document.createElement('button'); b.className='mc pick'+(M.picked[it.k]===true?' on':''); b.textContent=it.t; b.onclick=function(){ M.picked[it.k]=M.picked[it.k]===true?undefined:true; renderPick(); }; row.appendChild(b); });
+    min.appendChild(row);
+    var r2=document.createElement('div'); r2.className='mchips';
+    var go=document.createElement('button'); go.className='mc go'; go.textContent='이걸로 할게. 생길 문제가 있을까?'; go.onclick=me2; r2.appendChild(go); min.appendChild(r2);
+  }
+  function me2(){
+    var on=IDEAS.filter(function(i){return M.picked[i.k]===true;}); if(!on.length){ coach('하나 이상 골라 주세요.'); return; }
+    IDEAS.forEach(function(i){ if(M.picked[i.k]!==true) M.picked[i.k]=false; });
+    var off=IDEAS.filter(function(i){return M.picked[i.k]===false;});
+    add('me', on.map(function(i){return i.t;}).join(', ')+'은 넣고'+(off.length?', '+off.map(function(i){return i.t;}).join(', ')+'은 빼고':'')+' 싶어. 생길 문제가 있을까?'); min.innerHTML='';
+    var w=[];
+    if(!M.picked.save) w.push('<b>시트에 저장</b>이 없으면 새로고침하면 다 사라져요. 앱스크립트를 쓸 이유가 없죠.');
+    if(!M.picked.sid) w.push('학번이 없으면 <b>누가 신청했는지 구분이 안 돼요.</b>');
+    if(!M.picked.dup) w.push('중복을 안 막으면 <b>한 학생이 여러 번 신청</b>할 수 있어요.');
+    if(M.picked.list) w.push('명단 공개는 <b>다른 학생 학번이 보일 수 있어요.</b>');
+    w.push('<b>정원이 다 찼을 때</b> 어떻게 할지는 아직 안 정했어요.');
+    ai('몇 가지 짚어 볼게요.<ul>'+w.map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul>', function(){
+      coach('💡 받아들일지는 내가 판단해요.');
+      chips('', [{t:'다시 골라서 고치기', cls:'alt', fn:s2},{t:'좋아. 더 정할 게 있으면 하나씩 질문해줘.', cls:'go', fn:me3}]);
+    });
+  }
+  var Q=[
+    {q:'정원 20명이 다 차면 어떻게 할까요?', opts:[{t:'"마감되었습니다"를 보여주고 버튼을 막아줘', a:'정원이 다 차면 신청 버튼을 막고 "마감되었습니다"를 보여줘.'},{t:'대기 신청을 받아줘', a:'정원이 다 차면 대기 신청으로 받아줘.'}]},
+    {q:'중복 신청은 무엇이 같을 때로 볼까요?', skipIf:function(){return !M.picked.dup;}, opts:[{t:'학번이 같으면', a:'이미 신청한 학번이면 다시 신청되지 않게 하고 "이미 신청했습니다"라고 알려줘.'},{t:'학번과 이름이 둘 다 같으면', a:'학번과 이름이 둘 다 같은 신청이 있으면 다시 신청되지 않게 하고 "이미 신청했습니다"라고 알려줘.'}]},
+    {q:'신청이 끝나면 뭐라고 알려줄까요?', opts:[{t:'"신청 완료!"만', a:'신청이 끝나면 "신청 완료!"라고 알려줘.'},{t:'"신청 완료 · 12번째"처럼 순번도', a:'신청이 끝나면 "신청 완료 · 12번째"처럼 순번과 함께 알려줘.'}]}
+  ];
+  function me3(){ add('me','좋아. 더 정할 게 있으면 하나씩 질문해줘.'); min.innerHTML=''; ask(0); }
+  function ask(i){
+    while(i<Q.length && Q[i].skipIf && Q[i].skipIf()) i++;
+    if(i>=Q.length){
+      ai('다 정해진 것 같아요!', function(){
+        coach('💡 마지막 한마디. <b>무엇을 만드는지</b>와 <b>하나씩 알려줘</b>를 같이 말해요.');
+        chips('2 · 정리해줘', [{t:'지금까지 얘기한 내용을 프롬프트로 정리해줘. 구글 앱스크립트로 배드민턴 대회 신청 앱을 만드는 거야. 코드 넣는 것부터 공유하는 것까지 하나씩 알려줘. 코드는 아직 만들지 마.', cls:'go', fn:finish}]);
+      }); return;
+    }
+    var q=Q[i];
+    ai('<span class="q">질문 '+(i+1)+'.</span> '+q.q, function(){
+      chips('1 · 대화하기 — 답하기', q.opts.map(function(o){ return {t:o.t, fn:function(){ add('me',o.t); M.answers.push(o.a); min.innerHTML=''; ask(i+1); }}; }));
+    });
+  }
+  function buildPrompt(){
+    var req=[];
+    var f=[]; if(M.picked.name) f.push('이름'); if(M.picked.sid) f.push('학번'); if(M.picked.phone) f.push('연락처');
+    if(f.length) req.push(f.join('과 ')+'을 입력받아줘.'+(M.picked.sid?' 학번이 비어 있으면 신청이 안 되게 해줘.':''));
+    if(M.picked.left) req.push('정원은 20명이고, 화면에 남은 자리를 크게 보여줘. 신청할 때마다 바로 줄어들게 해줘.');
+    if(M.picked.cancel) req.push('신청을 취소할 수 있는 버튼도 넣어줘.');
+    if(M.picked.list) req.push('신청자 명단을 화면에 보여줘.');
+    req=req.concat(M.answers);
+    return "구글 앱스크립트로 '배드민턴 대회 참가 신청' 웹앱을 만들어줘.\n\n"+
+      "- "+req.join("\n- ")+"\n- 신청한 내용은 구글 시트에 저장하고, 열 때 다시 불러와서 보여줘.\n\n"+
+      "코드 넣는 것부터 공유하는 것까지 하나씩 알려줘.";
+  }
+  function finish(){
+    add('me','지금까지 얘기한 내용을 프롬프트로 정리해줘. 구글 앱스크립트로 배드민턴 대회 신청 앱을 만드는 거야. 코드 넣는 것부터 공유하는 것까지 하나씩 알려줘. 코드는 아직 만들지 마.'); min.innerHTML='';
+    var p=buildPrompt();
+    ai(esc(p), function(){
+      coach('✓ 이걸 복사해서 <b>새 대화</b>에 넣으면 코드가 나와요. 잘 되면 끝! 막히면 위 4번을 보세요.');
+      min.innerHTML='';
+      var row=document.createElement('div'); row.className='mchips';
+      var cp=document.createElement('button'); cp.className='mc go'; cp.textContent='📋 프롬프트 복사';
+      cp.onclick=function(){
+        function done(){ cp.textContent='복사됨! 새 대화에 붙여넣으세요'; setTimeout(function(){ cp.textContent='📋 프롬프트 복사'; },2000); }
+        if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(p).then(done).catch(fb); } else { fb(); }
+        function fb(){ var ta=document.createElement('textarea'); ta.value=p; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta); }
+      };
+      var again=document.createElement('button'); again.className='mc alt'; again.textContent='↺ 다른 조합으로'; again.onclick=miniStart;
+      row.appendChild(cp); row.appendChild(again); min.appendChild(row);
+    }, 'final');
+  }
+  miniStart();
+})();
+</script>
+</body>
+</html>

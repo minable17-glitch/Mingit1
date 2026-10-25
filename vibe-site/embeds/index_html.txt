@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#fff8ec; --card:#ffffff; --ink:#3b2f2f; --muted:#9a8b80;
+--red:#e03131; --red-soft:#ffe3e3; --yellow:#ffd43b; --line:#f1e4d0;
+--green:#2f9e44; --blue:#1c7ed6;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;padding-bottom:110px}
+header{background:linear-gradient(135deg,#ffec99,#ffc9c9);padding:18px 16px 12px;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+h1{font-family:'Jua',sans-serif;margin:0 0 10px;font-size:28px;letter-spacing:1px}
+h1 span{color:var(--red)}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.tab{flex:none;border:none;background:#fff;padding:8px 16px;border-radius:999px;font-family:'Jua';font-size:16px;color:var(--ink);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tab.on{background:var(--red);color:#fff}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;flex-wrap:wrap}
+.toolbar .sum{font-size:14px;color:var(--muted)}
+.btn{border:none;border-radius:12px;padding:9px 14px;font-family:'Jua';font-size:15px;cursor:pointer;background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn.on{background:var(--blue);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:0 16px}
+.card{background:var(--card);border-radius:18px;padding:14px 12px;cursor:pointer;border:3px solid transparent;transition:transform .12s, border-color .12s;position:relative;user-select:none}
+.card:active{transform:scale(.97)}
+.card.sel{border-color:var(--blue);background:#e7f5ff}
+.card .num{font-size:12px;color:var(--muted)}
+.card .name{font-family:'Jua';font-size:22px;margin:2px 0 8px}
+.dots{display:flex;flex-wrap:wrap;gap:4px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--line)}
+.dot.f{background:var(--red)}
+.card .meta{display:flex;justify-content:space-between;margin-top:8px;font-size:13px;color:var(--muted)}
+.card .meta b{color:var(--red)}
+.pangbadge{position:absolute;top:10px;right:10px;font-family:'Jua';font-size:13px;background:var(--yellow);padding:2px 8px;border-radius:999px}
+.check{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;display:none;align-items:center;justify-content:center;font-size:14px}
+.card.sel .check{display:flex}
+.card.sel .pangbadge{display:none}
+#bulkBar{position:fixed;left:0;right:0;bottom:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:#fff;box-shadow:0 -4px 16px rgba(0,0,0,.08);display:flex;gap:10px;align-items:center;z-index:6}
+#bulkBar .info{flex:1;font-family:'Jua';font-size:17px}
+.big{border:none;background:var(--red);color:#fff;font-family:'Jua';font-size:20px;padding:14px 22px;border-radius:16px;cursor:pointer;box-shadow:0 4px 0 #a61e1e}
+.big:active{transform:translateY(3px);box-shadow:0 1px 0 #a61e1e}
+.big:disabled{opacity:.5}
+/* 모달 */
+.overlay{position:fixed;inset:0;background:rgba(40,25,20,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.sheet{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:24px 24px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom));position:relative;animation:up .25s ease}
+@media(min-width:640px){.overlay{align-items:center}.sheet{border-radius:24px}}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.close{position:absolute;top:12px;right:14px;border:none;background:none;font-size:28px;color:var(--muted);cursor:pointer}
+.sheet h2{font-family:'Jua';font-size:26px;margin:0}
+.sheet .sub{color:var(--muted);margin:4px 0 14px;font-size:14px}
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;background:#fffaf0;border:2px dashed #f2c98a;border-radius:16px;padding:12px;margin-bottom:16px}
+.slot{aspect-ratio:1;border-radius:50%;background:#fff;border:2px dashed #ead7bd;display:flex;align-items:center;justify-content:center;color:#e5d3ba;font-family:'Jua';font-size:13px}
+.label{font-family:'Jua';font-size:16px;margin:6px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chip{border:2px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-size:14px;cursor:pointer;font-family:'Noto Sans KR'}
+.chip.on{border-color:var(--red);background:var(--red-soft);color:var(--red);font-weight:700}
+.input{width:100%;padding:12px;border:2px solid var(--line);border-radius:12px;font-size:15px;font-family:'Noto Sans KR';margin-bottom:14px}
+.input:focus{outline:none;border-color:var(--red)}
+.sheet .big{width:100%}
+.histhead{display:flex;justify-content:space-between;align-items:center;margin-top:20px}
+.undo{border:none;background:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px}
+.hist{list-style:none;padding:0;margin:0}
+.hist li{display:flex;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.hist li span:last-child{color:var(--muted);font-size:12px;flex:none}
+.empty{color:var(--muted);font-size:14px;padding:8px 2px}
+/* 도장 마크 */
+.mark{width:100%;height:100%;border-radius:50%;border:3px solid var(--red);color:var(--red);display:flex;align-items:center;justify-content:center;text-align:center;font-family:'Jua';line-height:1.05;transform:rotate(-14deg);box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--red);background:rgba(255,227,227,.35);word-break:keep-all;padding:4px}
+.slot .mark{font-size:10px}
+.slot.new .mark{animation:slam .45s cubic-bezier(.2,1.6,.4,1)}
+/* 쾅 효과 */
+.fx{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;pointer-events:none}
+.fx .mark{width:210px;height:210px;font-size:34px;border-width:7px;box-shadow:inset 0 0 0 5px #fff, inset 0 0 0 10px var(--red);background:rgba(255,255,255,.92);animation:slam .5s cubic-bezier(.2,1.6,.4,1)}
+.fx .who{margin-top:18px;font-family:'Jua';font-size:22px;background:#fff;padding:8px 18px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+@keyframes slam{0%{transform:scale(2.6) rotate(-30deg);opacity:0}60%{opacity:1}100%{transform:scale(1) rotate(-14deg);opacity:1}}
+.pang{font-family:'Jua';font-size:120px;color:var(--red);text-shadow:4px 4px 0 var(--yellow),8px 8px 0 rgba(0,0,0,.08);animation:pop .7s cubic-bezier(.2,1.8,.4,1)}
+.pangmsg{font-family:'Jua';font-size:24px;background:#fff;padding:10px 22px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.15);text-align:center;max-width:90vw}
+@keyframes pop{0%{transform:scale(0) rotate(-20deg)}100%{transform:scale(1) rotate(0)}}
+.confetti{position:fixed;top:-20px;width:10px;height:16px;z-index:19;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Jua';font-size:22px;z-index:30}
+#toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;z-index:40;pointer-events:none}
+#toast.show{opacity:1}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+<h1>칭찬<span>팡</span> 도장 🌟</h1>
+<div class="tabs" id="tabs"></div>
+</header>
+<div class="toolbar">
+<span class="sum" id="sum"></span>
+<div>
+<button class="btn" id="sortBtn">번호순</button>
+<button class="btn" id="multiBtn">여러 명 선택</button>
+</div>
+</div>
+<main class="grid" id="grid"></main>
+<div id="bulkBar" class="hidden">
+<div class="info" id="bulkInfo">0명 선택</div>
+<button class="btn" id="allBtn">전체</button>
+<button class="big" id="bulkGo" disabled>도장 쾅!</button>
+</div>
+<!-- 도장 찍기 모달 -->
+<div id="modal" class="overlay hidden">
+<div class="sheet">
+<button class="close" id="closeBtn">×</button>
+<h2 id="mTitle"></h2>
+<p class="sub" id="mSub"></p>
+<div class="board" id="board"></div>
+<div class="label">어떤 점을 칭찬할까요?</div>
+<div class="chips" id="reasons"></div>
+<input class="input" id="custom" placeholder="직접 입력하기 (입력하면 이 내용으로 저장돼요)">
+<button class="big" id="stampBtn">도장 쾅! 🔴</button>
+<div id="histWrap">
+<div class="histhead">
+<span class="label">최근 칭찬 기록</span>
+<button class="undo" id="undoBtn">마지막 도장 취소</button>
+</div>
+<ul class="hist" id="hist"></ul>
+</div>
+</div>
+</div>
+<div id="stampFx" class="fx hidden"><div class="mark" id="fxMark"></div><div class="who" id="fxWho"></div></div>
+<div id="pangFx" class="fx hidden"><div class="pang">팡!</div><div class="pangmsg" id="pangMsg"></div></div>
+<div id="loading">칭찬 도장 꺼내는 중… 🔴</div>
+<div id="toast"></div>
+<script>
+const S = {
+  students: [], counts: {}, settings: {goal:10, reasons:[], stampText:'참 잘했어요'},
+  cls: null, multi: false, selected: new Set(), sort: 'num',
+  target: [], reason: null, busy: false
+};
+const $ = id => document.getElementById(id);
+const key = (c, n) => String(c).trim() + '|' + String(n).trim();
+const esc = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const cnt = s => S.counts[key(s.cls, s.num)] || 0;
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2000); }
+function fail(e){ S.busy=false; setBusy(false); toast('⚠️ ' + (e && e.message ? e.message : e)); }
+function setBusy(b){ $('stampBtn').disabled=b; $('bulkGo').disabled=b || S.selected.size===0; }
+/* ---------- 시작 ---------- */
+function load(){
+  google.script.run.withSuccessHandler(d => {
+    S.students = d.students; S.counts = d.counts; S.settings = d.settings;
+    const classes = [...new Set(d.students.map(s => s.cls))];
+    S.cls = S.cls && classes.includes(S.cls) ? S.cls : classes[0];
+    $('loading').classList.add('hidden');
+    renderTabs(); render();
+  }).withFailureHandler(e => { $('loading').textContent = '⚠️ ' + (e.message || e); }).getInitData();
+}
+function classList(){ return [...new Set(S.students.map(s => s.cls))]; }
+function renderTabs(){
+  $('tabs').innerHTML = classList().map(c =>
+    `<button class="tab ${c===S.cls?'on':''}" data-c="${esc(c)}">${esc(c)}반</button>`).join('');
+  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => {
+    S.cls = b.dataset.c; S.selected.clear(); renderTabs(); render();
+  });
+}
+function current(){
+  const list = S.students.filter(s => s.cls === S.cls);
+  if (S.sort === 'num') list.sort((a,b) => (parseInt(a.num)||0) - (parseInt(b.num)||0));
+  else list.sort((a,b) => cnt(b) - cnt(a) || (parseInt(a.num)||0) - (parseInt(b.num)||0));
+  return list;
+}
+function render(){
+  const g = S.settings.goal, list = current();
+  const total = list.reduce((a,s) => a + cnt(s), 0);
+  $('sum').textContent = list.length ? `${S.cls}반 · ${list.length}명 · 도장 총 ${total}개` : '학생명단 시트에 학생을 입력해 주세요';
+  $('grid').innerHTML = list.map(s => {
+    const c = cnt(s), filled = c % g, pang = Math.floor(c / g), k = key(s.cls, s.num);
+    let dots = ''; for (let i=0;i<g;i++) dots += `<span class="dot ${i<filled?'f':''}"></span>`;
+    return `<div class="card ${S.selected.has(k)?'sel':''}" data-k="${esc(k)}">
+      ${pang ? `<span class="pangbadge">🎉 팡×${pang}</span>` : ''}
+      <span class="check">✓</span>
+      <div class="num">${esc(s.num)}번</div>
+      <div class="name">${esc(s.name)}</div>
+      <div class="dots">${dots}</div>
+      <div class="meta"><span>${filled}/${g}</span><span>총 <b>${c}</b>개</span></div>
+    </div>`;
+  }).join('');
+  $('grid').querySelectorAll('.card').forEach(el => el.onclick = () => onCard(el.dataset.k));
+  $('bulkBar').classList.toggle('hidden', !S.multi);
+  $('bulkInfo').textContent = `${S.selected.size}명 선택`;
+  $('bulkGo').disabled = S.selected.size === 0;
+}
+function findByKey(k){ return S.students.find(s => key(s.cls, s.num) === k); }
+function onCard(k){
+  if (S.multi){
+    S.selected.has(k) ? S.selected.delete(k) : S.selected.add(k);
+    render(); return;
+  }
+  openModal([findByKey(k)]);
+}
+/* ---------- 모달 ---------- */
+function openModal(targets){
+  S.target = targets; S.reason = S.settings.reasons[0] || '칭찬';
+  $('custom').value = '';
+  const single = targets.length === 1;
+  if (single){
+    const s = targets[0];
+    $('mTitle').textContent = `${s.name}`;
+    $('mSub').textContent = `${s.cls}반 ${s.num}번 · 지금까지 도장 ${cnt(s)}개`;
+    renderBoard(false);
+    $('board').classList.remove('hidden');
+    $('histWrap').classList.remove('hidden');
+    loadHist();
+  } else {
+    $('mTitle').textContent = `${targets.length}명에게 도장`;
+    $('mSub').textContent = targets.map(s => s.name).join(', ');
+    $('board').classList.add('hidden');
+    $('histWrap').classList.add('hidden');
+  }
+  renderReasons();
+  $('modal').classList.remove('hidden');
+}
+function closeModal(){ $('modal').classList.add('hidden'); }
+function stampMark(){ return `<div class="mark">${esc(S.settings.stampText)}</div>`; }
+function renderBoard(animateLast){
+  const s = S.target[0], g = S.settings.goal, filled = cnt(s) % g;
+  let h = '';
+  for (let i=0;i<g;i++){
+    const isNew = animateLast && i === filled - 1;
+    h += `<div class="slot ${isNew?'new':''}">${i < filled ? stampMark() : (i+1)}</div>`;
+  }
+  $('board').innerHTML = h;
+}
+function renderReasons(){
+  $('reasons').innerHTML = S.settings.reasons.map(r =>
+    `<button class="chip ${r===S.reason?'on':''}" data-r="${esc(r)}">${esc(r)}</button>`).join('');
+  $('reasons').querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    S.reason = b.dataset.r; $('custom').value=''; renderReasons();
+  });
+}
+function loadHist(){
+  const s = S.target[0];
+  $('hist').innerHTML = '<li class="empty">불러오는 중…</li>';
+  google.script.run.withSuccessHandler(rows => {
+    $('hist').innerHTML = rows.length
+      ? rows.map(r => `<li><span>${esc(r.reason)}</span><span>${esc(r.time.slice(5,16))}</span></li>`).join('')
+      : '<li class="empty">아직 기록이 없어요. 첫 도장을 찍어 주세요!</li>';
+  }).withFailureHandler(fail).getHistory(s.cls, s.num);
+}
+/* ---------- 도장 찍기 ---------- */
+function doStamp(){
+  if (S.busy) return;
+  const reason = $('custom').value.trim() || S.reason || '칭찬';
+  const targets = S.target.slice();
+  const before = {}; targets.forEach(s => before[key(s.cls,s.num)] = cnt(s));
+  S.busy = true; setBusy(true);
+  // 먼저 효과 보여주기
+  showStampFx(targets.length === 1 ? `${targets[0].name} · ${reason}` : `${targets.length}명 · ${reason}`);
+  google.script.run.withSuccessHandler(counts => {
+    S.busy = false; setBusy(false);
+    S.counts = counts;
+    const g = S.settings.goal;
+    const done = targets.filter(s => Math.floor(cnt(s)/g) > Math.floor(before[key(s.cls,s.num)]/g));
+    if (targets.length === 1){
+      const s = targets[0];
+      $('mSub').textContent = `${s.cls}반 ${s.num}번 · 지금까지 도장 ${cnt(s)}개`;
+      renderBoard(true); loadHist();
+    } else {
+      closeModal(); S.selected.clear();
+    }
+    render();
+    if (done.length) setTimeout(() => showPang(done), 900);
+  }).withFailureHandler(fail).addStamps(targets, reason);
+}
+function doUndo(){
+  const s = S.target[0];
+  if (!cnt(s)) { toast('취소할 도장이 없어요'); return; }
+  if (!confirm(`${s.name} 학생의 마지막 도장을 취소할까요?`)) return;
+  google.script.run.withSuccessHandler(counts => {
+    S.counts = counts;
+    $('mSub').textContent = `${s.cls}반 ${s.num}번 · 지금까지 도장 ${cnt(s)}개`;
+    renderBoard(false); loadHist(); render(); toast('마지막 도장을 취소했어요');
+  }).withFailureHandler(fail).undoLast(s.cls, s.num);
+}
+/* ---------- 효과 ---------- */
+function showStampFx(who){
+  $('fxMark').textContent = S.settings.stampText;
+  $('fxWho').textContent = who;
+  const fx = $('stampFx');
+  fx.classList.remove('hidden');
+  const m = $('fxMark'); m.style.animation='none'; void m.offsetWidth; m.style.animation='';
+  if (navigator.vibrate) navigator.vibrate(40);
+  clearTimeout(fx._h); fx._h = setTimeout(() => fx.classList.add('hidden'), 850);
+}
+function showPang(list){
+  $('pangMsg').innerHTML = `🎉 ${list.map(s => esc(s.name)).join(', ')}<br>도장판 완성! 칭찬팡 터졌다!`;
+  const fx = $('pangFx'); fx.classList.remove('hidden');
+  confetti();
+  clearTimeout(fx._h); fx._h = setTimeout(() => fx.classList.add('hidden'), 2600);
+}
+function confetti(){
+  const colors = ['#e03131','#ffd43b','#40c057','#228be6','#f783ac','#ff922b'];
+  for (let i=0;i<80;i++){
+    const p = document.createElement('span');
+    p.className = 'confetti';
+    p.style.left = Math.random()*100 + 'vw';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (1.8 + Math.random()*1.6) + 's';
+    p.style.animationDelay = (Math.random()*0.4) + 's';
+    p.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 4200);
+  }
+}
+/* ---------- 버튼 연결 ---------- */
+$('closeBtn').onclick = closeModal;
+$('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+$('stampBtn').onclick = doStamp;
+$('undoBtn').onclick = doUndo;
+$('custom').oninput = () => { S.reason = null; renderReasons(); if (!$('custom').value.trim()) { S.reason = S.settings.reasons[0]; renderReasons(); } };
+$('multiBtn').onclick = () => {
+  S.multi = !S.multi; S.selected.clear();
+  $('multiBtn').classList.toggle('on', S.multi);
+  $('multiBtn').textContent = S.multi ? '선택 끝내기' : '여러 명 선택';
+  render();
+};
+$('sortBtn').onclick = () => {
+  S.sort = S.sort === 'num' ? 'rank' : 'num';
+  $('sortBtn').textContent = S.sort === 'num' ? '번호순' : '도장많은순';
+  render();
+};
+$('allBtn').onclick = () => {
+  const list = current();
+  if (S.selected.size === list.length) S.selected.clear();
+  else list.forEach(s => S.selected.add(key(s.cls, s.num)));
+  render();
+};
+$('bulkGo').onclick = () => openModal([...S.selected].map(findByKey).filter(Boolean));
+load();
+</script>
+</body>
+</html>
