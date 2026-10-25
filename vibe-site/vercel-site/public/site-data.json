@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 22,
+ "rev": 23,
  "pages": [
   {
    "id": "home",
@@ -1464,155 +1464,89 @@
    "title": "API 실습",
    "parent": "api",
    "tag": "",
-   "desc": "파라런 구간 기록장(시작 코드)에 AI API를 넣어 코치 피드백 기능 만들기",
+   "desc": "PAPS 등급을 넣으면 AI가 4주 운동 처방을 써 주는 웹앱 (Google AI Studio API 연동)",
    "blocks": [
     {
      "t": "h",
-     "text": "API 실습 — 파라런 구간 기록장에 AI 코치 붙이기"
+     "text": "PAPS 맞춤 운동 처방 (Google AI Studio API 연동)"
     },
     {
      "t": "p",
-     "text": "1km마다 걸린 시간을 적는 **파라런 구간 기록장** 코드를 먼저 드려요. 평균 페이스·전반/후반 비교·지난 기록까지는 다 돼요. 하지만 **🤖 AI 코치 피드백** 칸은 비어 있어요.\n이 칸에 **API를 넣어서** 버튼을 누르면 AI가 페이스 배분 조언을 써 주게 만드는 게 오늘의 실습이에요. 완성되면 [API활용 예시](#api-ex)의 AI 코치처럼 동작해요."
-    },
-    {
-     "t": "h",
-     "text": "① 시작 코드 — 파라런 구간 기록장"
-    },
-    {
-     "t": "p",
-     "text": "먼저 아래 앱을 써 보세요. 구간 시간을 바꾸고 **💾 기록 저장**도 눌러 보세요. 보라색 점선 칸이 우리가 채울 자리예요.\n코드는 오른쪽 위 **코드 보기**로 보고, **코드 복사**로 가져가요. 코드 맨 아래에 `// TODO: 여기에 AI 피드백 기능을 넣어요` 자리가 있어요."
-    },
-    {
-     "t": "html",
-     "title": "시작 코드 — 파라런 구간 기록장 (AI 기능 없음)",
-     "height": 1150,
-     "storage": true,
-     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>파라런 구간 기록장</title>\n<style>\n  * { box-sizing: border-box; }\n  body {\n    margin: 0;\n    font-family: system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;\n    background: #fff7f2;\n    color: #1f2933;\n    padding: 16px;\n    display: flex;\n    justify-content: center;\n  }\n  .app { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 14px; }\n  header { display: flex; align-items: center; gap: 10px; }\n  header .logo { width: 42px; height: 42px; border-radius: 12px; background: #ff6b35; color: #fff; display: grid; place-items: center; font-size: 22px; }\n  header h1 { font-size: 20px; margin: 0; }\n  header p { margin: 0; font-size: 13px; color: #6b7280; }\n  .card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 4px 16px rgba(255, 107, 53, .12); }\n  .card h2 { font-size: 15px; margin: 0 0 10px; }\n\n  /* 구간 입력 */\n  .lap { display: grid; grid-template-columns: 46px 90px 1fr 28px; gap: 8px; align-items: center; margin-bottom: 6px; }\n  .lap b { font-size: 13px; color: #6b7280; }\n  .lap input { width: 100%; font: inherit; font-size: 17px; text-align: center; padding: 7px; border: 1px solid #e5e7eb; border-radius: 10px; }\n  .bar { height: 12px; border-radius: 6px; background: #ffb38f; }\n  .bar.fast { background: #16a34a; }\n  .bar.slow { background: #dc2626; }\n  .del { border: 0; background: none; color: #9ca3af; font-size: 16px; cursor: pointer; }\n  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }\n  .btn { font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; cursor: pointer; }\n  .btn.main { flex: 1; border: 0; background: #ff6b35; color: #fff; font-weight: 800; font-size: 16px; padding: 12px; }\n\n  /* 요약 */\n  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }\n  .stats div { background: #fff3ec; border-radius: 12px; padding: 8px 4px; }\n  .stats small { display: block; font-size: 12px; color: #6b7280; }\n  .stats strong { font-size: 18px; }\n  .split { margin-top: 10px; font-size: 14px; background: #f9fafb; border-radius: 10px; padding: 8px 10px; }\n\n  /* AI 피드백 자리 */\n  .ai { border: 2px dashed #c4b5fd; background: #faf7ff; }\n  .ai p { margin: 0 0 8px; font-size: 14px; color: #6b7280; }\n  .ai button { width: 100%; font: inherit; font-weight: 800; padding: 11px; border: 0; border-radius: 10px; background: #c4b5fd; color: #fff; cursor: not-allowed; }\n\n  /* 지난 기록 */\n  .hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }\n  .hist li { display: flex; align-items: center; gap: 8px; font-size: 14px; background: #f9fafb; border-radius: 10px; padding: 8px 10px; }\n  .hist li span { flex: 1; }\n  .hist .best { font-size: 11px; font-weight: 800; color: #fff; background: #16a34a; border-radius: 999px; padding: 2px 7px; }\n  .empty { font-size: 14px; color: #9ca3af; }\n</style>\n</head>\n<body>\n<div class=\"app\">\n  <header>\n    <div class=\"logo\">🏃</div>\n    <div><h1>파라런 구간 기록장</h1><p>1km마다 걸린 시간을 적고 페이스를 확인해요</p></div>\n  </header>\n\n  <!-- ① 구간 기록 입력 -->\n  <section class=\"card\">\n    <h2>⏱ 오늘 1km 구간 기록</h2>\n    <div id=\"laps\"></div>\n    <div class=\"row\">\n      <button class=\"btn\" id=\"addLap\">＋ 구간 추가</button>\n    </div>\n  </section>\n\n  <!-- ② 요약 -->\n  <section class=\"card\">\n    <h2>📊 오늘 기록</h2>\n    <div class=\"stats\">\n      <div><small>거리</small><strong id=\"dist\">-</strong></div>\n      <div><small>총 시간</small><strong id=\"total\">-</strong></div>\n      <div><small>평균 페이스</small><strong id=\"avg\">-</strong></div>\n    </div>\n    <div class=\"split\" id=\"split\">구간 시간을 넣으면 페이스 배분을 알려 줘요.</div>\n    <div class=\"row\"><button class=\"btn main\" id=\"save\">💾 기록 저장</button></div>\n  </section>\n\n  <!-- ③ AI 코치 피드백 — 아직 비어 있어요. 여기에 API 기능을 넣어요! -->\n  <section class=\"card ai\" id=\"aiCard\">\n    <h2>🤖 AI 코치 피드백</h2>\n    <p id=\"aiText\">아직 준비 중이에요. (API 실습에서 이 기능을 만들어요)</p>\n    <button id=\"aiBtn\" disabled>AI 피드백 받기</button>\n  </section>\n\n  <!-- ④ 지난 기록 -->\n  <section class=\"card\">\n    <h2>📋 지난 기록</h2>\n    <ul class=\"hist\" id=\"hist\"></ul>\n  </section>\n</div>\n\n<script>\n  // 구간 시간은 \"분:초\" 글자로 적고, 계산할 때는 초로 바꾼다\n  let laps = ['5:45', '5:52', '6:04', '6:18'];\n  const STORE = 'pararun-laps-v1';\n\n  // \"5:45\" → 345초\n  function toSec(text) {\n    const m = /^(\\d{1,2}):(\\d{2})$/.exec(String(text).trim());\n    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;\n  }\n  // 345초 → 5'45\"\n  function pace(sec) {\n    const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60;\n    return m + \"'\" + String(s).padStart(2, '0') + '\"';\n  }\n  // 1415초 → 23:35\n  function clock(sec) {\n    const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60;\n    return m + ':' + String(s).padStart(2, '0');\n  }\n\n  // 지금 적힌 구간들을 계산해서 돌려준다 (잘못 적힌 칸이 있으면 null)\n  function calc() {\n    const secs = laps.map(toSec);\n    if (secs.length === 0 || secs.some(isNaN)) return null;\n    const total = secs.reduce((a, b) => a + b, 0);\n    const half = Math.ceil(secs.length / 2);\n    const avg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;\n    const front = avg(secs.slice(0, half));\n    const back = secs.length > 1 ? avg(secs.slice(half)) : front;\n    return { secs, total, avg: total / secs.length, front, back, diff: back - front };\n  }\n\n  // 구간 입력 칸 그리기\n  function drawLaps() {\n    const box = document.getElementById('laps');\n    box.innerHTML = '';\n    const r = calc();\n    const fast = r ? Math.min(...r.secs) : 0, slow = r ? Math.max(...r.secs) : 0;\n    laps.forEach((v, i) => {\n      const row = document.createElement('div');\n      row.className = 'lap';\n      const s = toSec(v);\n      const width = r ? 30 + 70 * (s - fast) / Math.max(1, slow - fast) : 0;\n      const kind = r && laps.length > 1 ? (s === fast ? ' fast' : s === slow ? ' slow' : '') : '';\n      row.innerHTML = '<b>' + (i + 1) + 'km</b>' +\n        '<input value=\"' + String(v).replace(/\"/g, '&quot;') + '\" aria-label=\"' + (i + 1) + 'km 구간 시간\">' +\n        '<div class=\"bar' + kind + '\" style=\"width:' + width + '%\"></div>' +\n        '<button class=\"del\" title=\"구간 빼기\">✕</button>';\n      row.querySelector('input').addEventListener('change', (e) => { laps[i] = e.target.value; drawAll(); });\n      row.querySelector('.del').addEventListener('click', () => { if (laps.length > 1) { laps.splice(i, 1); drawAll(); } });\n      box.appendChild(row);\n    });\n  }\n\n  // 요약 칸 그리기\n  function drawStats() {\n    const r = calc();\n    if (!r) {\n      ['dist', 'total', 'avg'].forEach((id) => document.getElementById(id).textContent = '-');\n      document.getElementById('split').textContent = '구간 시간은 5:45 처럼 분:초로 적어 주세요.';\n      return;\n    }\n    document.getElementById('dist').textContent = r.secs.length + 'km';\n    document.getElementById('total').textContent = clock(r.total);\n    document.getElementById('avg').textContent = pace(r.avg);\n    let msg = '➖ 페이스를 고르게 유지했어요.';\n    if (r.diff > 5) msg = '📉 후반에 ' + Math.round(r.diff) + '초/km 느려졌어요 (초반 오버페이스?)';\n    if (r.diff < -5) msg = '📈 후반에 ' + Math.round(-r.diff) + '초/km 빨라졌어요 (후반 스퍼트!)';\n    document.getElementById('split').textContent = '전반 ' + pace(r.front) + ' → 후반 ' + pace(r.back) + '  ' + msg;\n  }\n\n  // 지난 기록 (이 브라우저에만 저장)\n  function loadHistory() {\n    try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch (e) { return []; }\n  }\n  function saveHistory(list) {\n    try { localStorage.setItem(STORE, JSON.stringify(list)); } catch (e) { }\n  }\n  function drawHistory() {\n    const list = loadHistory(), ul = document.getElementById('hist');\n    ul.innerHTML = '';\n    if (list.length === 0) { ul.innerHTML = '<li class=\"empty\">아직 저장한 기록이 없어요.</li>'; return; }\n    const best = Math.min(...list.map((x) => x.avg));\n    list.slice().reverse().forEach((x) => {\n      const li = document.createElement('li');\n      li.innerHTML = '<span>' + x.date + ' · ' + x.km + 'km · 평균 ' + pace(x.avg) + '</span>' +\n        (x.avg === best ? '<em class=\"best\">최고</em>' : '');\n      ul.appendChild(li);\n    });\n  }\n\n  document.getElementById('addLap').addEventListener('click', () => {\n    laps.push(laps[laps.length - 1] || '6:00');\n    drawAll();\n  });\n\n  document.getElementById('save').addEventListener('click', () => {\n    const r = calc();\n    if (!r) { alert('구간 시간을 5:45 처럼 적어 주세요.'); return; }\n    const list = loadHistory();\n    list.push({ date: new Date().toLocaleDateString('ko-KR'), km: r.secs.length, avg: Math.round(r.avg), laps: r.secs });\n    saveHistory(list);\n    drawHistory();\n    alert('저장했어요!');\n  });\n\n  // TODO: 여기에 AI 피드백 기능을 넣어요.\n  //  - 'AI 피드백 받기' 버튼(aiBtn)을 누르면 calc() 결과(구간 초, 평균, 전반/후반)와\n  //    지난 최고 기록을 AI API 에 보내고, 돌아온 글을 aiText 에 보여 준다.\n  //  - API 키는 이 화면 코드에 쓰지 않는다!\n\n  function drawAll() { drawLaps(); drawStats(); }\n  drawAll();\n  drawHistory();\n</script>\n</body>\n</html>\n"
+     "text": "학생이 **PAPS 5개 영역 등급**을 고르면, AI 선생님이 **약한 영역 중심의 4주 운동 처방**을 써 주는 웹앱이에요. 처방은 스프레드시트에 한 줄씩 쌓여요.\n코드 두 파일을 드려요. **그대로 붙여 넣고, 내 API 키만 넣으면** 바로 돌아가요."
     },
     {
      "t": "box",
-     "title": "🎯 미션",
-     "text": "**\"AI 피드백 받기\" 버튼을 누르면, 오늘 구간 기록을 AI API에 보내고 코치 피드백을 받아 보여 주기.**\n\n지킬 조건\n1. **API 키는 화면 코드(HTML)에 쓰지 않기** → 앱스크립트 스크립트 속성에\n2. **이름·학번은 보내지 않기** → 구간 시간·평균·전반/후반·지난 최고 기록 숫자만\n3. **AI가 실패해도 멈추지 않기** → \"지금은 AI 피드백을 받을 수 없어요\" 안내",
-     "tone": "accent"
+     "title": "파일 구조",
+     "text": "- `index.html` : 학생이 PAPS 등급을 고르는 화면\n- `Code.gs` : 입력값으로 **Gemini API**를 부르고 처방을 돌려준 뒤, 시트에 저장\n- **API 키** : 각자 Google AI Studio에서 발급 → **스크립트 속성**에만 넣어요 (코드·자료·캡처에 적지 않기)",
+     "tone": "soft"
     },
     {
      "t": "h",
-     "text": "② 어떻게 연결하나"
-    },
-    {
-     "t": "cards",
-     "num": true,
-     "items": [
-      {
-       "title": "index.html (시작 코드)",
-       "body": "버튼을 누르면 `calc()`로 구한 구간 초·평균·전반/후반과 지난 최고 기록을 서버 함수에 넘겨요"
-      },
-      {
-       "title": "Code.gs (앱스크립트 서버)",
-       "body": "숫자로 **코치 프롬프트**를 만들고, **스크립트 속성**의 키를 붙여 Gemini API에 보내요"
-      },
-      {
-       "title": "Gemini API",
-       "body": "프롬프트를 읽고 피드백 글을 **JSON**으로 돌려줘요"
-      },
-      {
-       "title": "다시 화면으로",
-       "body": "Code.gs가 JSON에서 글만 꺼내 돌려주면, AI 코치 칸(`aiText`)에 보여 줘요"
-      }
-     ]
-    },
-    {
-     "t": "note",
-     "tone": "tip",
-     "text": "왜 앱스크립트로 옮길까요? 시작 코드는 화면(HTML)뿐이라 여기에 키를 넣으면 **누구나 볼 수 있어요.** 앱스크립트의 Code.gs는 구글 서버에서 돌아가서 키를 숨긴 채 API를 부를 수 있어요."
-    },
-    {
-     "t": "h",
-     "text": "③ 만드는 순서"
-    },
-    {
-     "t": "steps",
-     "items": [
-      {
-       "title": "시작 코드 복사하기",
-       "body": "위 실습 상자의 **코드 복사**를 눌러요."
-      },
-      {
-       "title": "Gemini API 키 받기",
-       "body": "**aistudio.google.com** 에 구글 계정으로 들어가 **Get API key → API 키 만들기.** 키는 아무 데도 올리지 않아요."
-      },
-      {
-       "title": "앱스크립트 프로젝트 만들기",
-       "body": "**script.google.com → 새 프로젝트.** `Code.gs` 하나, `index.html` 하나(＋ → HTML)를 만들어요."
-      },
-      {
-       "title": "키를 스크립트 속성에 넣기",
-       "body": "**⚙ 프로젝트 설정 → 스크립트 속성 → 속성 추가.** 이름 `GEMINI_API_KEY`, 값에 키. **코드에는 키를 쓰지 않아요.**"
-      },
-      {
-       "title": "AI에게 API 기능 넣어 달라고 하기",
-       "body": "아래 **실습 프롬프트** 끝에 시작 코드를 붙여 AI(제미나이·챗GPT·클로드)에게 보내요. 받은 코드를 Code.gs·index.html에 붙여 넣어요."
-      },
-      {
-       "title": "권한 허용하고 배포하기",
-       "body": "**배포 → 새 배포 → 웹 앱.** 실행: 나, 액세스: 모든 사용자. \"외부 서비스에 연결\" 권한을 **허용**해요(Gemini API를 부르기 때문)."
-      },
-      {
-       "title": "써 보고 다듬기",
-       "body": "초반 오버페이스·후반 스퍼트 기록을 넣어 피드백이 달라지는지 봐요. 말투가 마음에 안 들면 **Code.gs의 프롬프트 줄만** 고쳐요."
-      }
-     ]
-    },
-    {
-     "t": "h",
-     "text": "④ 실습 프롬프트"
-    },
-    {
-     "t": "prompt",
-     "label": "시작 코드에 AI 피드백 기능 넣기",
-     "text": "아래는 달리기 구간 기록 웹앱 코드야. 여기에 'AI 피드백 받기' 기능을 넣어서 구글 앱스크립트 웹앱으로 만들어 줘.\n\n1. 화면과 기존 기능은 그대로 두고, 파일을 Code.gs 와 index.html 로 나눠 줘.\n2. 코드 맨 아래 TODO 자리에 넣어 줘: AI 피드백 받기 버튼(aiBtn)을 누르면 calc() 결과(구간 초, 평균, 전반·후반 평균)와 지난 최고 평균 페이스를 google.script.run 으로 Code.gs 의 getFeedback 에 보내고, 받은 글을 aiText 에 보여 줘. 이름·학번은 보내지 마.\n3. Code.gs 의 getFeedback 은 UrlFetchApp 으로 Gemini API(generateContent)를 불러. API 키는 코드에 쓰지 말고 스크립트 속성 GEMINI_API_KEY 에서 꺼내.\n4. AI 에게 보낼 프롬프트: 중고생 러닝 코치, 3~4문장 한국어, 숫자를 나열하지 말고 페이스 배분(초반 오버페이스/후반 처짐/꾸준함) 조언, 마지막은 '다음번엔 ~해 보자'로.\n5. AI 가 실패하면 '지금은 AI 피드백을 받을 수 없어요'라고 aiText 에 보여 줘.\n6. 바뀐 부분에 한국어 주석을 달고, 스크립트 속성 넣는 법과 배포 방법을 단계별로 알려 줘.\n\n[여기에 시작 코드 붙여넣기]"
-    },
-    {
-     "t": "prompt",
-     "hide": true,
-     "label": "도전 1 — 지난 기록과 비교하는 성장 피드백",
-     "text": "지금 AI 피드백에 기능을 더해 줘.\n- 지난 기록(localStorage) 중 최근 3개의 평균 페이스도 같이 보내서, AI 가 '지난번보다 나아진 점'을 한 문장 넣게 해 줘.\n- 첫 기록이면 '첫 기록이에요'라고 알려 주게 해 줘.\n기존 기능은 그대로 두고, 바뀐 부분을 알려 줘."
-    },
-    {
-     "t": "prompt",
-     "hide": true,
-     "label": "도전 2 — 기록과 피드백을 구글 시트에 남기기",
-     "text": "지금 웹앱에 기능을 더해 줘.\n1. 기록 저장을 누르면 구글 시트에 [시각, 거리, 평균 페이스, 구간 기록]을 한 줄씩 남겨 줘.\n2. AI 피드백을 받으면 같은 줄 옆 칸에 피드백 글도 저장해 줘.\n3. AI 에게는 숫자만 보내고 다른 정보는 보내지 마.\n바뀐 부분이 어디인지 알려 줘."
-    },
-    {
-     "t": "h",
-     "text": "⑤ 참고 코드"
+     "text": "완성 모습 미리보기"
     },
     {
      "t": "p",
-     "text": "AI가 준 코드가 아래와 비슷하면 잘 받은 거예요. 핵심은 **① 스크립트 속성에서 키 꺼내기 ② 숫자로 프롬프트 만들기 ③ UrlFetchApp으로 요청 ④ 응답 JSON에서 글 꺼내기**예요."
+     "text": "등급을 몇 개 바꾸고 **🤖 AI 운동 처방 받기**를 눌러 보세요. 여기서는 **예시 처방**이 나오고, 실제로 배포하면 Gemini가 쓴 처방이 나와요."
+    },
+    {
+     "t": "html",
+     "title": "미리보기 — PAPS 맞춤 운동 처방",
+     "height": 1250,
+     "code": "<!DOCTYPE html>\n<html>\n<head>\n  <base target=\"_top\">\n  <meta charset=\"UTF-8\">\n  <style>\n    body { margin: 0; padding: 16px; background: #f0fdf4; font-family: system-ui, sans-serif; color: #1f2933; }\n    .box { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }\n    h1 { font-size: 22px; margin: 0 0 4px; }\n    p.sub { margin: 0 0 14px; color: #6b7280; font-size: 14px; }\n    .two { display: flex; gap: 8px; }\n    .two select { flex: 1; }\n    select { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 9px; border: 1px solid #d1d5db; border-radius: 10px; }\n    .area { margin-top: 12px; }\n    .area b { display: block; font-size: 14px; margin-bottom: 6px; }\n    .grades { display: flex; gap: 6px; }\n    .grades button { flex: 1; padding: 9px 0; font-size: 15px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; cursor: pointer; }\n    .grades button.on { background: #16a34a; color: #fff; border-color: #16a34a; }\n    .like { margin-top: 14px; }\n    .like b { display: block; font-size: 14px; margin-bottom: 6px; }\n    #send { width: 100%; margin-top: 18px; padding: 14px; font-size: 17px; font-weight: 800; border: 0; border-radius: 12px; background: #16a34a; color: #fff; cursor: pointer; }\n    #send:disabled { opacity: .6; }\n    #result { display: none; margin-top: 16px; padding: 14px; border-radius: 12px; background: #ecfdf5; line-height: 1.75; white-space: pre-wrap; }\n  </style>\n  <script>\n    // ── 미리보기 전용 ── 앱스크립트 밖에서는 google.script.run 이 없어서, 고른 등급으로 만든 '예시 처방'을 보여 준다.\n    // 실제로 배포하면 이 부분 없이 Code.gs 가 Gemini 에게 받아 온 처방이 나온다.\n    if (!window.google) window.google = { script: { run: {\n      withSuccessHandler(f) { this._ok = f; return this; }, withFailureHandler() { return this; },\n      getPrescription(p) {\n        const ok = this._ok;\n        const name = { cardio: '심폐지구력', strength: '근력·근지구력', flex: '유연성', power: '순발력', bmi: '체지방' };\n        const why = { cardio: '오래 뛰어도 덜 지치게 해 주는 힘이에요.', strength: '바른 자세와 다치지 않는 몸을 만들어 줘요.', flex: '근육과 관절을 부드럽게 해 부상을 막아 줘요.', power: '순간적으로 빠르게 움직이는 힘이에요.', bmi: '건강한 몸의 균형을 보여 줘요.' };\n        const move = { cardio: '제자리 뛰기 3분 × 2세트', strength: '무릎 대고 팔굽혀펴기 10회 × 2세트, 플랭크 30초', flex: '앉아 앞으로 굽히기 30초 × 3, 다리 벌려 옆으로 늘이기', power: '제자리 점프 10회 × 2세트, 스쿼트 점프 8회', bmi: '빠르게 걷기 10분' };\n        const keys = Object.keys(name).sort(function (a, b) { return p[b] - p[a]; }).slice(0, 2);\n        const text = '(미리보기 예시 처방 — 실제로 배포하면 Gemini가 써요)\\n\\n' +\n          '집중할 영역\\n' + keys.map(function (k) { return '· ' + name[k] + ' (' + p[k] + '등급): ' + why[k]; }).join('\\n') + '\\n\\n' +\n          '주 3회 · 하루 20분 루틴\\n1. 준비 운동: 가볍게 걷기와 관절 돌리기 3분\\n' +\n          keys.map(function (k, i) { return (i + 2) + '. ' + move[k]; }).join('\\n') + '\\n' +\n          (p.like ? (keys.length + 2) + '. 좋아하는 ' + p.like + ' 5분\\n' : '') +\n          '마무리: 천천히 걷고 스트레칭 3분\\n\\n' +\n          '4주 동안 늘리기: 매주 횟수나 시간을 10%씩만 늘려요.\\n' +\n          '안전: 아프거나 어지러우면 바로 멈추고 선생님께 말해요.\\n' +\n          '한 칸씩 올라가는 게 진짜 실력이에요. 4주 뒤 다시 재 봐요! 💪';\n        setTimeout(function () { ok(text); }, 900);\n      }\n    } } };\n  </script>\n</head>\n<body>\n  <div class=\"box\">\n    <h1>💪 PAPS 맞춤 운동 처방</h1>\n    <p class=\"sub\">PAPS 등급을 고르면 AI 선생님이 4주 운동 계획을 짜 줘요. 1등급이 가장 좋아요. 이름은 적지 않아요.</p>\n\n    <div class=\"two\">\n      <select id=\"grade\">\n        <option>중1</option><option>중2</option><option>중3</option>\n        <option>고1</option><option>고2</option><option>고3</option>\n      </select>\n      <select id=\"sex\"><option>남</option><option>여</option></select>\n    </div>\n\n    <!-- PAPS 다섯 영역: 등급 단추는 아래 스크립트가 만든다 -->\n    <div id=\"areas\"></div>\n\n    <div class=\"like\">\n      <b>좋아하는 운동 (선택)</b>\n      <select id=\"like\">\n        <option value=\"\">없음</option><option>줄넘기</option><option>달리기</option><option>배드민턴</option>\n        <option>농구</option><option>축구</option><option>댄스</option><option>자전거</option><option>수영</option>\n      </select>\n    </div>\n\n    <button id=\"send\">🤖 AI 운동 처방 받기</button>\n    <div id=\"result\"></div>\n  </div>\n\n  <script>\n    // PAPS 다섯 영역 (key 는 Code.gs 로 보낼 이름)\n    const AREAS = [\n      { key: 'cardio', name: '❤️ 심폐지구력 (왕복오래달리기 등)' },\n      { key: 'strength', name: '💪 근력·근지구력 (팔굽혀펴기·윗몸말아올리기 등)' },\n      { key: 'flex', name: '🤸 유연성 (앉아윗몸앞으로굽히기 등)' },\n      { key: 'power', name: '⚡ 순발력 (제자리멀리뛰기 등)' },\n      { key: 'bmi', name: '⚖️ 체지방 (BMI)' }\n    ];\n    const picked = {};   // 예: { cardio: 3, ... }\n\n    // 영역마다 1~5등급 단추 만들기\n    AREAS.forEach(function (a) {\n      picked[a.key] = 3;\n      const div = document.createElement('div');\n      div.className = 'area';\n      div.innerHTML = '<b>' + a.name + '</b><div class=\"grades\"></div>';\n      const row = div.querySelector('.grades');\n      for (let g = 1; g <= 5; g++) {\n        const btn = document.createElement('button');\n        btn.textContent = g + '등급';\n        if (g === 3) btn.className = 'on';\n        btn.onclick = function () {\n          row.querySelectorAll('button').forEach(function (b) { b.className = ''; });\n          btn.className = 'on';\n          picked[a.key] = g;\n        };\n        row.appendChild(btn);\n      }\n      document.getElementById('areas').appendChild(div);\n    });\n\n    // 보내기 → Code.gs 의 getPrescription 을 부르고, 돌아온 처방을 보여 준다\n    document.getElementById('send').onclick = function () {\n      const paps = {\n        grade: document.getElementById('grade').value,\n        sex: document.getElementById('sex').value,\n        cardio: picked.cardio, strength: picked.strength, flex: picked.flex, power: picked.power, bmi: picked.bmi,\n        like: document.getElementById('like').value\n      };\n\n      const send = document.getElementById('send');\n      const result = document.getElementById('result');\n      send.disabled = true;\n      send.textContent = 'AI 선생님이 계획을 짜는 중...';\n\n      google.script.run\n        .withSuccessHandler(function (text) {\n          result.style.display = 'block';\n          result.textContent = text;\n          send.disabled = false;\n          send.textContent = '🤖 다시 받기';\n        })\n        .withFailureHandler(function () {\n          result.style.display = 'block';\n          result.textContent = '처방을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.';\n          send.disabled = false;\n          send.textContent = '🤖 AI 운동 처방 받기';\n        })\n        .getPrescription(paps);\n    };\n  </script>\n</body>\n</html>\n"
+    },
+    {
+     "t": "h",
+     "text": "배포 실습 순서"
+    },
+    {
+     "t": "box",
+     "title": "",
+     "tone": "plain",
+     "text": "1. **API 키 발급** — aistudio.google.com → Get API key → API 키 만들기 (키는 아무 데도 올리지 않기)\n2. **sheets.new** → 스프레드시트 **확장 프로그램 → Apps Script**\n3. `Code.gs` 내용을 지우고 아래 **Code.gs** 코드로 교체\n4. 왼쪽 **＋ → HTML** → 파일명 `index` 로 생성 → 아래 **index.html** 코드 붙여넣기 → 💾 저장\n5. 왼쪽 **⚙ 톱니바퀴(프로젝트 설정) → 스크립트 속성 → 속성 추가** — 속성: `GEMINI_API_KEY` / 값: 발급받은 API 키\n6. 오른쪽 위 **배포 → 새 배포 → 유형: 웹 앱** — 실행: **나** / 액세스 권한: **모든 사용자** (처음엔 권한 허용: 고급 → 이동 → 허용)\n7. 배포 후 나오는 **웹 앱 URL** 접속 → 실습 (시트에 **PAPS처방** 탭이 생기고 기록이 쌓여요)"
+    },
+    {
+     "t": "h",
+     "text": "Code.gs"
     },
     {
      "t": "prompt",
-     "hide": true,
-     "label": "Code.gs 참고 코드 보기",
-     "text": "// Code.gs — 앱스크립트 서버 쪽 (구글 서버에서 돌아가서 학생은 이 코드를 못 봐요)\nfunction doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('파라런 구간 기록장')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n\n// 화면에서 google.script.run.getFeedback(run) 으로 부른다.\n// run 예: { laps: [345, 352, 364, 378], avg: 360, front: 349, back: 371, best: 350 }  (모두 초)\nfunction getFeedback(run) {\n  // ① API 키는 코드에 쓰지 않고 '스크립트 속성'에서 꺼낸다\n  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');\n  if (!key) return 'AI 열쇠(GEMINI_API_KEY)가 아직 없어요. 스크립트 속성을 확인해 주세요.';\n\n  // ② 숫자를 AI 에게 보낼 부탁(프롬프트)으로 바꾼다\n  const pace = (s) => Math.floor(Math.round(s) / 60) + \"'\" + String(Math.round(s) % 60).padStart(2, '0') + '\"';\n  const prompt =\n    '너는 중고생 러닝 코치야. 학생의 이번 달리기 기록을 보고 3~4문장으로 한국어 피드백을 써줘.\\n' +\n    '- 숫자를 그대로 나열하지 마\\n' +\n    '- 구간 페이스를 보고 페이스 배분(초반 오버페이스 / 후반 처짐 / 꾸준함)에 대한 조언을 꼭 넣어\\n' +\n    '- 다정한 말투로, 마지막 문장은 \"다음번엔 ~해 보자\"로 끝내\\n\\n' +\n    '구간별 페이스: ' + run.laps.map((s, i) => (i + 1) + 'km ' + pace(s)).join(', ') + '\\n' +\n    '평균 페이스: ' + pace(run.avg) + ' (전반 ' + pace(run.front) + ', 후반 ' + pace(run.back) + ')\\n' +\n    '지난 최고 평균 페이스: ' + (run.best ? pace(run.best) : '없음 (첫 기록)');\n\n  // ③ Gemini API 에 요청 (모델 이름은 AI Studio 에서 지금 쓸 수 있는 것으로)\n  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';\n  const res = UrlFetchApp.fetch(url, {\n    method: 'post',\n    contentType: 'application/json',\n    headers: { 'x-goog-api-key': key },\n    payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),\n    muteHttpExceptions: true\n  });\n\n  // ④ 응답(JSON)에서 글만 꺼내 화면에 돌려준다\n  if (res.getResponseCode() !== 200) {\n    return '지금은 AI 피드백을 받을 수 없어요. (오류 ' + res.getResponseCode() + ')';\n  }\n  const data = JSON.parse(res.getContentText());\n  return data.candidates[0].content.parts[0].text;\n}\n"
+     "label": "Code.gs — 통째로 복사해서 붙여 넣기",
+     "text": "// 기록이 쌓일 시트 탭 이름\nconst SHEET = 'PAPS처방';\n\n// 웹앱 주소로 들어오면 index.html 화면을 보여 준다\nfunction doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('PAPS 맞춤 운동 처방')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n\n// 화면에서 google.script.run.getPrescription(paps) 로 부른다\n// paps 예: { grade: '중2', sex: '여', cardio: 4, strength: 3, flex: 2, power: 3, bmi: 2, like: '줄넘기' }\n// 등급: 1등급(아주 좋음) ~ 5등급(노력 필요)\nfunction getPrescription(paps) {\n  // ① API 키는 코드에 쓰지 않고 스크립트 속성에서 꺼낸다\n  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');\n  if (!key) return 'API 키가 없어요. 스크립트 속성에 GEMINI_API_KEY 를 넣어 주세요.';\n\n  // ② AI에게 보낼 부탁(프롬프트) 만들기\n  const prompt =\n    '너는 학교 체육 선생님이야. 학생의 PAPS(학생건강체력평가) 결과를 보고 4주 운동 처방을 써 줘.\\n' +\n    '- 등급은 1등급이 가장 좋고 5등급이 노력이 필요한 단계야\\n' +\n    '- 등급이 낮은(숫자가 큰) 영역 1~2개를 골라 왜 중요한지 한 문장씩 설명해\\n' +\n    '- 학교나 집에서 도구 없이 할 수 있는 운동으로, 주 3회 하루 20분 루틴을 짜 줘 (운동 이름, 횟수나 시간)\\n' +\n    '- 좋아하는 운동이 있으면 루틴에 넣어 줘\\n' +\n    '- 1주차보다 4주차를 조금 늘리는 방법을 한 줄로 알려 줘\\n' +\n    '- 마지막에 안전 주의 한 줄과 응원 한 줄\\n' +\n    '- 중학생이 읽기 쉬운 한국어, 마크다운 기호(#, *)는 쓰지 마\\n\\n' +\n    '학년: ' + paps.grade + ', 성별: ' + paps.sex + '\\n' +\n    '심폐지구력: ' + paps.cardio + '등급\\n' +\n    '근력·근지구력: ' + paps.strength + '등급\\n' +\n    '유연성: ' + paps.flex + '등급\\n' +\n    '순발력: ' + paps.power + '등급\\n' +\n    '체지방(BMI): ' + paps.bmi + '등급\\n' +\n    '좋아하는 운동: ' + (paps.like || '없음');\n\n  // ③ Gemini API 부르기\n  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';\n  const res = UrlFetchApp.fetch(url, {\n    method: 'post',\n    contentType: 'application/json',\n    headers: { 'x-goog-api-key': key },\n    payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),\n    muteHttpExceptions: true\n  });\n\n  // ④ 응답(JSON)에서 처방 글만 꺼내기\n  let plan;\n  if (res.getResponseCode() === 200) {\n    plan = JSON.parse(res.getContentText()).candidates[0].content.parts[0].text;\n  } else {\n    plan = '지금은 AI 처방을 받을 수 없어요. (오류 ' + res.getResponseCode() + ')';\n  }\n\n  // ⑤ 시트에 한 줄 남기기 (이름은 받지 않는다)\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  const sheet = ss.getSheetByName(SHEET) || ss.insertSheet(SHEET);\n  if (sheet.getLastRow() === 0) {\n    sheet.appendRow(['시각', '학년', '성별', '심폐', '근력', '유연성', '순발력', '체지방', '좋아하는 운동', 'AI 처방']);\n  }\n  sheet.appendRow([new Date(), paps.grade, paps.sex, paps.cardio, paps.strength, paps.flex, paps.power, paps.bmi, paps.like, plan]);\n\n  return plan;\n}\n"
+    },
+    {
+     "t": "h",
+     "text": "index.html"
     },
     {
      "t": "prompt",
-     "hide": true,
-     "label": "index.html — TODO 자리에 들어갈 코드 보기",
-     "text": "  // ── AI 피드백 (TODO 자리에 넣은 코드) ──\n  const aiBtn = document.getElementById('aiBtn');\n  const aiText = document.getElementById('aiText');\n  aiBtn.disabled = false;\n  aiBtn.style.background = '#7c3aed';\n  aiBtn.style.cursor = 'pointer';\n  aiText.textContent = '구간 기록을 넣고 버튼을 눌러 보세요.';\n\n  aiBtn.addEventListener('click', () => {\n    const r = calc();\n    if (!r) { aiText.textContent = '구간 시간을 먼저 바르게 적어 주세요.'; return; }\n    const list = loadHistory();\n    const best = list.length ? Math.min(...list.map((x) => x.avg)) : 0;\n    // 숫자만 보낸다 (이름·학번은 보내지 않는다)\n    const run = { laps: r.secs, avg: Math.round(r.avg), front: Math.round(r.front), back: Math.round(r.back), best: best };\n\n    aiBtn.disabled = true;\n    aiText.textContent = 'AI 코치가 피드백을 쓰는 중...';\n    google.script.run\n      .withSuccessHandler((text) => { aiText.textContent = text; aiBtn.disabled = false; })\n      .withFailureHandler(() => { aiText.textContent = '피드백을 불러오지 못했어요.'; aiBtn.disabled = false; })\n      .getFeedback(run);   // ← Code.gs 의 함수 이름\n  });\n"
+     "label": "index.html — 통째로 복사해서 붙여 넣기",
+     "text": "<!DOCTYPE html>\n<html>\n<head>\n  <base target=\"_top\">\n  <meta charset=\"UTF-8\">\n  <style>\n    body { margin: 0; padding: 16px; background: #f0fdf4; font-family: system-ui, sans-serif; color: #1f2933; }\n    .box { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }\n    h1 { font-size: 22px; margin: 0 0 4px; }\n    p.sub { margin: 0 0 14px; color: #6b7280; font-size: 14px; }\n    .two { display: flex; gap: 8px; }\n    .two select { flex: 1; }\n    select { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 9px; border: 1px solid #d1d5db; border-radius: 10px; }\n    .area { margin-top: 12px; }\n    .area b { display: block; font-size: 14px; margin-bottom: 6px; }\n    .grades { display: flex; gap: 6px; }\n    .grades button { flex: 1; padding: 9px 0; font-size: 15px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; cursor: pointer; }\n    .grades button.on { background: #16a34a; color: #fff; border-color: #16a34a; }\n    .like { margin-top: 14px; }\n    .like b { display: block; font-size: 14px; margin-bottom: 6px; }\n    #send { width: 100%; margin-top: 18px; padding: 14px; font-size: 17px; font-weight: 800; border: 0; border-radius: 12px; background: #16a34a; color: #fff; cursor: pointer; }\n    #send:disabled { opacity: .6; }\n    #result { display: none; margin-top: 16px; padding: 14px; border-radius: 12px; background: #ecfdf5; line-height: 1.75; white-space: pre-wrap; }\n  </style>\n</head>\n<body>\n  <div class=\"box\">\n    <h1>💪 PAPS 맞춤 운동 처방</h1>\n    <p class=\"sub\">PAPS 등급을 고르면 AI 선생님이 4주 운동 계획을 짜 줘요. 1등급이 가장 좋아요. 이름은 적지 않아요.</p>\n\n    <div class=\"two\">\n      <select id=\"grade\">\n        <option>중1</option><option>중2</option><option>중3</option>\n        <option>고1</option><option>고2</option><option>고3</option>\n      </select>\n      <select id=\"sex\"><option>남</option><option>여</option></select>\n    </div>\n\n    <!-- PAPS 다섯 영역: 등급 단추는 아래 스크립트가 만든다 -->\n    <div id=\"areas\"></div>\n\n    <div class=\"like\">\n      <b>좋아하는 운동 (선택)</b>\n      <select id=\"like\">\n        <option value=\"\">없음</option><option>줄넘기</option><option>달리기</option><option>배드민턴</option>\n        <option>농구</option><option>축구</option><option>댄스</option><option>자전거</option><option>수영</option>\n      </select>\n    </div>\n\n    <button id=\"send\">🤖 AI 운동 처방 받기</button>\n    <div id=\"result\"></div>\n  </div>\n\n  <script>\n    // PAPS 다섯 영역 (key 는 Code.gs 로 보낼 이름)\n    const AREAS = [\n      { key: 'cardio', name: '❤️ 심폐지구력 (왕복오래달리기 등)' },\n      { key: 'strength', name: '💪 근력·근지구력 (팔굽혀펴기·윗몸말아올리기 등)' },\n      { key: 'flex', name: '🤸 유연성 (앉아윗몸앞으로굽히기 등)' },\n      { key: 'power', name: '⚡ 순발력 (제자리멀리뛰기 등)' },\n      { key: 'bmi', name: '⚖️ 체지방 (BMI)' }\n    ];\n    const picked = {};   // 예: { cardio: 3, ... }\n\n    // 영역마다 1~5등급 단추 만들기\n    AREAS.forEach(function (a) {\n      picked[a.key] = 3;\n      const div = document.createElement('div');\n      div.className = 'area';\n      div.innerHTML = '<b>' + a.name + '</b><div class=\"grades\"></div>';\n      const row = div.querySelector('.grades');\n      for (let g = 1; g <= 5; g++) {\n        const btn = document.createElement('button');\n        btn.textContent = g + '등급';\n        if (g === 3) btn.className = 'on';\n        btn.onclick = function () {\n          row.querySelectorAll('button').forEach(function (b) { b.className = ''; });\n          btn.className = 'on';\n          picked[a.key] = g;\n        };\n        row.appendChild(btn);\n      }\n      document.getElementById('areas').appendChild(div);\n    });\n\n    // 보내기 → Code.gs 의 getPrescription 을 부르고, 돌아온 처방을 보여 준다\n    document.getElementById('send').onclick = function () {\n      const paps = {\n        grade: document.getElementById('grade').value,\n        sex: document.getElementById('sex').value,\n        cardio: picked.cardio, strength: picked.strength, flex: picked.flex, power: picked.power, bmi: picked.bmi,\n        like: document.getElementById('like').value\n      };\n\n      const send = document.getElementById('send');\n      const result = document.getElementById('result');\n      send.disabled = true;\n      send.textContent = 'AI 선생님이 계획을 짜는 중...';\n\n      google.script.run\n        .withSuccessHandler(function (text) {\n          result.style.display = 'block';\n          result.textContent = text;\n          send.disabled = false;\n          send.textContent = '🤖 다시 받기';\n        })\n        .withFailureHandler(function () {\n          result.style.display = 'block';\n          result.textContent = '처방을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.';\n          send.disabled = false;\n          send.textContent = '🤖 AI 운동 처방 받기';\n        })\n        .getPrescription(paps);\n    };\n  </script>\n</body>\n</html>\n"
     },
     {
      "t": "note",
      "tone": "warn",
-     "text": "**학생 개인정보는 AI에게 보내지 않아요.** 숫자만 보내요.\n**키는 코드·카톡·캡처에 올리지 않아요.** 새 나갔다 싶으면 AI Studio에서 지우고 새로 만들어요.\n**무료 등급은 1분·하루에 부를 수 있는 횟수가 정해져 있어요.** 한 반이 동시에 누르면 잠깐 막힐 수 있으니 실패 안내 문구를 꼭 넣어요."
+     "text": "**API 키는 비밀번호예요.** 코드·연수 자료·카톡·캡처에 적지 말고 스크립트 속성에만 넣어요. 새 나갔다면 AI Studio에서 지우고 새로 만들어요.\n**이름·학번은 받지 않아요.** AI에게는 학년·성별·등급만 가요.\n**무료 등급은 1분·하루에 부를 수 있는 횟수가 정해져 있어요.** 한 반이 동시에 누르면 잠깐 막힐 수 있어요."
+    },
+    {
+     "t": "h",
+     "text": "고쳐 보기"
+    },
+    {
+     "t": "box",
+     "title": "코드 한두 줄만 바꿔서 내 수업에 맞추기",
+     "text": "1. **처방 조건 바꾸기** — Code.gs ② 부분의 `주 3회 하루 20분`을 `주 4회 하루 15분`으로 바꾸고 다시 배포해 보세요.\n2. **좋아하는 운동 늘리기** — index.html의 `<option>수영</option>` 뒤에 `<option>태권도</option>`를 넣어 보세요.\n3. **말투 바꾸기** — Code.gs 프롬프트에 `- 친한 형·언니처럼 반말로` 한 줄을 넣어 보세요.\n\n고친 뒤에는 **배포 → 배포 관리 → ✏ → 버전: 새 버전**으로 다시 배포해야 바뀌어요.",
+     "tone": "accent"
+    },
+    {
+     "t": "prompt",
+     "hide": true,
+     "label": "도전 — AI에게 기능 더해 달라고 하기",
+     "text": "아래 PAPS 맞춤 운동 처방 앱(Code.gs, index.html)에 기능을 더해 줘.\n- 처방 아래에 '4주 체크표'를 보여 줘: 1~4주 × 월수금 칸을 눌러서 했는지 표시할 수 있게\n- 기존 기능과 API 키 처리(스크립트 속성 GEMINI_API_KEY)는 그대로 두고, 바뀐 부분이 어디인지 알려 줘\n\n[Code.gs 붙여넣기]\n[index.html 붙여넣기]"
     },
     {
      "t": "fold",
      "title": "막혔을 때 (눌러서 보기)",
-     "text": "- **\"AI 열쇠가 아직 없어요\"** — 스크립트 속성 이름이 `GEMINI_API_KEY` 와 글자 하나까지 같은지 확인해요\n- **오류 400** — 요청 모양이 틀렸어요. 모델 이름이 AI Studio에 있는 이름인지 확인해요\n- **오류 401·403** — 키가 틀렸거나 지워졌어요. 키를 다시 복사해 넣어요\n- **오류 429** — 너무 자주 불렀어요. 잠깐 뒤 다시 눌러요\n- **권한 화면에서 '확인되지 않은 앱'** — 고급 → (프로젝트 이름)으로 이동 → 허용. 내가 만든 앱이라 괜찮아요\n- **고쳤는데 그대로예요** — 배포 → 배포 관리 → ✏ → 버전: **새 버전**으로 다시 배포해야 바뀌어요"
+     "text": "- **\"API 키가 없어요\"** — 스크립트 속성 이름이 `GEMINI_API_KEY` 와 글자 하나까지 같은지 확인해요\n- **오류 400** — 요청 모양이 틀렸어요. 모델 이름이 AI Studio에 있는 이름인지 확인해요\n- **오류 401·403** — 키가 틀렸거나 지워졌어요. 키를 다시 복사해 넣어요\n- **오류 429** — 너무 자주 불렀어요. 잠깐 뒤 다시 눌러요\n- **권한 화면에서 '확인되지 않은 앱'** — 고급 → (프로젝트 이름)으로 이동 → 허용. 내가 만든 앱이라 괜찮아요\n- **고쳤는데 그대로예요** — 배포 → 배포 관리 → ✏ → 버전: **새 버전**으로 다시 배포해야 바뀌어요\n- **시트에 기록이 안 쌓여요** — 스프레드시트에서 **확장 프로그램 → Apps Script** 로 만든 프로젝트여야 해요(script.google.com에서 따로 만들면 시트와 연결이 안 돼요)"
     }
    ]
   },
