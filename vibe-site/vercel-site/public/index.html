@@ -101,6 +101,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* document */
 .main{min-width:0}
 .doc{max-width:760px;display:flex;flex-direction:column;gap:22px}
+/* hands-on labs (code | result side by side) get the whole column width */
+.doc:has(.lab){max-width:none}.doc:has(.lab)>.blk:not(:has(.lab)){max-width:760px;width:100%}
 .doc h2{font-size:1.55rem;line-height:1.35;margin:18px 0 0;font-weight:800;text-wrap:balance;padding-left:12px;border-left:5px solid var(--accent)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;counter-reset:cd}
 .cards.c2{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
