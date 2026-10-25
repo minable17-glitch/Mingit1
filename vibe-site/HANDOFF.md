@@ -89,3 +89,5 @@
 - 사이트마다 manifest: `manifest.webmanifest`(첫 사이트), `manifest-<slug>.webmanifest`(나머지) — `build_vercel.py manifest_for` 와 `api/admin.js manifestFor` 가 같은 규칙. 화면이 `/<slug>` 이면 manifest 링크를 바꿔 끼운다.
 - `sw.js`: 페이지·.json 은 네트워크 먼저(늘 최신 편집), 끊기면 저장해 둔 것. 사진은 한 번 보면 저장. `/api` 는 안 건드림. 캐시 이름 `vc-v1` 을 바꾸면 옛 캐시가 지워진다.
 - 아이콘 `icon-192.png`·`icon-512.png`·`apple-touch-icon.png` 는 `make_icons.py` 로 만듦. 크롬·삼성 인터넷은 위 줄 "📲 앱 설치" 단추(beforeinstallprompt), 아이폰은 사파리 공유 → 홈 화면에 추가.
+- 홈(첫 페이지): 머리에 페이지 제목 "홈" 대신 사이트 이름(태그가 있으면 위 작은 글씨, 없으면 WELCOME). 본문 아래 **둘러보기**(`explore()`) — 최상위 단원마다 카드(번호·설명·하위 페이지 4개·"페이지 N개 보기"). 홈에는 이전/다음 대신 이것. 편집 중엔 안 보임.
+- 왼쪽 메뉴 검색칸 둥근 모양, 메뉴 스크롤 막대는 얇게·마우스 올릴 때만.

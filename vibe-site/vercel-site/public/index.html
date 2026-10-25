@@ -239,7 +239,31 @@ mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .site-foot{border-top:1px solid var(--line);padding-top:20px;padding-bottom:20px;color:var(--muted);font-size:.92rem}
 .totop{position:fixed;right:16px;bottom:16px;z-index:56;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg);box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:pointer;font-size:1.15rem}
 .totop.up{bottom:92px}
-.nav-search{margin-bottom:12px}.nav-search input{width:100%}
+.nav-search{margin-bottom:12px;position:relative}
+.nav-search input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--fg);padding:9px 14px 9px 36px;font:inherit;font-size:.92rem;outline:none;-webkit-appearance:none;appearance:none}
+.nav-search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.nav-search::before{content:"";position:absolute;left:13px;top:50%;width:13px;height:13px;margin-top:-8px;border:2px solid var(--muted);border-radius:50%;pointer-events:none}
+.nav-search::after{content:"";position:absolute;left:25px;top:50%;width:6px;height:2px;margin-top:5px;background:var(--muted);transform:rotate(45deg);pointer-events:none}
+.nav{scrollbar-width:thin;scrollbar-color:transparent transparent}
+.nav:hover{scrollbar-color:var(--line) transparent}
+.nav::-webkit-scrollbar{width:6px}.nav::-webkit-scrollbar-track{background:transparent}
+.nav::-webkit-scrollbar-thumb{background:transparent;border-radius:6px}.nav:hover::-webkit-scrollbar-thumb{background:var(--line)}
+/* home: site title banner + section grid */
+.banner .eyebrow{display:inline-block;font-size:.85rem;letter-spacing:.08em;color:var(--hero-mute);margin-bottom:10px}
+.explore{max-width:960px;margin-top:40px}
+.explore>h2{font-size:1.15rem;margin:0 0 14px;display:flex;align-items:baseline;gap:10px}
+.explore>h2 small{font-weight:400;color:var(--muted);font-size:.88rem}
+.sec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px}
+.sec{position:relative;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;text-decoration:none;color:var(--fg);transition:transform .15s,box-shadow .15s,border-color .15s;overflow:hidden}
+.sec::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:var(--accent);opacity:.85}
+.sec:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.08);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.sec .no{font-size:.8rem;font-weight:800;color:var(--accent-text);letter-spacing:.06em}
+.sec b{font-size:1.08rem;line-height:1.4}
+.sec .sd{color:var(--muted);font-size:.9rem;line-height:1.55}
+.sec ul{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.sec li{font-size:.88rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec li::before{content:"·";margin-right:6px;color:var(--accent-text);font-weight:800}
+.sec .go{margin-top:auto;padding-top:6px;font-size:.85rem;font-weight:700;color:var(--accent-text)}
 .sres a{display:block;padding:8px 12px;border-radius:8px;text-decoration:none;color:var(--fg)}
 .sres a:hover{background:var(--soft)}.sres small{display:block;color:var(--muted);font-size:.85rem;margin-top:2px}
 .sres p{color:var(--muted);font-size:.92rem;margin:4px 12px}
@@ -424,7 +448,7 @@ if(REMOTE){
   if('serviceWorker' in navigator) window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});
 }
 var totopEl=el('button',{class:'totop',type:'button',hidden:true,'aria-label':'맨 위로',onclick:function(){window.scrollTo({top:0,behavior:'smooth'});}},'↑');
-var searchIn=el('input',{type:'search',placeholder:'🔍 사이트에서 찾기','aria-label':'사이트에서 찾기'});
+var searchIn=el('input',{type:'search',placeholder:'사이트에서 찾기','aria-label':'사이트에서 찾기'});
 var navList=el('div');
 navEl.append(el('div',{class:'nav-search'},searchIn),navList);
 searchIn.addEventListener('input',function(){S.q=searchIn.value.trim();renderNav();});
@@ -481,8 +505,8 @@ function renderBanner(){
   bannerEl.className='banner'+(cov?' cover':hero==='plain'?' plain':hero==='accent'?' accent':'');
   bannerEl.style.backgroundImage=cov?'linear-gradient(rgba(10,12,16,.55),rgba(10,12,16,.6)),url("'+cov.replace(/"/g,'%22')+'")':'';
   bannerEl.append(el('div',{class:'wrap'},
-    p.tag?el('span',{class:'tag'},p.tag):null,
-    el('h1',null,p.title),
+    isHome(p)&&siteTitle()?el('span',{class:'eyebrow'},p.tag||'WELCOME'):p.tag?el('span',{class:'tag'},p.tag):null,
+    el('h1',null,isHome(p)&&siteTitle()?siteTitle():p.title),
     el('div',{class:'bar'}),
     p.desc?el('p',{class:'desc'},p.desc):null
   ));
@@ -593,8 +617,26 @@ function renderMain(){
   if(ch.length) mainEl.append(el('div',{class:'kids'},ch.map(function(c){
     return el('a',{class:'kid',href:'#'+c.id,onclick:function(e){e.preventDefault();go(c.id);}},el('b',null,c.title),c.desc?el('span',null,c.desc):null);
   })));
-  mainEl.append(pager(p));
+  if(isHome(p)&&!S.edit) mainEl.append(explore());
+  else mainEl.append(pager(p));
   if(S.edit&&p.id!=='home') mainEl.append(deleteRow(p));
+}
+function isHome(p){return p===data.pages[0];}
+/* Home page: every top-level section as a card with its first sub-pages, like a site map. */
+function explore(){
+  var secs=vkids(null).filter(function(q){return !isHome(q);});
+  if(!secs.length) return pager(cp());
+  return el('section',{class:'explore'},
+    el('h2',null,'둘러보기',el('small',null,secs.length+'개 단원')),
+    el('div',{class:'sec-grid'},secs.map(function(q,i){
+      var ch=vkids(q.id), more=ch.length-4;
+      return el('a',{class:'sec',href:'#'+q.id,onclick:function(e){e.preventDefault();go(q.id);}},
+        el('span',{class:'no'},String(i+1).padStart(2,'0')),
+        el('b',null,q.title),
+        q.desc?el('span',{class:'sd'},q.desc):null,
+        ch.length?el('ul',null,ch.slice(0,4).map(function(c){return el('li',null,c.title);}),more>0?el('li',null,'외 '+more+'개'):null):null,
+        el('span',{class:'go'},ch.length?'페이지 '+ch.length+'개 보기 →':'들어가기 →'));
+    })));
 }
 function flat(){var out=[];(function walk(pid){vkids(pid).forEach(function(c){out.push(c);walk(c.id);});})(null);return out;}
 function pager(p){
