@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 13,
+ "rev": 14,
  "pages": [
   {
    "id": "home",
@@ -1268,11 +1268,201 @@
    "title": "API 개념",
    "parent": "api",
    "tag": "",
-   "desc": "",
+   "desc": "남이 만든 기능과 데이터를 약속된 방식으로 빌려 쓰는 창구",
    "blocks": [
     {
      "t": "h",
      "text": "API 개념"
+    },
+    {
+     "t": "p",
+     "text": "웹앱을 만들다 보면 \"날씨를 보여 주고 싶다\", \"지도를 띄우고 싶다\", \"AI가 사진 속 글자를 읽어 줬으면\" 하는 순간이 와요. 이걸 전부 직접 만들 수는 없죠.\n이때 쓰는 것이 **API**예요. 이미 누군가 만들어 둔 기능과 데이터를, **정해진 방식으로 부탁해서 빌려 쓰는 창구**예요."
+    },
+    {
+     "t": "box",
+     "title": "한 줄로 말하면",
+     "text": "**API = 프로그램끼리 주고받는 주문 창구.**\n정해진 모양으로 **요청**하면, 정해진 모양으로 **응답**이 돌아와요.\n(Application Programming Interface — '프로그램과 프로그램 사이의 접점')",
+     "tone": "accent"
+    },
+    {
+     "t": "toc",
+     "title": "이 페이지 차례"
+    },
+    {
+     "t": "h",
+     "text": "식당으로 비유하면"
+    },
+    {
+     "t": "p",
+     "text": "손님은 주방에 직접 들어가지 않아요. **메뉴판을 보고 웨이터에게 주문**하면 음식이 나와요. 주방이 어떻게 요리하는지는 몰라도 돼요."
+    },
+    {
+     "t": "cards",
+     "num": true,
+     "items": [
+      {
+       "title": "손님 = 내 웹앱",
+       "body": "\"성남 날씨 알려 주세요\" 하고 부탁하는 쪽"
+      },
+      {
+       "title": "웨이터 = API",
+       "body": "주문을 받아 주방에 전하고, 음식을 가져다주는 창구"
+      },
+      {
+       "title": "주방 = 다른 회사의 서버",
+       "body": "기상청·지도 회사·AI 회사가 가진 데이터와 기능. 안은 들여다볼 수 없어요"
+      },
+      {
+       "title": "메뉴판 = API 문서",
+       "body": "무엇을 주문할 수 있는지, 어떻게 적어야 하는지 정해 둔 설명서"
+      },
+      {
+       "title": "회원 카드 = API 키",
+       "body": "\"등록된 손님\"임을 증명하는 열쇠. 무료든 유료든 누가 얼마나 썼는지 세는 데 써요"
+      },
+      {
+       "title": "음식 = 응답(JSON)",
+       "body": "사람이 아니라 프로그램이 읽기 좋은 모양으로 담긴 결과"
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "체육 시간으로 비유하면"
+    },
+    {
+     "t": "cols",
+     "items": [
+      {
+       "title": "API가 없다면",
+       "text": "오늘 미세먼지가 궁금할 때마다 **측정기를 사서 운동장에 설치**하고, 숫자를 읽어 기록해야 해요."
+      },
+      {
+       "title": "API가 있다면",
+       "text": "이미 전국에 측정소를 둔 기관에 \"우리 학교 위치 미세먼지 알려 줘\" 하고 **물어보기만** 하면 돼요. 내 앱은 그 숫자로 \"실외 수업 OK / 실내로\"만 판단해요."
+      }
+     ]
+    },
+    {
+     "t": "note",
+     "tone": "tip",
+     "text": "API를 쓸 줄 안다는 것 = **남이 잘 만든 것을 내 수업 도구에 끌어올 수 있다**는 뜻이에요. 바이브 코딩에서는 AI에게 \"○○ API를 써서 만들어 줘\"라고만 해도 연결 코드를 짜 줘요."
+    },
+    {
+     "t": "h",
+     "text": "주고받는 순서 — 요청과 응답"
+    },
+    {
+     "t": "steps",
+     "items": [
+      {
+       "title": "요청 (주문서 쓰기)",
+       "body": "정해진 **주소**에 \"어디의, 무엇을\" 붙여서 보내요. 예: `…/forecast?latitude=37.39&longitude=127.11&current=temperature_2m`"
+      },
+      {
+       "title": "확인 (회원 카드 보여 주기)",
+       "body": "API 키가 필요한 곳이면 키를 같이 보내요. 키가 틀리거나 너무 많이 부르면 거절돼요."
+      },
+      {
+       "title": "응답 (JSON으로 받기)",
+       "body": "`{ \"temperature_2m\": 14.2, \"pm10\": 38 }`처럼 **이름: 값** 짝으로 와요."
+      },
+      {
+       "title": "내 화면에 그리기",
+       "body": "받은 숫자로 내 앱이 판단하고 보기 좋게 보여 줘요. **판단 기준은 내가 정해요.**"
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "직접 눌러 보기 — 오늘 운동장 수업 할 수 있을까?"
+    },
+    {
+     "t": "p",
+     "text": "학교 위치를 고르고 **📡 물어보기**를 누르면 ① 요청 → ② 응답(JSON) → ③ 내 앱 화면이 차례로 켜져요. 실제 무료 날씨·대기질 API(Open-Meteo, 열쇠 없음)에 물어봐요."
+    },
+    {
+     "t": "html",
+     "title": "API 체험 — 오늘 운동장 수업 할 수 있을까?",
+     "height": 1180,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>API 체험 — 오늘 운동장 수업 할 수 있을까?</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--acc:#e5393a;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:18px}\n  h1{font-size:20px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 14px}\n  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}\n  select,button{font:inherit;font-size:15px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink)}\n  button.go{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700;cursor:pointer}\n  button.go:disabled{opacity:.6;cursor:wait}\n  .flow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n  @media (max-width:760px){.flow{grid-template-columns:1fr}}\n  .step{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:box-shadow .2s,border-color .2s}\n  .step.on{border-color:var(--acc);box-shadow:0 0 0 3px rgba(229,57,58,.15)}\n  .step h2{font-size:14px;margin:0;display:flex;gap:8px;align-items:center}\n  .step h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px}\n  .step p{margin:0;font-size:13px;color:var(--muted)}\n  pre{margin:0;background:var(--code);color:var(--code-ink);font-family:var(--mono);font-size:12px;line-height:1.55;padding:10px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-all;min-height:120px;max-height:260px;overflow:auto}\n  .k{color:#7dd3fc}.v{color:#fde68a}.u{color:#86efac}\n  .card{border-radius:12px;padding:14px;text-align:center;background:#f8fafc;border:2px dashed var(--line);min-height:120px;display:flex;flex-direction:column;justify-content:center;gap:4px}\n  .card .big{font-size:30px;font-weight:800}\n  .card.ok{border:2px solid var(--ok);background:#f0fdf4}.card.ok .big{color:var(--ok)}\n  .card.warn{border:2px solid var(--warn);background:#fffbeb}.card.warn .big{color:var(--warn)}\n  .card.bad{border:2px solid var(--bad);background:#fef2f2}.card.bad .big{color:var(--bad)}\n  .card small{color:var(--muted)}\n  .src{margin-top:12px;font-size:12px;color:var(--muted)}\n  .tip{margin-top:10px;font-size:13px;background:#fff;border-left:4px solid var(--acc);border-radius:0 10px 10px 0;padding:10px 12px}\n</style>\n</head>\n<body>\n  <h1>🏃 API 체험 — 오늘 운동장 수업 할 수 있을까?</h1>\n  <p class=\"lede\">학교 위치를 고르고 <b>물어보기</b>를 누르면, 내 앱이 날씨·미세먼지 API에 <b>요청</b>을 보내고 <b>응답(JSON)</b>을 받아 화면을 그리는 과정을 차례로 보여 줘요.</p>\n\n  <div class=\"row\">\n    <select id=\"place\" aria-label=\"학교 위치\">\n      <option value=\"37.394,127.111\">경기 성남(판교)</option>\n      <option value=\"37.566,126.978\">서울</option>\n      <option value=\"37.456,126.705\">인천</option>\n      <option value=\"36.351,127.385\">대전</option>\n      <option value=\"35.871,128.601\">대구</option>\n      <option value=\"35.160,126.851\">광주</option>\n      <option value=\"35.180,129.076\">부산</option>\n      <option value=\"33.499,126.531\">제주</option>\n    </select>\n    <button class=\"go\" id=\"go\">📡 물어보기</button>\n  </div>\n\n  <div class=\"flow\">\n    <div class=\"step\" id=\"s1\">\n      <h2><span class=\"n\">1</span>요청 (주문서)</h2>\n      <p>정해진 주소에 \"어디의, 무엇을\" 붙여 보내요.</p>\n      <pre id=\"req\">아직 보내지 않았어요.</pre>\n    </div>\n    <div class=\"step\" id=\"s2\">\n      <h2><span class=\"n\">2</span>응답 (JSON)</h2>\n      <p>API는 사람이 아니라 <b>프로그램이 읽기 좋은 모양</b>으로 답해요.</p>\n      <pre id=\"res\">기다리는 중…</pre>\n    </div>\n    <div class=\"step\" id=\"s3\">\n      <h2><span class=\"n\">3</span>내 앱 화면</h2>\n      <p>받은 숫자로 내 앱이 판단해서 보기 좋게 그려요.</p>\n      <div class=\"card\" id=\"card\"><small>여기에 결과가 나와요</small></div>\n    </div>\n  </div>\n  <p class=\"src\" id=\"src\">자료: Open-Meteo 날씨·대기질 API (무료, 열쇠 없이 쓸 수 있음)</p>\n  <div class=\"tip\">💡 <b>포인트</b> — 내 앱은 기상 관측소를 직접 만들지 않았어요. <b>남이 만든 데이터를 약속된 방식(API)으로 빌려 쓴 것</b>뿐이에요. 판단 기준(미세먼지 80 이상이면 실내 등)만 내가 정했어요.</div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nfunction on(id){ ['s1','s2','s3'].forEach((s) => $(s).classList.toggle('on', s === id)); }\nfunction color(json){\n  return JSON.stringify(json, null, 2)\n    .replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))\n    .replace(/\"([^\"]+)\":/g, '<span class=\"k\">\"$1\"</span>:')\n    .replace(/: (\"[^\"]*\"|-?[\\d.]+)/g, ': <span class=\"v\">$1</span>');\n}\n// 인터넷이 막혀 있을 때 보여 줄 예시 응답\nconst SAMPLE = { current: { time: '2026-10-25T08:00', temperature_2m: 14.2, precipitation: 0.0, wind_speed_10m: 9.4, pm10: 38.0, pm2_5: 21.0 } };\n\nasync function ask(){\n  const [lat, lon] = $('place').value.split(',');\n  const name = $('place').selectedOptions[0].textContent;\n  const w = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,wind_speed_10m&timezone=Asia/Seoul`;\n  const a = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5&timezone=Asia/Seoul`;\n  $('go').disabled = true;\n  on('s1');\n  $('req').innerHTML = `<span class=\"u\">GET</span> ${w.replace(/&/g,'&amp;')}\\n\\n<span class=\"u\">GET</span> ${a.replace(/&/g,'&amp;')}\\n\\n<span class=\"k\">// 위도·경도 = 어디의</span>\\n<span class=\"k\">// current=… = 무엇을</span>`;\n  $('res').textContent = '기다리는 중…';\n  $('card').className = 'card'; $('card').innerHTML = '<small>답을 기다려요…</small>';\n  await sleep(700);\n  let data, sample = false;\n  try {\n    const [r1, r2] = await Promise.all([fetch(w), fetch(a)]);\n    if (!r1.ok || !r2.ok) throw new Error('응답 오류');\n    const [j1, j2] = await Promise.all([r1.json(), r2.json()]);\n    data = { current: { time: j1.current.time, temperature_2m: j1.current.temperature_2m, precipitation: j1.current.precipitation,\n                        wind_speed_10m: j1.current.wind_speed_10m, pm10: j2.current.pm10, pm2_5: j2.current.pm2_5 } };\n  } catch (e) { data = SAMPLE; sample = true; }\n  on('s2');\n  $('res').innerHTML = color(data) + (sample ? '\\n\\n<span class=\"k\">// 인터넷이 막혀 예시 응답을 보여 줘요</span>' : '');\n  await sleep(900);\n  on('s3');\n  const c = data.current;\n  let cls = 'ok', big = '🏃 운동장 OK', why = '맑고 공기도 괜찮아요';\n  if (c.precipitation > 0) { cls = 'bad'; big = '☔ 체육관으로'; why = '비가 와요'; }\n  else if (c.pm10 >= 151 || c.pm2_5 >= 76) { cls = 'bad'; big = '😷 실내 수업'; why = '미세먼지 매우 나쁨'; }\n  else if (c.pm10 >= 81 || c.pm2_5 >= 36) { cls = 'warn'; big = '⚠️ 짧게·가볍게'; why = '미세먼지 나쁨 — 격한 운동은 줄여요'; }\n  else if (c.temperature_2m >= 31) { cls = 'warn'; big = '🥵 그늘·물 자주'; why = '더워요'; }\n  else if (c.temperature_2m <= 0) { cls = 'warn'; big = '🥶 준비운동 길게'; why = '추워요'; }\n  else if (c.wind_speed_10m >= 30) { cls = 'warn'; big = '🌬 바람 주의'; why = '바람이 세요'; }\n  $('card').className = 'card ' + cls;\n  $('card').innerHTML = `<div class=\"big\">${big}</div><div>${name} · ${why}</div>\n    <small>기온 ${c.temperature_2m}℃ · 비 ${c.precipitation}mm · 바람 ${c.wind_speed_10m}km/h<br>미세먼지 ${c.pm10} · 초미세먼지 ${c.pm2_5} ㎍/㎥</small>`;\n  $('src').textContent = sample ? '자료: 예시 응답 (인터넷 연결이 막혀 있어요)' : `자료: Open-Meteo 날씨·대기질 API · 측정 시각 ${c.time.replace('T',' ')}`;\n  $('go').disabled = false;\n}\n$('go').addEventListener('click', ask);\n</script>\n</body>\n</html>\n"
+    },
+    {
+     "t": "h",
+     "text": "우리가 이미 쓰고 있는 API"
+    },
+    {
+     "t": "cards",
+     "c2": true,
+     "items": [
+      {
+       "title": "🗺 달리기 웹앱 — 지도",
+       "body": "달린 경로 아래 깔리는 지도 그림은 **OpenStreetMap 지도 타일**을 받아 와요. 그래서 오른쪽 아래 출처 표시를 지우면 안 돼요."
+      },
+      {
+       "title": "📸 기록 캡처 판독 — AI",
+       "body": "런데이 캡처 사진을 **AI 비전 API**에 보내 거리·시간을 읽어 와요. 사진 속 글자를 읽는 기능을 직접 만들지 않았어요."
+      },
+      {
+       "title": "📚 새싹책방 — 책 검색",
+       "body": "제목만 쳐도 책이 나오는 건 **책 검색 API**에 물어보기 때문이에요. 구절 사진을 글자로 바꾸는 것도 OCR API예요."
+      },
+      {
+       "title": "📊 앱스크립트 — 구글 시트",
+       "body": "앱스크립트로 시트를 읽고 쓰는 `SpreadsheetApp`도 구글이 열어 둔 API예요. 다음 단원에서 직접 써 봐요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "API 키 — 꼭 지킬 것"
+    },
+    {
+     "t": "note",
+     "tone": "warn",
+     "text": "**API 키는 비밀번호와 같아요.** 남이 내 키로 마구 부르면 요금이 나오거나 막혀요.\n- 화면 코드(HTML·자바스크립트)에 그대로 넣지 않기 — 누구나 브라우저에서 볼 수 있어요\n- 깃허브·카톡·캡처 화면에 올리지 않기\n- 앱스크립트는 **스크립트 속성**, Vercel은 **환경 변수**에 넣고 코드에서는 이름으로만 불러요\n- 새 나갔다 싶으면 바로 **새로 발급(재발급)**하고 옛 키는 지우기"
+    },
+    {
+     "t": "fold",
+     "title": "자주 나오는 말 (눌러서 보기)",
+     "text": "- **JSON** — `이름: 값` 짝으로 적은 데이터 모양. API 응답 대부분이 이 모양이에요\n- **엔드포인트** — API의 주소 하나. 날씨용, 미세먼지용처럼 기능마다 주소가 달라요\n- **요청 제한** — 무료 API는 \"하루 1,000번\"처럼 부를 수 있는 횟수가 정해져 있어요\n- **공공데이터포털** (data.go.kr) — 기상청·에어코리아·학교 급식 같은 나라 데이터를 API로 무료로 열어 둔 곳이에요. 회원가입 후 키를 받아요\n- **오류 코드** — 401·403은 키 문제, 429는 너무 많이 부름, 500번대는 상대 서버 문제"
+    },
+    {
+     "t": "h",
+     "text": "AI에게 이렇게 부탁해요"
+    },
+    {
+     "t": "prompt",
+     "label": "API를 쓰는 웹앱 프롬프트",
+     "text": "체육 수업 시작 전에 교실 TV에 띄울 '오늘 운동장 수업 판단' 웹앱을 HTML 한 파일로 만들어 줘.\n- Open-Meteo 날씨 API와 대기질 API(키 필요 없음)로 우리 학교 위치(위도 37.394, 경도 127.111)의 지금 기온·강수량·바람·미세먼지(PM10)·초미세먼지(PM2.5)를 가져와\n- 판단 기준: 비가 오면 '체육관', 미세먼지 81 이상 또는 초미세먼지 36 이상이면 '실내 또는 가볍게', 그 밖에는 '운동장 OK'\n- 결과를 큰 글씨와 색(초록·주황·빨강)으로 보여 주고, 10분마다 자동으로 새로 불러와\n- API가 응답하지 않으면 '정보를 불러오지 못했어요'라고 보여 줘\n- 각 부분에 어떤 API를 어떻게 부르는지 한국어 주석을 달아 줘"
+    },
+    {
+     "t": "h",
+     "text": "확인 퀴즈"
+    },
+    {
+     "t": "quiz",
+     "q": "식당 비유에서 '웨이터'에 해당하는 것은?",
+     "opts": [
+      "내 웹앱",
+      "API",
+      "다른 회사의 서버",
+      "API 키"
+     ],
+     "a": 1,
+     "why": "웨이터(API)는 손님(내 웹앱)의 주문을 주방(서버)에 전하고 결과를 가져다주는 창구예요."
+    },
+    {
+     "t": "quiz",
+     "q": "API 키를 다루는 방법으로 알맞은 것은?",
+     "opts": [
+      "HTML 코드 맨 위에 적어 둔다",
+      "동료와 카톡으로 나눠 쓴다",
+      "스크립트 속성이나 환경 변수에 넣고 이름으로 부른다",
+      "잊지 않게 화면 캡처해 둔다"
+     ],
+     "a": 2,
+     "why": "키는 비밀번호와 같아요. 코드나 대화방이 아니라 스크립트 속성·환경 변수처럼 남이 볼 수 없는 곳에 둬요."
     }
    ]
   },
