@@ -5,7 +5,7 @@
 // 받는 값은 숫자뿐이라 아무 글이나 AI 에게 시키는 통로로 쓸 수 없다.
 
 const WALK_PACE = 600; // 10'00"/km 보다 느리면 걷기 (파라런 학생 기준)
-const hits = new Map(); // 같은 서버 안에서만 세는 간단한 횟수 제한
+const { askGroq, limited, cors, bodyOf } = require('./_groq');
 
 function pace(sec) {
   const m = Math.floor(sec / 60), s = Math.round(sec % 60);
@@ -47,34 +47,9 @@ ${laps.length > 1 ? '- 구간별 페이스 데이터를 참고해서, 페이스 
 ${best ? `1. 최고 페이스 ${Math.round(best)}초/km, 달리기` : '없음 (첫 기록)'}`;
 }
 
-async function askGroq(prompt) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error('no key');
-  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
-  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 20000);
-  try {
-    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', signal: ctrl.signal,
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 700 }),
-    });
-    if (!r.ok) throw new Error('groq ' + r.status);
-    const j = await r.json();
-    const c = j && j.choices && j.choices[0];
-    if (!c || !c.message || !c.message.content || c.finish_reason === 'length') throw new Error('empty');
-    return { text: String(c.message.content).trim(), model };
-  } finally { clearTimeout(timer); }
-}
-
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'POST 만 받아요' });
-
-  let body = req.body;
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  if (cors(req, res)) return;
+  const body = bodyOf(req);
   const laps = body && Array.isArray(body.laps) ? body.laps.map(Number) : [];
   if (laps.length < 1 || laps.length > 10 || !laps.every((s) => Number.isFinite(s) && s >= 120 && s <= 1800)) {
     return res.status(400).json({ error: '1km 구간 기록을 1~10개, 한 구간 2분~30분 사이로 넣어 주세요.' });
@@ -84,13 +59,10 @@ module.exports = async (req, res) => {
   const cur = laps.reduce((s, x) => s + x, 0) / laps.length;
   const prompt = makePrompt(cur, best, laps);
 
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'x';
-  const now = Date.now(), list = (hits.get(ip) || []).filter((t) => now - t < 3600e3);
-  const limited = list.length >= 30;
-  if (!limited) { list.push(now); hits.set(ip, list); }
+  const isLimited = limited(req);
 
-  let out = { source: 'rule', feedback: ruleFeedback(cur, best, laps), reason: limited ? '한 시간에 30번까지만 AI에게 물어봐요' : '' };
-  if (!limited) {
+  let out = { source: 'rule', feedback: ruleFeedback(cur, best, laps), reason: isLimited ? '한 시간에 30번까지만 AI에게 물어봐요' : '' };
+  if (!isLimited) {
     try { const a = await askGroq(prompt); out = { source: 'ai', model: a.model, feedback: a.text }; }
     catch (e) { out.reason = e.message === 'no key' ? 'AI 열쇠(GROQ_API_KEY)가 아직 없어요' : 'AI가 답하지 못했어요'; }
   }

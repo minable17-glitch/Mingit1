@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 19,
+ "rev": 20,
  "pages": [
   {
    "id": "home",
@@ -1464,11 +1464,148 @@
    "title": "API 실습",
    "parent": "api",
    "tag": "",
-   "desc": "",
+   "desc": "만들어 둔 퀴즈 웹앱에 AI API를 붙여, 다 풀면 AI 선생님이 피드백을 주게 만들기",
    "blocks": [
     {
      "t": "h",
-     "text": "API 실습"
+     "text": "API 실습 — AI 피드백을 주는 퀴즈 웹앱"
+    },
+    {
+     "t": "p",
+     "text": "앞에서 만든 **퀴즈형 웹앱**에 AI API를 붙여 볼 거예요. 학생이 퀴즈를 다 풀면, 틀린 문제를 보고 **AI 선생님이 \"왜 틀렸는지 + 다음에 해 볼 것\"을 바로 말해 주는** 웹앱이에요.\n채점은 정답과 비교하면 끝나지만, **피드백**은 학생마다 달라야 해서 사람이 일일이 쓰기 어려워요. 이 부분을 API로 AI에게 맡겨요."
+    },
+    {
+     "t": "h",
+     "text": "완성 모습 먼저 보기"
+    },
+    {
+     "t": "p",
+     "text": "아래 농구 규칙 퀴즈를 일부러 몇 개 틀리게 풀어 보고 **🤖 AI 피드백 받기**를 눌러 보세요. 맨 아래 **\"무엇이 오갔나 보기\"**를 펼치면 보낸 데이터와 AI에게 간 프롬프트가 보여요."
+    },
+    {
+     "t": "html",
+     "title": "완성 모습 — 농구 규칙 퀴즈 + AI 피드백",
+     "height": 780,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>농구 규칙 퀴즈 — AI 피드백</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#fff7ed;--acc:#ea580c;--acc-soft:#ffedd5;--ok:#16a34a;--bad:#dc2626;--ai:#7c3aed;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:18px;display:flex;justify-content:center}\n  .app{width:100%;max-width:560px}\n  header{display:flex;align-items:center;gap:10px;margin-bottom:12px}\n  header .logo{font-size:30px}\n  header h1{font-size:20px;margin:0}\n  header p{margin:0;font-size:13px;color:var(--muted)}\n  .prog{height:8px;border-radius:6px;background:#fed7aa;overflow:hidden;margin-bottom:12px}\n  .prog i{display:block;height:100%;background:var(--acc);transition:width .3s}\n  .card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 6px 20px rgba(234,88,12,.12)}\n  .qn{font-size:13px;font-weight:800;color:var(--acc)}\n  .q{font-size:18px;font-weight:700;margin:6px 0 14px}\n  .opt{display:block;width:100%;text-align:left;font:inherit;font-size:16px;padding:12px 14px;margin-bottom:8px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}\n  .opt:hover{border-color:#fdba74}\n  .opt.pick{border-color:var(--acc);background:var(--acc-soft);font-weight:700}\n  .nav{display:flex;gap:8px;margin-top:8px}\n  .btn{flex:1;font:inherit;font-weight:800;font-size:16px;padding:12px;border:0;border-radius:12px;cursor:pointer;background:var(--acc);color:#fff}\n  .btn.ghost{background:#fff;color:var(--ink);border:2px solid var(--line);flex:none;padding:12px 16px}\n  .btn:disabled{opacity:.5;cursor:default}\n  .score{text-align:center}\n  .score .big{font-size:48px;font-weight:900;color:var(--acc);line-height:1.1}\n  .marks{display:flex;justify-content:center;gap:6px;margin:10px 0 4px}\n  .marks span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff}\n  .marks .o{background:var(--ok)}.marks .x{background:var(--bad)}\n  .ai{margin-top:14px;border:2px solid #ddd6fe;background:#faf7ff;border-radius:14px;padding:14px}\n  .ai h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px}\n  .badge{margin-left:auto;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px}\n  .badge.ai{background:#ede9fe;color:#5b21b6}.badge.rule{background:#f1f5f9;color:#475569}\n  .fb{white-space:pre-wrap;font-size:15px;line-height:1.75;min-height:2em}\n  .why{font-size:12px;color:var(--muted);margin-top:6px}\n  .dots::after{content:'';animation:d 1.2s infinite}\n  @keyframes d{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}\n  details{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}\n  summary{cursor:pointer;font-weight:700;font-size:14px}\n  details p{font-size:12.5px;color:var(--muted);margin:8px 0 4px}\n  pre{margin:0;background:var(--code);color:var(--code-ink);font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:9px 11px;border-radius:9px;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto}\n</style>\n</head>\n<body>\n<div class=\"app\">\n  <header><div class=\"logo\">🏀</div><div><h1>농구 규칙 퀴즈</h1><p>다 풀면 AI 선생님이 피드백을 줘요</p></div></header>\n  <div class=\"prog\"><i id=\"bar\"></i></div>\n  <div class=\"card\" id=\"card\"></div>\n</div>\n<script>\nconst QUIZ = [\n  { q: '공을 든 채로 세 걸음 이상 걸었어요. 어떤 반칙일까요?', opts: ['트래블링', '더블 드리블', '푸싱', '반칙 아님'], a: 0 },\n  { q: '드리블을 멈추고 공을 잡았다가 다시 드리블했어요.', opts: ['정상 플레이', '트래블링', '더블 드리블', '3초 바이올레이션'], a: 2 },\n  { q: '3점 슛 라인 밖에서 던진 슛이 들어갔어요. 몇 점일까요?', opts: ['1점', '2점', '3점', '4점'], a: 2 },\n  { q: '공격하는 선수가 상대 골대 밑 제한 구역(페인트존)에 계속 서 있을 수 있는 시간은?', opts: ['3초', '5초', '8초', '제한 없음'], a: 0 },\n  { q: '공을 잡은 공격 팀이 슛을 던져야 하는 제한 시간(샷 클락)은?', opts: ['14초', '24초', '30초', '60초'], a: 1 },\n];\nconst ENDPOINT = new URL('/api/quiz-feedback', document.baseURI).href;\nconst card = document.getElementById('card'), bar = document.getElementById('bar');\nlet cur = 0, picks = [];\nconst h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };\n\nfunction show() {\n  bar.style.width = (cur / QUIZ.length * 100) + '%';\n  card.textContent = '';\n  const it = QUIZ[cur];\n  card.append(h('div', 'qn', `문제 ${cur + 1} / ${QUIZ.length}`), h('div', 'q', it.q));\n  it.opts.forEach((o, i) => {\n    const b = h('button', 'opt' + (picks[cur] === i ? ' pick' : ''), o); b.type = 'button';\n    b.onclick = () => { picks[cur] = i; show(); };\n    card.append(b);\n  });\n  const nav = h('div', 'nav');\n  if (cur > 0) { const p = h('button', 'btn ghost', '← 이전'); p.type = 'button'; p.onclick = () => { cur--; show(); }; nav.append(p); }\n  const n = h('button', 'btn', cur === QUIZ.length - 1 ? '채점하기' : '다음 →'); n.type = 'button'; n.disabled = picks[cur] == null;\n  n.onclick = () => { if (cur < QUIZ.length - 1) { cur++; show(); } else result(); };\n  nav.append(n); card.append(nav);\n}\n\nfunction result() {\n  bar.style.width = '100%';\n  card.textContent = '';\n  const ok = QUIZ.map((it, i) => picks[i] === it.a), score = ok.filter(Boolean).length;\n  const s = h('div', 'score');\n  s.append(h('div', 'big', `${score} / ${QUIZ.length}`));\n  const m = h('div', 'marks'); ok.forEach((o, i) => m.append(h('span', o ? 'o' : 'x', String(i + 1)))); s.append(m);\n  card.append(s);\n  const ai = h('div', 'ai'); const t = h('h2', null, '🤖 AI 선생님 피드백'); const badge = h('span', 'badge'); badge.hidden = true; t.append(badge);\n  const fb = h('div', 'fb'), why = h('div', 'why');\n  const go = h('button', 'btn', '🤖 AI 피드백 받기'); go.type = 'button'; go.style.background = 'var(--ai)'; go.style.width = '100%';\n  ai.append(t, fb, why, go); card.append(ai);\n  const det = h('details'); det.append(h('summary', null, '🔍 무엇이 오갔나 보기 (API 요청·응답)'));\n  const sent = h('pre'), prm = h('pre');\n  det.append(h('p', null, '① 내 화면 → 서버: 고른 보기 번호만 보내요 (이름 없음)'), sent, h('p', null, '② 서버 → AI API: 서버가 문제·정답을 붙여 만든 프롬프트 (API 키는 서버에만)'), prm);\n  const again = h('button', 'btn ghost', '↺ 다시 풀기'); again.type = 'button'; again.style.marginTop = '12px'; again.style.width = '100%';\n  again.onclick = () => { cur = 0; picks = []; show(); };\n  card.append(det, again);\n  sent.textContent = '아직 보내지 않았어요.';\n  prm.textContent = '—';\n\n  go.onclick = async () => {\n    const body = { quiz: 'basketball', picks };\n    sent.textContent = 'POST /api/quiz-feedback\\n' + JSON.stringify(body);\n    go.disabled = true; go.textContent = 'AI가 쓰는 중'; go.classList.add('dots'); fb.textContent = ''; why.textContent = '';\n    try {\n      const r = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n      const j = await r.json(); if (!r.ok) throw new Error(j.error || '서버 오류');\n      fb.textContent = j.feedback; prm.textContent = j.prompt;\n      badge.hidden = false; badge.className = 'badge ' + (j.source === 'ai' ? 'ai' : 'rule');\n      badge.textContent = j.source === 'ai' ? 'AI가 쓴 피드백' : '규칙 피드백';\n      why.textContent = j.source === 'ai' ? '모델: ' + j.model : (j.reason ? j.reason + ' — ' : '') + 'AI 대신 틀린 문제 해설로 만든 피드백이에요.';\n      go.textContent = '🤖 다시 받기';\n    } catch (e) {\n      fb.textContent = '피드백을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.'; why.textContent = e.message || '';\n      go.textContent = '🤖 AI 피드백 받기';\n    }\n    go.disabled = false; go.classList.remove('dots');\n  };\n}\nshow();\n</script>\n</body>\n</html>\n"
+    },
+    {
+     "t": "h",
+     "text": "어떻게 연결되나"
+    },
+    {
+     "t": "cards",
+     "num": true,
+     "items": [
+      {
+       "title": "index.html (학생 화면)",
+       "body": "퀴즈를 풀고 채점해요. 끝나면 결과(문제·고른 답·정답·맞음/틀림)를 서버 함수에 넘겨요"
+      },
+      {
+       "title": "Code.gs (앱스크립트 서버)",
+       "body": "결과로 **프롬프트**를 만들고, **스크립트 속성**에 숨겨 둔 키를 붙여 Gemini API에 보내요"
+      },
+      {
+       "title": "Gemini API (구글 AI)",
+       "body": "프롬프트를 읽고 피드백 글을 써서 **JSON**으로 돌려줘요"
+      },
+      {
+       "title": "다시 학생 화면",
+       "body": "Code.gs가 JSON에서 글만 꺼내 돌려주면, 화면의 피드백 칸에 보여 줘요"
+      }
+     ]
+    },
+    {
+     "t": "note",
+     "tone": "tip",
+     "text": "왜 앱스크립트일까요? **API 키를 화면(index.html)에 두면 누구나 볼 수 있어요.** 앱스크립트의 Code.gs는 구글 서버에서 돌아가서, 키를 학생에게 보여 주지 않고 API를 부를 수 있어요."
+    },
+    {
+     "t": "h",
+     "text": "만드는 순서"
+    },
+    {
+     "t": "steps",
+     "items": [
+      {
+       "title": "퀴즈 웹앱 준비하기",
+       "body": "[퀴즈형 웹앱 만들기](#quiz)에서 만든 HTML 코드를 준비해요. 없으면 아래 \"새로 만들 때\" 프롬프트로 시작해요."
+      },
+      {
+       "title": "Gemini API 키 받기",
+       "body": "**aistudio.google.com** 에 학교·개인 구글 계정으로 들어가 **Get API key → API 키 만들기**를 눌러요. 키는 메모장에 잠깐만 두고, 아무 데도 올리지 않아요."
+      },
+      {
+       "title": "앱스크립트 프로젝트 만들기",
+       "body": "**script.google.com → 새 프로젝트.** 파일은 `Code.gs` 하나와 `index.html` 하나(＋ → HTML)로 만들어요."
+      },
+      {
+       "title": "키를 스크립트 속성에 넣기",
+       "body": "왼쪽 **⚙ 프로젝트 설정 → 스크립트 속성 → 속성 추가.** 속성 이름 `GEMINI_API_KEY`, 값에 키를 붙여 넣고 저장해요. **코드에는 키를 쓰지 않아요.**"
+      },
+      {
+       "title": "AI에게 코드 받기",
+       "body": "아래 **실습 프롬프트**에 내 퀴즈 코드를 붙여 AI(제미나이·챗GPT·클로드)에게 보내요. 받은 Code.gs·index.html을 각 파일에 붙여 넣어요."
+      },
+      {
+       "title": "권한 허용하고 배포하기",
+       "body": "**배포 → 새 배포 → 웹 앱.** 실행: 나, 액세스: 모든 사용자(또는 우리 학교). 처음엔 \"외부 서비스에 연결\" 권한을 묻는데 **허용**해요(Gemini API를 부르기 때문)."
+      },
+      {
+       "title": "풀어 보고 고치기",
+       "body": "배포 주소로 들어가 일부러 틀려 보세요. 피드백 말투가 마음에 안 들면 **프롬프트의 규칙 줄만** 고치면 돼요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "실습 프롬프트"
+    },
+    {
+     "t": "prompt",
+     "label": "기존 퀴즈 웹앱에 AI 피드백 붙이기",
+     "text": "내가 만든 퀴즈 웹앱에 AI 피드백 기능을 붙여서 구글 앱스크립트 웹앱으로 만들어 줘.\n\n1. 파일은 Code.gs 와 index.html 두 개로 나눠 줘.\n2. 학생이 퀴즈를 다 풀면 점수와 함께 'AI 피드백 받기' 버튼을 보여 줘.\n3. 버튼을 누르면 google.script.run 으로 Code.gs 의 getFeedback(results) 를 불러. results 에는 문제마다 문제 글, 고른 답, 정답, 맞았는지만 넣어 줘. 학생 이름은 넣지 마.\n4. Code.gs 는 UrlFetchApp 으로 Gemini API(generateContent)를 불러. API 키는 코드에 쓰지 말고 PropertiesService 의 스크립트 속성 GEMINI_API_KEY 에서 꺼내 줘.\n5. 프롬프트: 중학교 체육 선생님 말투로 4~6문장, 틀린 문제는 왜 틀렸는지 쉽게 설명, 마지막은 다음 체육 시간에 몸으로 해 볼 활동 하나 제안.\n6. API 가 실패하면 '지금은 AI 피드백을 받을 수 없어요'라고 보여 줘.\n7. 각 부분에 한국어 주석을 달고, 스크립트 속성 넣는 법과 배포하는 법을 단계별로 알려 줘.\n\n아래는 내 퀴즈 코드야:\n[여기에 퀴즈 웹앱 코드 붙여넣기]"
+    },
+    {
+     "t": "prompt",
+     "hide": true,
+     "label": "새로 만들 때 (퀴즈 코드가 없으면)",
+     "text": "중학교 체육 [농구 규칙] 퀴즈 웹앱을 구글 앱스크립트(Code.gs, index.html)로 만들어 줘.\n- 객관식 5문제, 한 화면에 한 문제씩, 진행 막대와 이전/다음 버튼\n- 다 풀면 점수와 문제별 O/X 를 보여 주고 'AI 피드백 받기' 버튼\n- 버튼을 누르면 google.script.run 으로 Code.gs 의 getFeedback(results) 를 부르고, Code.gs 는 UrlFetchApp 으로 Gemini API 를 불러 피드백을 받아 와\n- API 키는 스크립트 속성 GEMINI_API_KEY 에서 꺼내고, 코드에는 절대 쓰지 마\n- 피드백은 체육 선생님 말투 4~6문장, 틀린 문제 설명 + 다음 체육 시간에 해 볼 활동 하나\n- 휴대폰에서도 보기 좋게, 한국어 주석과 배포 방법까지 알려 줘"
+    },
+    {
+     "t": "prompt",
+     "hide": true,
+     "label": "도전 — 결과와 피드백을 구글 시트에 남기기",
+     "text": "지금 퀴즈 웹앱에 기능을 더해 줘.\n1. 시작할 때 학번을 입력받아.\n2. AI 피드백을 받으면 구글 시트에 [시각, 학번, 점수, 틀린 문제 번호, AI 피드백]을 한 줄씩 저장해 줘.\n3. AI 에게는 학번을 보내지 말고 결과만 보내 줘.\n기존 기능은 그대로 두고, 바뀐 부분이 어디인지 알려 줘."
+    },
+    {
+     "t": "h",
+     "text": "참고 코드"
+    },
+    {
+     "t": "p",
+     "text": "AI가 준 코드가 아래와 비슷하면 잘 받은 거예요. 핵심은 **① 키를 스크립트 속성에서 꺼내기 ② 프롬프트 만들기 ③ UrlFetchApp으로 요청 ④ 응답 JSON에서 글 꺼내기** 네 줄기예요."
+    },
+    {
+     "t": "prompt",
+     "hide": true,
+     "label": "Code.gs 참고 코드 보기",
+     "text": "// Code.gs — 서버 쪽 (구글이 대신 돌려 줌)\nfunction doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('농구 규칙 퀴즈')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n\n// 화면(index.html)에서 google.script.run.getFeedback(results) 로 부른다.\n// results 예: [{ q: '문제', picked: '고른 답', answer: '정답', ok: false }, ...]\nfunction getFeedback(results) {\n  // ① 키는 코드에 쓰지 않고 '스크립트 속성'에서 꺼낸다\n  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');\n  if (!key) return 'AI 열쇠(GEMINI_API_KEY)가 아직 없어요. 선생님께 알려 주세요.';\n\n  // ② AI에게 보낼 부탁(프롬프트)을 만든다\n  const score = results.filter(r => r.ok).length;\n  const lines = results.map((r, i) =>\n    (i + 1) + '. ' + r.q + ' / 고른 답: ' + r.picked + ' / 정답: ' + r.answer + ' / ' + (r.ok ? '맞음' : '틀림')\n  ).join('\\n');\n  const prompt =\n    '너는 중학교 체육 선생님이야. 학생이 퀴즈를 풀었어. 학생에게 직접 말하듯 한국어로 피드백을 써줘.\\n' +\n    '- 4~6문장, 다정하고 격려하는 말투\\n' +\n    '- 틀린 문제는 왜 틀렸는지 실제 경기 장면을 떠올리게 쉽게 설명해\\n' +\n    '- 마지막 문장은 다음 체육 시간에 몸으로 확인해 볼 활동 하나를 제안해\\n\\n' +\n    '결과: ' + results.length + '문제 중 ' + score + '개 맞음\\n' + lines;\n\n  // ③ Gemini API 에 요청을 보낸다 (모델 이름은 AI Studio 에서 지금 쓸 수 있는 것으로)\n  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';\n  const res = UrlFetchApp.fetch(url, {\n    method: 'post',\n    contentType: 'application/json',\n    headers: { 'x-goog-api-key': key },\n    payload: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),\n    muteHttpExceptions: true\n  });\n\n  // ④ 응답(JSON)에서 글만 꺼내 화면에 돌려준다\n  if (res.getResponseCode() !== 200) {\n    return '지금은 AI 피드백을 받을 수 없어요. (오류 ' + res.getResponseCode() + ')';\n  }\n  const data = JSON.parse(res.getContentText());\n  return data.candidates[0].content.parts[0].text;\n}"
+    },
+    {
+     "t": "prompt",
+     "hide": true,
+     "label": "index.html 에서 부르는 부분 보기",
+     "text": "<!-- index.html 안, 채점이 끝난 뒤 부르는 부분 -->\n<script>\n  function askAI(results) {\n    const box = document.getElementById('feedback');\n    box.textContent = 'AI 선생님이 피드백을 쓰는 중...';\n    google.script.run\n      .withSuccessHandler(function (text) { box.textContent = text; })\n      .withFailureHandler(function () { box.textContent = '피드백을 불러오지 못했어요.'; })\n      .getFeedback(results);   // ← Code.gs 의 함수 이름\n  }\n</script>"
+    },
+    {
+     "t": "note",
+     "tone": "warn",
+     "text": "**학생 개인정보는 AI에게 보내지 않아요.** 문제·답·맞음/틀림만 보내고 이름·학번은 빼요.\n**키는 코드·카톡·캡처에 올리지 않아요.** 새 나갔다 싶으면 AI Studio에서 지우고 새로 만들어요.\n**무료 등급은 1분·하루에 부를 수 있는 횟수가 정해져 있어요.** 한 반이 동시에 누르면 잠깐 막힐 수 있으니, 실패 안내 문구를 꼭 넣어 둬요."
+    },
+    {
+     "t": "fold",
+     "title": "막혔을 때 (눌러서 보기)",
+     "text": "- **\"AI 열쇠가 아직 없어요\"** — 스크립트 속성 이름이 `GEMINI_API_KEY` 와 글자 하나까지 같은지 확인해요\n- **오류 400** — 요청 모양이 틀렸어요. 모델 이름이 AI Studio에 있는 이름인지 확인해요\n- **오류 401·403** — 키가 틀렸거나 지워졌어요. 키를 다시 복사해 넣어요\n- **오류 429** — 너무 자주 불렀어요. 잠깐 뒤 다시 눌러요\n- **권한 화면에서 '확인되지 않은 앱'** — 고급 → (프로젝트 이름)으로 이동 → 허용. 내가 만든 앱이라 괜찮아요\n- **고쳤는데 그대로예요** — 배포 → 배포 관리 → ✏ → 버전: **새 버전**으로 다시 배포해야 바뀌어요"
     }
    ]
   },
