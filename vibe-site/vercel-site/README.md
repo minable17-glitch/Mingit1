@@ -1,12 +1,16 @@
 # 바이브 코딩 연수(체육) 사이트
 
-정적 사이트 한 장(`public/index.html`)입니다. 빌드 과정이 없어요.
+- `public/index.html` : 화면 틀 (template.html에서 만들어짐)
+- `public/site-data.json` : 모든 페이지 내용. **관리자 화면에서 저장하면 이 파일이 GitHub에 커밋**되고 Vercel이 다시 배포해요.
+- `public/images/` : 관리자 화면에서 올린 사진
+- `api/admin.js` : 관리자 로그인·저장·버전 기록·사진 올리기
 
 ## 배포 (Vercel)
-1. 이 폴더를 GitHub 저장소로 올리거나, 터미널에서 이 폴더로 이동해 `npx vercel` 실행
-2. Framework Preset: **Other**, Output Directory: **public**
-3. 배포 후 나오는 `*.vercel.app` 주소를 공유
+Root Directory `vibe-site/vercel-site`, Framework Other. 출력 폴더는 vercel.json에 들어 있어요.
 
-## 수정하기
-- 모든 페이지 내용은 `public/index.html` 안의 `<script type="application/json" id="site-data">` 블록에 들어 있어요.
-- 페이지 추가·수정은 Claude Code에게 "○○ 페이지 추가해 줘"라고 요청하세요.
+## 관리자 화면 켜기
+Vercel 프로젝트 Settings → Environment Variables 에 두 개를 넣고 다시 배포:
+- `ADMIN_PASSWORD` : 관리자 비밀번호
+- `GITHUB_TOKEN` : GitHub fine-grained token (저장소 Mingit1, Contents: Read and write)
+
+관리자 화면 주소: `https://<사이트 주소>/admin`

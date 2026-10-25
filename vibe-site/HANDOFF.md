@@ -45,7 +45,7 @@
    - 외부 앱 iframe이 빈 화면이면 상대 사이트의 `X-Frame-Options`/CSP 때문 → 해당 앱 쪽 설정 변경 또는 "새 창에서 열기"만 유지.
 2. 원본 이미지 이식: 원본은 `sites.google.com/sitesv-images-rt/...`(로그인 없이 못 받음). 선생님에게 이미지 파일을 받아 `public/images/`에 넣고 `image` 블록(src, alt) 추가 필요. 이미지가 있던 페이지: 홈, 기초개념(3장), 프로그램 기본구조, 달리기 수업 웹앱, 자리배치표, 실습(새로, 기본/심화).
 3. dddd 페이지 코드(code_gs.txt, index_html.txt)는 원본에서 읽을 때 **들여쓰기가 사라졌음**. 가능하면 코드 포맷터로 복원.
-4. 페이지 편집 방법 결정: (a) Claude Code에게 요청해 재빌드 (b) 사이트에 JSON 편집 화면 추가 (c) Firebase 연동. 현재 Vercel 버전엔 편집 UI 없음.
+4. ~~페이지 편집 방법 결정~~ → 관리자 화면 완료(아래 "관리자 화면" 참고). 남은 일: 선생님이 Vercel 환경 변수 넣기.
 5. API 3페이지, 새싹책방, 퀴즈형 등 원본이 빈/짧은 페이지는 선생님이 내용을 채울 예정.
 6. 디자인: 원본(어두운 배너+점 패턴+빨간 밑줄)을 흉내 낸 상태. 로고·색 확정 필요.
 
@@ -53,3 +53,16 @@
 - 선생님은 교사(비개발자). 설명은 쉬운 한국어로, 결과 중심으로. 원본과 "똑같이"를 중시함.
 - 학생 개인정보는 이 사이트에 넣지 않는다(실습용 가짜 데이터만).
 - 아티팩트 버전과 Vercel 버전은 같은 `template.html`을 쓰므로, 틀을 고치면 두 빌드를 모두 다시 돌릴 것.
+
+## 관리자 화면 (2026-10-25 추가)
+- 주소 `/admin` (또는 사이트 맨 아래 "관리자" 링크) → **구글 계정 로그인**(Google Identity Services). `ADMIN_EMAILS`에 있는 계정만 통과.
+- 편집 기능(구글 사이트 참고): 페이지 추가·삭제·이름 바꾸기·순서 이동·위치(3단계까지) 바꾸기·메뉴에서 숨기기, 사이트 이름,
+  블록 = 제목/문단/사진(내 컴퓨터에서 올리기)/링크 버튼/웹사이트 삽입(주소)/HTML 체험/복사 상자/안내 상자/단계별/퀴즈/구분선, 블록 사이 끼워 넣기,
+  "저장하고 게시", 버전 기록·되돌리기, 저장 안 하고 나가면 경고.
+- 저장 방식: `vercel-site/api/admin.js`가 `public/site-data.json`(사진은 `public/images/`)을 GitHub 브랜치 `claude/new-session-f7zx6a`에 **커밋** → Vercel 자동 재배포(1~2분). 커밋 기록 = 버전 기록.
+  동시 편집은 `rev` 숫자로 막음(먼저 저장된 게 있으면 409).
+- **이제 페이지 내용의 원본은 `vercel-site/public/site-data.json`**. `build2.py`는 처음 데이터용이라 다시 돌려도 이 파일을 덮어쓰지 않음(`--reset`을 줄 때만 덮어씀).
+  관리자 화면에서 저장하면 브랜치에 새 커밋이 생기니, Claude Code로 작업하기 전에 항상 `git pull`.
+- Vercel 환경 변수: `GITHUB_TOKEN`(fine-grained, Mingit1 저장소 Contents 읽기/쓰기), `GOOGLE_CLIENT_ID`(Google Cloud OAuth 웹 클라이언트, 승인된 JavaScript 원본 = 사이트 주소),
+  `ADMIN_EMAILS`(쉼표로 여러 개), 선택: `ADMIN_PASSWORD`(예비 비밀번호 로그인).
+- `vercel-site/package.json`의 `"type":"commonjs"`는 지우지 말 것(저장소 맨 위 package.json이 ESM이라 api/admin.js가 깨짐).
