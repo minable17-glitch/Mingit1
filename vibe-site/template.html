@@ -251,10 +251,12 @@ mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .carousel .ctrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
 .carousel .ctrack::-webkit-scrollbar{display:none}
 .carousel figure{flex:0 0 100%;scroll-snap-align:start;margin:0;display:flex;flex-direction:column;min-width:0}
-.carousel .frame{height:min(60vw,440px);display:grid;place-items:center;padding:10px}
-.carousel img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+.carousel .frame{height:min(60vw,440px);display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
+.carousel.tall .frame{height:min(120vw,680px)}
+.carousel img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;display:block}
 .carousel figcaption{padding:2px 16px 4px;text-align:center;color:var(--muted);font-size:.92rem}
 .carousel .cnav{position:absolute;top:calc(min(60vw,440px)/2);transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:1.3rem;cursor:pointer}
+.carousel.tall .cnav{top:calc(min(120vw,680px)/2)}
 .carousel .cprev{left:8px}.carousel .cnext{right:8px}
 .cdots{display:flex;justify-content:center;gap:7px;padding:6px 0 12px}
 .cdots button{width:9px;height:9px;border-radius:50%;border:0;padding:0;background:var(--line);cursor:pointer}
@@ -877,7 +879,7 @@ function carouselView(b){
   if(b.auto&&items.length>1&&!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches))
     timer=setInterval(function(){if(!track.isConnected){stop();return;}goTo(cur()+1);},4000);
   track.addEventListener('pointerdown',stop);
-  var box=el('div',{class:'carousel'},track,
+  var box=el('div',{class:'carousel'+(b.tall?' tall':'')},track,
     items.length>1?el('button',{class:'cnav cprev',type:'button','aria-label':'이전 사진',onclick:function(){stop();goTo(cur()-1);}},'‹'):null,
     items.length>1?el('button',{class:'cnav cnext',type:'button','aria-label':'다음 사진',onclick:function(){stop();goTo(cur()+1);}},'›'):null,
     items.length>1?dots:null);
@@ -1289,7 +1291,8 @@ function editorFor(b){
       b.items=gl.value.split('\n').map(function(l){var k=l.indexOf('|');var src=(k<0?l:l.slice(0,k)).trim();return src?{src:src,caption:k<0?'':l.slice(k+1).trim()}:null;}).filter(Boolean);
     });
     if(b.t==='gallery') f('배치',gc,function(){b.cols=parseInt(gc.value,10)||3;});
-    else{var au=el('input',{type:'checkbox',checked:!!b.auto});fields.push(el('label',{class:'fld chk'},au,el('span',null,'4초마다 저절로 넘기기')));getters.push(function(){if(au.checked)b.auto=true;else delete b.auto;});}
+    else{var au=el('input',{type:'checkbox',checked:!!b.auto});fields.push(el('label',{class:'fld chk'},au,el('span',null,'4초마다 저절로 넘기기')));getters.push(function(){if(au.checked)b.auto=true;else delete b.auto;});
+      var tl=el('input',{type:'checkbox',checked:!!b.tall});fields.push(el('label',{class:'fld chk'},tl,el('span',null,'세로로 긴 사진(활동지·폰 화면)이라 크게 보이기')));getters.push(function(){if(tl.checked)b.tall=true;else delete b.tall;});}
   }
   return el('div',null,fields,el('div',{class:'tools'},
     el('button',{class:'btn pri small',type:'button',onclick:function(){getters.forEach(function(g){g();});S.eb=null;touch();renderMain();}},'적용'),

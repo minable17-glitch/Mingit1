@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 54,
+ "rev": 55,
  "pages": [
   {
    "id": "home",
@@ -359,6 +359,134 @@
      "title": "",
      "text": "**발문**은 물음을, **읽기**는 의미를, **배우기**는 방법을, **달리고 기록하기**는 경험을, **성찰**은 삶으로 가는 다리를.",
      "tone": "soft"
+    },
+    {
+     "t": "h",
+     "size": "sm",
+     "text": "① 읽어보기 — 매 시간 책 속의 말 하나"
+    },
+    {
+     "t": "carousel",
+     "items": [
+      {
+       "src": "images/class-read-1.jpg",
+       "caption": "왜 힘든 걸 할까? — 무라카미 하루키, 고통은 피할 수 없지만"
+      },
+      {
+       "src": "images/class-read-2.jpg",
+       "caption": "나의 출발점 — 『마라닉 페이스』, 빠르지 않아도 나의 속도로"
+      },
+      {
+       "src": "images/class-read-3.jpg",
+       "caption": "딱 맞을 때, 푹 빠져든다 — 『몰입』, 나에게 맞는 레벨 고르기"
+      },
+      {
+       "src": "images/class-read-4.jpg",
+       "caption": "끝까지, 걷지 않는다 — 하루키 다시 만나기, 오늘 나의 첫 도전"
+      },
+      {
+       "src": "images/class-read-5.jpg",
+       "caption": "재능보다 끈기 — 『그릿』, 끈기는 내가 고를 수 있다"
+      },
+      {
+       "src": "images/class-read-6.jpg",
+       "caption": "실제 책과 함께 — 『달리기를 말할 때 내가 하고 싶은 이야기』"
+      }
+     ],
+     "tall": true
+    },
+    {
+     "t": "h",
+     "size": "sm",
+     "text": "② 배워보기 — 버티는 기술"
+    },
+    {
+     "t": "carousel",
+     "items": [
+      {
+       "src": "images/class-learn-1.jpg",
+       "caption": "페이스 배분 — 처음엔 천천히, 끝까지 일정하게"
+      },
+      {
+       "src": "images/class-learn-2.jpg",
+       "caption": "호흡법"
+      },
+      {
+       "src": "images/class-learn-3.jpg",
+       "caption": "팔치기"
+      },
+      {
+       "src": "images/class-learn-4.jpg",
+       "caption": "마음 전략 · 구간 쪼개기"
+      },
+      {
+       "src": "images/class-learn-5.jpg",
+       "caption": "달리기 후 정리운동"
+      }
+     ],
+     "tall": true
+    },
+    {
+     "t": "h",
+     "size": "sm",
+     "text": "③ 달리고 기록하기 — 웹앱 PARA RUN"
+    },
+    {
+     "t": "carousel",
+     "items": [
+      {
+       "src": "images/class-record-1.jpg",
+       "caption": "기록하기 — 앱으로 바로 달리거나 런데이 기록 가져오기"
+      },
+      {
+       "src": "images/class-record-2.jpg",
+       "caption": "레벨 고르기 — L0~L14 중 오늘 도전할 레벨"
+      },
+      {
+       "src": "images/class-record-3.jpg",
+       "caption": "달리는 중 — 달린 바퀴·남은 바퀴·평균 페이스"
+      },
+      {
+       "src": "images/class-record-4.jpg",
+       "caption": "저장 · AI 피드백 — 구간별 페이스를 보고 다음 목표를 짚어 줘요"
+      },
+      {
+       "src": "images/class-record-5.jpg",
+       "caption": "교사 화면 · 실시간 — 학생마다 달린 바퀴·남은 거리를 한눈에"
+      },
+      {
+       "src": "images/class-record-6.jpg",
+       "caption": "자동 채점 — 앱 기록이 넘어와 끈기·성장 자동 채점"
+      },
+      {
+       "src": "images/class-record-7.jpg",
+       "caption": "실제 수업 장면 — 교정 순환 코스와 운동장에서 각자 레벨대로"
+      }
+     ],
+     "tall": true
+    },
+    {
+     "t": "h",
+     "size": "sm",
+     "text": "④ 성찰하기 — 느낌에서 삶으로"
+    },
+    {
+     "t": "carousel",
+     "items": [
+      {
+       "src": "images/class-reflect-1.jpg",
+       "caption": "성찰 문항 — 오늘의 느낌을 먼저, 그다음 내 삶과 잇는 질문"
+      },
+      {
+       "src": "images/class-reflect-2.jpg",
+       "caption": "수업 장면 — 달린 뒤 그늘에 앉아 성찰일지 쓰기"
+      },
+      {
+       "src": "images/class-reflect-3.jpg",
+       "caption": "성찰 답변 모음 — 숨이 찰 때, 아이들이 붙잡은 것"
+      }
+     ],
+     "tall": true
     },
     {
      "t": "h",
