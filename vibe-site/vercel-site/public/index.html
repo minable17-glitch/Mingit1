@@ -315,7 +315,7 @@ function renderMain(){
   mainEl.append(pager(p));
   if(S.edit&&p.id!=='home') mainEl.append(deleteRow(p));
 }
-function flat(){var out=[];kids(null).forEach(function(t){out.push(t);kids(t.id).forEach(function(c){out.push(c);});});return out;}
+function flat(){var out=[];(function walk(pid){kids(pid).forEach(function(c){out.push(c);walk(c.id);});})(null);return out;}
 function pager(p){
   var list=flat(), i=list.indexOf(p), prev=list[i-1], next=list[i+1];
   function card(q,cls,label){return el('a',{class:cls,href:'#'+q.id,onclick:function(e){e.preventDefault();go(q.id);}},el('small',null,label),q.title);}
