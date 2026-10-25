@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 39,
+ "rev": 40,
  "pages": [
   {
    "id": "home",
@@ -1625,7 +1625,8 @@
      "t": "html",
      "title": "API 체험 — 쇼핑몰에서 결제하기",
      "height": 1000,
-     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>API 체험 — 쇼핑몰 결제</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--shop:#ff6b35;--api:#7c3aed;--bank:#0f766e;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5;padding:16px}\n  h1{font-size:19px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 12px}\n  .scen{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}\n  .scen b{font-size:13px;color:var(--muted);margin-right:2px}\n  .scen button{font:inherit;font-size:13px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}\n  .scen button.on{background:var(--ink);color:#fff;border-color:var(--ink)}\n\n  /* 세 칸 + 사이 연결선 */\n  .flow{display:grid;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr) 54px minmax(0,1fr);align-items:stretch}\n  .node{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:border-color .2s,box-shadow .2s}\n  .node .who{font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px}\n  .node .who small{font-weight:500;color:var(--muted);font-size:11.5px}\n  .node.shop{border-top:6px solid var(--shop)}.node.api{border-top:6px solid var(--api)}.node.bank{border-top:6px solid var(--bank)}\n  .node.act.shop{border-color:var(--shop);box-shadow:0 0 0 4px rgba(255,107,53,.15)}\n  .node.act.api{border-color:var(--api);box-shadow:0 0 0 4px rgba(124,58,237,.15)}\n  .node.act.bank{border-color:var(--bank);box-shadow:0 0 0 4px rgba(15,118,110,.15)}\n  .wire{position:relative;display:flex;align-items:center;justify-content:center}\n  .wire::before{content:\"\";position:absolute;left:4px;right:4px;top:50%;border-top:2px dashed #b8c2cd}\n  .pkt{position:absolute;top:50%;left:0;width:30px;height:30px;margin-top:-15px;border-radius:50%;display:grid;place-items:center;font-size:15px;\n       background:#fff;border:2px solid var(--ink);opacity:0;z-index:2;box-shadow:0 3px 8px rgba(0,0,0,.15)}\n  @media (max-width:640px){\n    .flow{grid-template-columns:1fr;grid-template-rows:auto 44px auto 44px auto}\n    .wire::before{left:50%;right:auto;top:4px;bottom:4px;border-top:0;border-left:2px dashed #b8c2cd}\n    .pkt{left:50%;top:0;margin-top:0;margin-left:-15px}\n    body{padding:12px}\n  }\n\n  /* 쇼핑몰 화면 */\n  .item{display:flex;gap:10px;align-items:center;background:#fff7f2;border-radius:12px;padding:8px}\n  .item .pic{width:46px;height:46px;border-radius:10px;background:#ffe0d1;display:grid;place-items:center;font-size:26px;flex:none}\n  .item b{display:block;font-size:14px}.item span{font-size:13px;color:var(--muted)}\n  .pay{font:inherit;font-weight:800;font-size:15px;padding:11px;border:0;border-radius:12px;background:var(--shop);color:#fff;cursor:pointer}\n  .pay:disabled{opacity:.55;cursor:wait}\n  .screen{border-radius:12px;padding:10px;text-align:center;font-size:14px;background:#f8fafc;border:1px dashed var(--line);min-height:62px;display:grid;place-items:center}\n  .screen.ok{background:#f0fdf4;border:2px solid var(--ok);color:#14532d;font-weight:700}\n  .screen.bad{background:#fef2f2;border:2px solid var(--bad);color:#7f1d1d;font-weight:700}\n  .knows{font-size:12px;color:var(--muted)}\n  .knows i{font-style:normal;background:#f1f5f9;border-radius:6px;padding:1px 6px;margin:2px;display:inline-block}\n  .knows i.no{text-decoration:line-through;color:#b91c1c;background:#fee2e2}\n\n  /* 결제창(결제 회사가 띄움) */\n  .popup{border:2px solid var(--api);border-radius:12px;padding:10px;background:#faf7ff;display:none;flex-direction:column;gap:6px}\n  .popup.show{display:flex}\n  .popup .t{font-size:12px;font-weight:800;color:var(--api)}\n  .popup input{font:inherit;font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid #d4c5fb;border-radius:8px;width:100%}\n  .popup button{font:inherit;font-weight:700;padding:8px;border:0;border-radius:9px;background:var(--api);color:#fff;cursor:pointer}\n\n  .msg{font-family:var(--mono);font-size:11.5px;background:var(--code);color:var(--code-ink);border-radius:9px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;min-height:80px}\n  .msg .k{color:#7dd3fc}.msg .v{color:#fde68a}.msg .r{color:#fca5a5}.msg .g{color:#86efac}\n  .bankbox{display:flex;flex-direction:column;gap:6px;font-size:13px}\n  .chk{display:flex;gap:6px;align-items:center;color:var(--muted)}\n  .chk .d{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:11px}\n  .chk.ok{color:var(--ink)}.chk.ok .d{border-color:var(--ok);background:var(--ok);color:#fff}\n  .chk.no{color:var(--bad)}.chk.no .d{border-color:var(--bad);background:var(--bad);color:#fff}\n\n  .log{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}\n  .log h2{font-size:14px;margin:0 0 8px}\n  .log ol{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:4px}\n  .log li b{font-family:var(--mono);font-size:12px}\n  .lesson{margin-top:10px;font-size:13px;background:#fff;border-left:4px solid var(--api);border-radius:0 10px 10px 0;padding:10px 12px}\n</style>\n</head>\n<body>\n  <h1>🛍 API 체험 — 쇼핑몰에서 결제하기</h1>\n  <p class=\"lede\"><b>결제하기</b>를 누르고 카드 정보를 넣어 보세요. 쇼핑몰(내 웹앱) → 결제 API → 카드사로 <b>요청</b>이 가고, <b>응답</b>이 되돌아오는 길이 보여요.</p>\n\n  <div class=\"scen\" role=\"group\" aria-label=\"상황 고르기\">\n    <b>상황</b>\n    <button data-s=\"ok\" class=\"on\">✅ 정상 결제</button>\n    <button data-s=\"limit\">💳 한도 초과</button>\n    <button data-s=\"key\">🔑 API 키가 틀림</button>\n    <button data-s=\"down\">⏳ 카드사 응답 없음</button>\n  </div>\n\n  <div class=\"flow\" id=\"flow\">\n    <div class=\"node shop\" id=\"nShop\">\n      <div class=\"who\">🛍 쇼핑몰 <small>= 내 웹앱</small></div>\n      <div class=\"item\"><div class=\"pic\">👟</div><div><b>러닝화 (270mm)</b><span>39,000원</span></div></div>\n      <button class=\"pay\" id=\"pay\">39,000원 결제하기</button>\n      <div class=\"popup\" id=\"popup\">\n        <div class=\"t\">🔒 결제 회사 결제창 — 쇼핑몰은 이 칸을 못 봐요</div>\n        <input id=\"card\" value=\"1234-5678-9012-3456\" aria-label=\"카드 번호\">\n        <button id=\"confirm\">이 카드로 결제</button>\n      </div>\n      <div class=\"screen\" id=\"shopScreen\">장바구니에 1개</div>\n      <div class=\"knows\">쇼핑몰이 아는 것: <i>주문번호</i><i>금액</i><i>결과</i> <i class=\"no\">카드 번호</i></div>\n    </div>\n    <div class=\"wire\" id=\"w1\"><div class=\"pkt\" id=\"p1\">📨</div></div>\n    <div class=\"node api\" id=\"nApi\">\n      <div class=\"who\">🔌 결제 API <small>= 결제 회사 창구</small></div>\n      <div class=\"msg\" id=\"apiMsg\">요청을 기다려요…</div>\n    </div>\n    <div class=\"wire\" id=\"w2\"><div class=\"pkt\" id=\"p2\">📨</div></div>\n    <div class=\"node bank\" id=\"nBank\">\n      <div class=\"who\">🏦 카드사 서버 <small>= 안은 못 봐요</small></div>\n      <div class=\"bankbox\">\n        <div class=\"chk\" id=\"c1\"><span class=\"d\"></span>가맹점(쇼핑몰) 확인</div>\n        <div class=\"chk\" id=\"c2\"><span class=\"d\"></span>카드가 진짜인가</div>\n        <div class=\"chk\" id=\"c3\"><span class=\"d\"></span>한도가 남았나</div>\n        <div class=\"chk\" id=\"c4\"><span class=\"d\"></span>승인</div>\n      </div>\n      <div class=\"msg\" id=\"bankMsg\">—</div>\n    </div>\n  </div>\n\n  <div class=\"log\">\n    <h2>📋 오간 순서</h2>\n    <ol id=\"log\"><li style=\"color:var(--muted);list-style:none;margin-left:-20px\">결제하기를 누르면 여기에 차례로 적혀요.</li></ol>\n  </div>\n  <div class=\"lesson\" id=\"lesson\">💡 쇼핑몰은 결제 기능을 만들지 않았어요. <b>정해진 모양으로 부탁(요청)하고, 정해진 모양으로 결과(응답)를 받기만</b> 해요. 이 약속이 API예요.</div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nlet scen = 'ok', busy = false;\nconst vertical = () => matchMedia('(max-width:640px)').matches;\n\ndocument.querySelectorAll('.scen button').forEach((b) => b.onclick = () => {\n  if (busy) return;\n  document.querySelectorAll('.scen button').forEach((x) => x.classList.toggle('on', x === b));\n  scen = b.dataset.s; reset();\n});\n\nfunction act(id) { ['nShop', 'nApi', 'nBank'].forEach((n) => $(n).classList.toggle('act', n === id)); }\nfunction j(o) {\n  return JSON.stringify(o, null, 1).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:').replace(/: (\"[^\"]*\"|\\d+)/g, ': <span class=\"v\">$1</span>');\n}\nfunction log(html) { const l = $('log'); if (l.dataset.fresh !== '1') { l.innerHTML = ''; l.dataset.fresh = '1'; } const li = document.createElement('li'); li.innerHTML = html; l.append(li); }\nfunction chk(id, st) { const c = $(id); c.className = 'chk' + (st ? ' ' + st : ''); c.querySelector('.d').textContent = st === 'ok' ? '✓' : st === 'no' ? '✕' : ''; }\nasync function fly(pid, back, icon) {\n  const p = $(pid), w = p.parentElement, v = vertical();\n  const len = (v ? w.clientHeight : w.clientWidth) - 30;\n  p.textContent = icon; p.style.transition = 'none';\n  const at = (x) => p.style.transform = v ? `translateY(${x}px)` : `translateX(${x}px)`;\n  at(back ? len : 0); p.style.opacity = 1; p.getBoundingClientRect();\n  p.style.transition = 'transform .7s ease-in-out'; at(back ? 0 : len);\n  await sleep(750); p.style.opacity = 0;\n}\nfunction reset() {\n  ['c1', 'c2', 'c3', 'c4'].forEach((c) => chk(c, ''));\n  $('apiMsg').textContent = '요청을 기다려요…'; $('bankMsg').textContent = '—';\n  $('shopScreen').className = 'screen'; $('shopScreen').textContent = '장바구니에 1개';\n  $('popup').classList.remove('show'); $('pay').disabled = false; $('pay').textContent = '39,000원 결제하기';\n  $('log').dataset.fresh = ''; act(null);\n}\n\n$('pay').onclick = () => { if (busy) return; reset(); $('popup').classList.add('show'); act('nShop'); $('card').focus(); log('손님이 <b>결제하기</b>를 눌러요. 결제 회사가 결제창을 띄워요 (카드 번호는 결제 회사만 받아요)'); };\n$('confirm').onclick = run;\n\nasync function run() {\n  if (busy) return; busy = true;\n  const card = $('card').value.replace(/\\D/g, '');\n  const masked = card.slice(0, 4) + '-****-****-' + card.slice(-4);\n  $('popup').classList.remove('show'); $('pay').disabled = true; $('pay').textContent = '결제 중…';\n  $('shopScreen').textContent = '⏳ 결제 결과를 기다려요…';\n  const orderId = 'ORDER-' + String(Date.now()).slice(-6);\n\n  // 1. 쇼핑몰 → 결제 API\n  log('쇼핑몰 → 결제 API: <b>POST /v1/payments/confirm</b> (주문번호·금액 + 가맹점 키)');\n  await fly('p1', false, '📨');\n  act('nApi');\n  const req = { orderId, amount: 39000, orderName: '러닝화 270mm' };\n  $('apiMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j(req) + '\\n<span class=\"k\">Authorization</span>: ' + (scen === 'key' ? '<span class=\"r\">sk_live_틀린키</span>' : 'sk_live_••••');\n  await sleep(700);\n\n  if (scen === 'key') {\n    $('apiMsg').innerHTML += '\\n\\n<span class=\"r\">✕ 등록되지 않은 가맹점 키</span>';\n    log('결제 API: 가맹점 키가 틀려서 <b>카드사에 묻지도 않고</b> 거절해요');\n    return finish(false, { status: 401, code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 키예요' }, '🔑 결제 설정 오류 — 가게에 문의하세요');\n  }\n\n  // 2. 결제 API → 카드사\n  log('결제 API → 카드사: 카드 <b>' + masked + '</b> 로 39,000원 승인해 줄 수 있나요?');\n  await fly('p2', false, '💳');\n  act('nBank');\n  $('bankMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j({ card: masked, amount: 39000, merchant: '러닝샵' });\n  chk('c1', 'ok'); await sleep(450);\n\n  if (scen === 'down') {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"r\">… (응답 없음)</span>';\n    log('카드사: <b>10초 동안 답이 없어요</b> (점검·장애)');\n    await sleep(900); act('nApi');\n    log('결제 API: 기다리다 포기하고 쇼핑몰에 <b>시간 초과</b>를 알려요');\n    return finish(false, { status: 504, code: 'PROVIDER_TIMEOUT', message: '카드사 응답이 없어요' }, '⏳ 지금은 결제가 안 돼요 — 잠시 뒤 다시 시도');\n  }\n\n  const fake = card.length < 15;\n  chk('c2', fake ? 'no' : 'ok'); await sleep(450);\n  if (fake) {\n    log('카드사: <b>카드 번호가 올바르지 않아요</b>');\n    return back(false, { status: 'REJECTED', reason: 'INVALID_CARD' }, { status: 400, code: 'INVALID_CARD', message: '카드 번호를 확인해 주세요' }, '💳 카드 번호를 다시 확인해 주세요');\n  }\n  if (scen === 'limit') {\n    chk('c3', 'no'); await sleep(300);\n    log('카드사: 한도가 모자라요 → <b>거절</b>');\n    return back(false, { status: 'REJECTED', reason: 'EXCEED_LIMIT' }, { status: 400, code: 'EXCEED_LIMIT', message: '카드 한도를 넘었어요' }, '💳 한도 초과 — 다른 카드로 결제해 주세요');\n  }\n  chk('c3', 'ok'); await sleep(350); chk('c4', 'ok');\n  log('카드사: 확인 끝 → <b>승인</b>');\n  return back(true, { status: 'APPROVED', approvalNo: '30' + String(Date.now()).slice(-6) }, { status: 'DONE', orderId, amount: 39000, method: '카드', approvedAt: new Date().toLocaleTimeString('ko-KR') }, '✅ 결제 완료! 내일 도착 예정');\n\n  async function back(ok, bankRes, apiRes, screen) {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">보낸 응답</span>\\n' + j(bankRes);\n    await sleep(500);\n    await fly('p2', true, ok ? '✅' : '❌');\n    act('nApi');\n    log('결제 API: 카드사 답을 <b>정해진 모양(JSON)</b>으로 바꿔 쇼핑몰에 돌려줘요');\n    return finish(ok, apiRes, screen);\n  }\n}\n\nasync function finish(ok, res, screen) {\n  $('apiMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">돌려줄 응답</span>\\n' + j(res);\n  await sleep(600);\n  await fly('p1', true, ok ? '✅' : '❌');\n  act('nShop');\n  $('shopScreen').className = 'screen ' + (ok ? 'ok' : 'bad'); $('shopScreen').textContent = screen;\n  log('쇼핑몰: 응답의 <b>' + (res.status === 'DONE' ? 'status: \"DONE\"' : 'code: \"' + res.code + '\"') + '</b> 만 보고 화면을 바꿔요');\n  $('lesson').innerHTML = ok\n    ? '💡 쇼핑몰은 카드 번호도, 카드사 안쪽도 몰라요. <b>\"DONE\"이라는 응답 하나</b>로 결제 완료 화면을 띄웠을 뿐이에요. 이게 API를 쓴다는 뜻이에요.'\n    : '💡 실패도 <b>정해진 모양</b>(코드·메시지)으로 와요. 그래서 쇼핑몰은 상황에 맞는 안내를 띄울 수 있어요. API 문서에는 이런 오류 코드 목록이 적혀 있어요.';\n  $('pay').disabled = false; $('pay').textContent = '다시 결제하기'; busy = false;\n}\n</script>\n</body>\n</html>\n"
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>API 체험 — 쇼핑몰 결제</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--shop:#ff6b35;--api:#7c3aed;--bank:#0f766e;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5;padding:16px}\n  h1{font-size:19px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 12px}\n  .scen{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}\n  .scen b{font-size:13px;color:var(--muted);margin-right:2px}\n  .scen button{font:inherit;font-size:13px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}\n  .scen button.on{background:var(--ink);color:#fff;border-color:var(--ink)}\n\n  /* 세 칸 + 사이 연결선 */\n  .flow{display:grid;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr) 54px minmax(0,1fr);align-items:stretch}\n  .node{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:border-color .2s,box-shadow .2s}\n  .node .who{font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px}\n  .node .who small{font-weight:500;color:var(--muted);font-size:11.5px}\n  .node.shop{border-top:6px solid var(--shop)}.node.api{border-top:6px solid var(--api)}.node.bank{border-top:6px solid var(--bank)}\n  .node.act.shop{border-color:var(--shop);box-shadow:0 0 0 4px rgba(255,107,53,.15)}\n  .node.act.api{border-color:var(--api);box-shadow:0 0 0 4px rgba(124,58,237,.15)}\n  .node.act.bank{border-color:var(--bank);box-shadow:0 0 0 4px rgba(15,118,110,.15)}\n  .wire{position:relative;display:flex;align-items:center;justify-content:center}\n  .wire::before{content:\"\";position:absolute;left:4px;right:4px;top:50%;border-top:2px dashed #b8c2cd}\n  .pkt{position:absolute;top:50%;left:0;width:30px;height:30px;margin-top:-15px;border-radius:50%;display:grid;place-items:center;font-size:15px;\n       background:#fff;border:2px solid var(--ink);opacity:0;z-index:2;box-shadow:0 3px 8px rgba(0,0,0,.15)}\n  @media (max-width:640px){\n    .flow{grid-template-columns:1fr;grid-template-rows:auto 44px auto 44px auto}\n    .wire::before{left:50%;right:auto;top:4px;bottom:4px;border-top:0;border-left:2px dashed #b8c2cd}\n    .pkt{left:50%;top:0;margin-top:0;margin-left:-15px}\n    body{padding:12px}\n  }\n\n  /* 쇼핑몰 화면 */\n  .item{display:flex;gap:10px;align-items:center;background:#fff7f2;border-radius:12px;padding:8px}\n  .item .pic{width:46px;height:46px;border-radius:10px;background:#ffe0d1;display:grid;place-items:center;font-size:26px;flex:none}\n  .item b{display:block;font-size:14px}.item span{font-size:13px;color:var(--muted)}\n  .pay{font:inherit;font-weight:800;font-size:15px;padding:11px;border:0;border-radius:12px;background:var(--shop);color:#fff;cursor:pointer}\n  .pay:disabled{opacity:.55;cursor:wait}\n  .screen{border-radius:12px;padding:10px;text-align:center;font-size:14px;background:#f8fafc;border:1px dashed var(--line);min-height:62px;display:grid;place-items:center}\n  .screen.ok{background:#f0fdf4;border:2px solid var(--ok);color:#14532d;font-weight:700}\n  .screen.bad{background:#fef2f2;border:2px solid var(--bad);color:#7f1d1d;font-weight:700}\n  .knows{font-size:12px;color:var(--muted)}\n  .knows i{font-style:normal;background:#f1f5f9;border-radius:6px;padding:1px 6px;margin:2px;display:inline-block}\n  .knows i.no{text-decoration:line-through;color:#b91c1c;background:#fee2e2}\n\n  /* 결제창(결제 회사가 띄움) */\n  .popup{border:2px solid var(--api);border-radius:12px;padding:10px;background:#faf7ff;display:none;flex-direction:column;gap:6px}\n  .popup.show{display:flex}\n  .popup .t{font-size:12px;font-weight:800;color:var(--api)}\n  .popup input{font:inherit;font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid #d4c5fb;border-radius:8px;width:100%}\n  .popup button{font:inherit;font-weight:700;padding:8px;border:0;border-radius:9px;background:var(--api);color:#fff;cursor:pointer}\n\n  .msg{font-family:var(--mono);font-size:11.5px;background:var(--code);color:var(--code-ink);border-radius:9px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;min-height:80px}\n  .msg .k{color:#7dd3fc}.msg .v{color:#fde68a}.msg .r{color:#fca5a5}.msg .g{color:#86efac}\n  .bankbox{display:flex;flex-direction:column;gap:6px;font-size:13px}\n  .chk{display:flex;gap:6px;align-items:center;color:var(--muted)}\n  .chk .d{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:11px}\n  .chk.ok{color:var(--ink)}.chk.ok .d{border-color:var(--ok);background:var(--ok);color:#fff}\n  .chk.no{color:var(--bad)}.chk.no .d{border-color:var(--bad);background:var(--bad);color:#fff}\n\n  .log{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}\n  .log h2{font-size:14px;margin:0 0 8px}\n  .log ol{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:4px}\n  .log li b{font-family:var(--mono);font-size:12px}\n  .lesson{margin-top:12px;font-size:14px;line-height:1.6;background:linear-gradient(135deg,#f5f3ff,#eef2ff);border:1px solid #ddd6fe;border-radius:14px;padding:12px 14px 12px 44px;position:relative}\n  .lesson::before{content:'💡';position:absolute;left:14px;top:11px;font-size:18px}\n</style>\n</head>\n<body>\n  <h1>🛍 API 체험 — 쇼핑몰에서 결제하기</h1>\n  <p class=\"lede\"><b>결제하기</b>를 누르고 카드 정보를 넣어 보세요. 쇼핑몰(내 웹앱) → 결제 API → 카드사로 <b>요청</b>이 가고, <b>응답</b>이 되돌아오는 길이 보여요.</p>\n\n  <div class=\"scen\" role=\"group\" aria-label=\"상황 고르기\">\n    <b>상황</b>\n    <button data-s=\"ok\" class=\"on\">✅ 정상 결제</button>\n    <button data-s=\"limit\">💳 한도 초과</button>\n    <button data-s=\"key\">🔑 API 키가 틀림</button>\n    <button data-s=\"down\">⏳ 카드사 응답 없음</button>\n  </div>\n\n  <div class=\"flow\" id=\"flow\">\n    <div class=\"node shop\" id=\"nShop\">\n      <div class=\"who\">🛍 쇼핑몰 <small>= 내 웹앱</small></div>\n      <div class=\"item\"><div class=\"pic\">👟</div><div><b>러닝화 (270mm)</b><span>39,000원</span></div></div>\n      <button class=\"pay\" id=\"pay\">39,000원 결제하기</button>\n      <div class=\"popup\" id=\"popup\">\n        <div class=\"t\">🔒 결제 회사 결제창 — 쇼핑몰은 이 칸을 못 봐요</div>\n        <input id=\"card\" value=\"1234-5678-9012-3456\" aria-label=\"카드 번호\">\n        <button id=\"confirm\">이 카드로 결제</button>\n      </div>\n      <div class=\"screen\" id=\"shopScreen\">장바구니에 1개</div>\n      <div class=\"knows\">쇼핑몰이 아는 것: <i>주문번호</i><i>금액</i><i>결과</i> <i class=\"no\">카드 번호</i></div>\n    </div>\n    <div class=\"wire\" id=\"w1\"><div class=\"pkt\" id=\"p1\">📨</div></div>\n    <div class=\"node api\" id=\"nApi\">\n      <div class=\"who\">🔌 결제 API <small>= 결제 회사 창구</small></div>\n      <div class=\"msg\" id=\"apiMsg\">요청을 기다려요…</div>\n    </div>\n    <div class=\"wire\" id=\"w2\"><div class=\"pkt\" id=\"p2\">📨</div></div>\n    <div class=\"node bank\" id=\"nBank\">\n      <div class=\"who\">🏦 카드사 서버 <small>= 안은 못 봐요</small></div>\n      <div class=\"bankbox\">\n        <div class=\"chk\" id=\"c1\"><span class=\"d\"></span>가맹점(쇼핑몰) 확인</div>\n        <div class=\"chk\" id=\"c2\"><span class=\"d\"></span>카드가 진짜인가</div>\n        <div class=\"chk\" id=\"c3\"><span class=\"d\"></span>한도가 남았나</div>\n        <div class=\"chk\" id=\"c4\"><span class=\"d\"></span>승인</div>\n      </div>\n      <div class=\"msg\" id=\"bankMsg\">—</div>\n    </div>\n  </div>\n\n  <div class=\"log\">\n    <h2>📋 오간 순서</h2>\n    <ol id=\"log\"><li style=\"color:var(--muted);list-style:none;margin-left:-20px\">결제하기를 누르면 여기에 차례로 적혀요.</li></ol>\n  </div>\n  <div class=\"lesson\" id=\"lesson\">쇼핑몰은 결제 기능을 만들지 않았어요. <b>정해진 모양으로 부탁(요청)하고, 정해진 모양으로 결과(응답)를 받기만</b> 해요. 이 약속이 API예요.</div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nlet scen = 'ok', busy = false;\nconst vertical = () => matchMedia('(max-width:640px)').matches;\n\ndocument.querySelectorAll('.scen button').forEach((b) => b.onclick = () => {\n  if (busy) return;\n  document.querySelectorAll('.scen button').forEach((x) => x.classList.toggle('on', x === b));\n  scen = b.dataset.s; reset();\n});\n\nfunction act(id) { ['nShop', 'nApi', 'nBank'].forEach((n) => $(n).classList.toggle('act', n === id)); }\nfunction j(o) {\n  return JSON.stringify(o, null, 1).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:').replace(/: (\"[^\"]*\"|\\d+)/g, ': <span class=\"v\">$1</span>');\n}\nfunction log(html) { const l = $('log'); if (l.dataset.fresh !== '1') { l.innerHTML = ''; l.dataset.fresh = '1'; } const li = document.createElement('li'); li.innerHTML = html; l.append(li); }\nfunction chk(id, st) { const c = $(id); c.className = 'chk' + (st ? ' ' + st : ''); c.querySelector('.d').textContent = st === 'ok' ? '✓' : st === 'no' ? '✕' : ''; }\nasync function fly(pid, back, icon) {\n  const p = $(pid), w = p.parentElement, v = vertical();\n  const len = (v ? w.clientHeight : w.clientWidth) - 30;\n  p.textContent = icon; p.style.transition = 'none';\n  const at = (x) => p.style.transform = v ? `translateY(${x}px)` : `translateX(${x}px)`;\n  at(back ? len : 0); p.style.opacity = 1; p.getBoundingClientRect();\n  p.style.transition = 'transform .7s ease-in-out'; at(back ? 0 : len);\n  await sleep(750); p.style.opacity = 0;\n}\nfunction reset() {\n  ['c1', 'c2', 'c3', 'c4'].forEach((c) => chk(c, ''));\n  $('apiMsg').textContent = '요청을 기다려요…'; $('bankMsg').textContent = '—';\n  $('shopScreen').className = 'screen'; $('shopScreen').textContent = '장바구니에 1개';\n  $('popup').classList.remove('show'); $('pay').disabled = false; $('pay').textContent = '39,000원 결제하기';\n  $('log').dataset.fresh = ''; act(null);\n}\n\n$('pay').onclick = () => { if (busy) return; reset(); $('popup').classList.add('show'); act('nShop'); $('card').focus(); log('손님이 <b>결제하기</b>를 눌러요. 결제 회사가 결제창을 띄워요 (카드 번호는 결제 회사만 받아요)'); };\n$('confirm').onclick = run;\n\nasync function run() {\n  if (busy) return; busy = true;\n  const card = $('card').value.replace(/\\D/g, '');\n  const masked = card.slice(0, 4) + '-****-****-' + card.slice(-4);\n  $('popup').classList.remove('show'); $('pay').disabled = true; $('pay').textContent = '결제 중…';\n  $('shopScreen').textContent = '⏳ 결제 결과를 기다려요…';\n  const orderId = 'ORDER-' + String(Date.now()).slice(-6);\n\n  // 1. 쇼핑몰 → 결제 API\n  log('쇼핑몰 → 결제 API: <b>POST /v1/payments/confirm</b> (주문번호·금액 + 가맹점 키)');\n  await fly('p1', false, '📨');\n  act('nApi');\n  const req = { orderId, amount: 39000, orderName: '러닝화 270mm' };\n  $('apiMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j(req) + '\\n<span class=\"k\">Authorization</span>: ' + (scen === 'key' ? '<span class=\"r\">sk_live_틀린키</span>' : 'sk_live_••••');\n  await sleep(700);\n\n  if (scen === 'key') {\n    $('apiMsg').innerHTML += '\\n\\n<span class=\"r\">✕ 등록되지 않은 가맹점 키</span>';\n    log('결제 API: 가맹점 키가 틀려서 <b>카드사에 묻지도 않고</b> 거절해요');\n    return finish(false, { status: 401, code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 키예요' }, '🔑 결제 설정 오류 — 가게에 문의하세요');\n  }\n\n  // 2. 결제 API → 카드사\n  log('결제 API → 카드사: 카드 <b>' + masked + '</b> 로 39,000원 승인해 줄 수 있나요?');\n  await fly('p2', false, '💳');\n  act('nBank');\n  $('bankMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j({ card: masked, amount: 39000, merchant: '러닝샵' });\n  chk('c1', 'ok'); await sleep(450);\n\n  if (scen === 'down') {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"r\">… (응답 없음)</span>';\n    log('카드사: <b>10초 동안 답이 없어요</b> (점검·장애)');\n    await sleep(900); act('nApi');\n    log('결제 API: 기다리다 포기하고 쇼핑몰에 <b>시간 초과</b>를 알려요');\n    return finish(false, { status: 504, code: 'PROVIDER_TIMEOUT', message: '카드사 응답이 없어요' }, '⏳ 지금은 결제가 안 돼요 — 잠시 뒤 다시 시도');\n  }\n\n  const fake = card.length < 15;\n  chk('c2', fake ? 'no' : 'ok'); await sleep(450);\n  if (fake) {\n    log('카드사: <b>카드 번호가 올바르지 않아요</b>');\n    return back(false, { status: 'REJECTED', reason: 'INVALID_CARD' }, { status: 400, code: 'INVALID_CARD', message: '카드 번호를 확인해 주세요' }, '💳 카드 번호를 다시 확인해 주세요');\n  }\n  if (scen === 'limit') {\n    chk('c3', 'no'); await sleep(300);\n    log('카드사: 한도가 모자라요 → <b>거절</b>');\n    return back(false, { status: 'REJECTED', reason: 'EXCEED_LIMIT' }, { status: 400, code: 'EXCEED_LIMIT', message: '카드 한도를 넘었어요' }, '💳 한도 초과 — 다른 카드로 결제해 주세요');\n  }\n  chk('c3', 'ok'); await sleep(350); chk('c4', 'ok');\n  log('카드사: 확인 끝 → <b>승인</b>');\n  return back(true, { status: 'APPROVED', approvalNo: '30' + String(Date.now()).slice(-6) }, { status: 'DONE', orderId, amount: 39000, method: '카드', approvedAt: new Date().toLocaleTimeString('ko-KR') }, '✅ 결제 완료! 내일 도착 예정');\n\n  async function back(ok, bankRes, apiRes, screen) {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">보낸 응답</span>\\n' + j(bankRes);\n    await sleep(500);\n    await fly('p2', true, ok ? '✅' : '❌');\n    act('nApi');\n    log('결제 API: 카드사 답을 <b>정해진 모양(JSON)</b>으로 바꿔 쇼핑몰에 돌려줘요');\n    return finish(ok, apiRes, screen);\n  }\n}\n\nasync function finish(ok, res, screen) {\n  $('apiMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">돌려줄 응답</span>\\n' + j(res);\n  await sleep(600);\n  await fly('p1', true, ok ? '✅' : '❌');\n  act('nShop');\n  $('shopScreen').className = 'screen ' + (ok ? 'ok' : 'bad'); $('shopScreen').textContent = screen;\n  log('쇼핑몰: 응답의 <b>' + (res.status === 'DONE' ? 'status: \"DONE\"' : 'code: \"' + res.code + '\"') + '</b> 만 보고 화면을 바꿔요');\n  $('lesson').innerHTML = ok\n    ? '쇼핑몰은 카드 번호도, 카드사 안쪽도 몰라요. <b>\"DONE\"이라는 응답 하나</b>로 결제 완료 화면을 띄웠을 뿐이에요. 이게 API를 쓴다는 뜻이에요.'\n    : '실패도 <b>정해진 모양</b>(코드·메시지)으로 와요. 그래서 쇼핑몰은 상황에 맞는 안내를 띄울 수 있어요. API 문서에는 이런 오류 코드 목록이 적혀 있어요.';\n  $('pay').disabled = false; $('pay').textContent = '다시 결제하기'; busy = false;\n}\n</script>\n</body>\n</html>\n",
+     "fit": true
     },
     {
      "t": "note",
@@ -1637,64 +1638,15 @@
      "text": "우리가 이미 쓰고 있는 API"
     },
     {
-     "t": "h",
-     "text": "① 생활 속 앱에서",
-     "size": "sm"
-    },
-    {
-     "t": "cards",
-     "c2": true,
+     "t": "cols",
      "items": [
       {
-       "title": "🛵 배달·쇼핑 앱 — 결제",
-       "body": "카드 결제는 앱이 직접 하지 않고 **결제 회사의 결제 API**에 부탁해요. 앞에서 본 쇼핑몰 결제와 같아요."
+       "title": "📱 생활 속 앱에서",
+       "text": "**🛵 배달·쇼핑 앱 — 결제**\n카드 결제는 앱이 직접 하지 않고 **결제 회사의 결제 API**에 부탁해요. 앞에서 본 쇼핑몰 결제와 같아요.\n\n**🗺 배달·택시 앱 — 지도**\n가게·기사님 위치가 움직이는 지도는 **지도 API**(카카오맵·네이버 지도·구글 지도)를 불러와 그려요."
       },
       {
-       "title": "🗺 배달·택시 앱 — 지도",
-       "body": "가게 위치, 기사님 위치가 움직이는 지도는 **지도 회사의 지도 API**(카카오맵·네이버 지도·구글 지도)를 불러와 그려요."
-      },
-      {
-       "title": "🔑 \"카카오로 로그인\" 단추",
-       "body": "새 앱에 회원가입 없이 들어가는 건 **로그인 API**에 \"이 사람 맞나요?\"라고 물어보기 때문이에요."
-      },
-      {
-       "title": "🌤 날씨·미세먼지 앱",
-       "body": "기상청·에어코리아가 **공공데이터 API**로 열어 둔 숫자를 받아 예쁘게 보여 주는 거예요."
-      },
-      {
-       "title": "🚌 버스 도착 알림",
-       "body": "\"3분 뒤 도착\"은 버스 회사·지자체가 열어 둔 **버스 위치 API**에 물어본 결과예요."
-      },
-      {
-       "title": "🤖 AI 기능이 붙은 앱",
-       "body": "번역, 요약, 사진 속 글자 읽기 같은 기능은 많은 앱이 직접 만들지 않고 **AI API**(Gemini·ChatGPT 등)를 불러 써요."
-      }
-     ]
-    },
-    {
-     "t": "h",
-     "text": "② 오늘 연수에서 본 사례",
-     "size": "sm"
-    },
-    {
-     "t": "cards",
-     "c2": true,
-     "items": [
-      {
-       "title": "🏃 파라런 — 지도·AI 피드백",
-       "body": "달린 경로 아래 지도는 **OpenStreetMap 지도 타일**, 런데이 캡처 판독과 구간 기록 피드백은 **AI API**로 해요. [API활용 예시](#api-ex)에서 직접 해 볼 수 있어요."
-      },
-      {
-       "title": "📚 새싹책방 — 책 검색",
-       "body": "제목만 쳐도 책이 나오는 건 **책 검색 API**, 구절 사진을 글자로 바꾸는 건 **OCR API**예요."
-      },
-      {
-       "title": "💪 PAPS 맞춤 운동 처방",
-       "body": "오늘 실습에서 만드는 웹앱. 등급을 **Gemini API**에 보내 4주 처방을 받아요. → [API 실습](#api-prac)"
-      },
-      {
-       "title": "📊 앱스크립트 — 구글 시트",
-       "body": "시트를 읽고 쓰는 `SpreadsheetApp`도 구글이 열어 둔 API예요. PAPS 처방이 시트에 쌓이는 것도 이 덕분이에요."
+       "title": "🏫 연수에서 본 사례",
+       "text": "**🏃 파라런 — 지도·AI 피드백**\n달린 경로 아래 지도는 **OpenStreetMap 지도 API**, 구간 기록 피드백은 **AI API**로 해요. → [API활용 예시](#api-ex)\n\n**📚 새싹책방 — 책 검색**\n제목만 쳐도 책이 나오는 건 **책 검색 API**, 구절 사진을 글자로 바꾸는 건 **OCR API**예요."
       }
      ]
     },
@@ -1717,28 +1669,54 @@
      "text": "확인 퀴즈"
     },
     {
-     "t": "quiz",
-     "q": "쇼핑몰 결제 비유에서 'API'에 해당하는 것은?",
-     "opts": [
-      "쇼핑몰 (내 웹앱)",
-      "결제 회사가 열어 둔 결제 창구",
-      "카드사의 서버",
-      "가맹점 키"
-     ],
-     "a": 1,
-     "why": "API는 쇼핑몰(내 웹앱)의 요청을 받아 카드사(다른 회사의 서버)에 전하고, 승인 결과를 돌려주는 창구예요."
-    },
-    {
-     "t": "quiz",
-     "q": "API 키를 다루는 방법으로 알맞은 것은?",
-     "opts": [
-      "HTML 코드 맨 위에 적어 둔다",
-      "동료와 카톡으로 나눠 쓴다",
-      "스크립트 속성이나 환경 변수에 넣고 이름으로 부른다",
-      "잊지 않게 화면 캡처해 둔다"
-     ],
-     "a": 2,
-     "why": "키는 비밀번호와 같아요. 코드나 대화방이 아니라 스크립트 속성·환경 변수처럼 남이 볼 수 없는 곳에 둬요."
+     "t": "quizset",
+     "title": "4문제 · 풀고 옆으로 넘겨요",
+     "items": [
+      {
+       "q": "쇼핑몰 결제 비유에서 'API'에 해당하는 것은?",
+       "opts": [
+        "쇼핑몰 (내 웹앱)",
+        "결제 회사가 열어 둔 결제 창구",
+        "카드사의 서버",
+        "가맹점 키"
+       ],
+       "a": 1,
+       "why": "API는 쇼핑몰(내 웹앱)의 요청을 받아 카드사(다른 회사의 서버)에 전하고, 승인 결과를 돌려주는 창구예요."
+      },
+      {
+       "q": "날씨 앱이 기상청 숫자를 받아 와 보여 주는 것처럼, 남이 열어 둔 기능·데이터를 약속된 방식으로 받아 쓰는 창구는?",
+       "opts": [
+        "앱스토어",
+        "API",
+        "와이파이",
+        "클라우드"
+       ],
+       "a": 1,
+       "why": "API는 프로그램끼리 정해진 모양으로 부탁하고 답을 받는 약속된 창구예요."
+      },
+      {
+       "q": "API를 부르면 돌아오는 `\"이름\": 값` 모양의 데이터를 무엇이라고 할까요?",
+       "opts": [
+        "HTML",
+        "URL",
+        "JSON",
+        "PDF"
+       ],
+       "a": 2,
+       "why": "JSON은 프로그램이 읽기 좋은 데이터 모양이에요. API 응답 대부분이 JSON으로 와요."
+      },
+      {
+       "q": "API 키를 다루는 방법으로 알맞은 것은?",
+       "opts": [
+        "HTML 코드 맨 위에 적어 둔다",
+        "동료와 카톡으로 나눠 쓴다",
+        "스크립트 속성이나 환경 변수에 넣고 이름으로 부른다",
+        "잊지 않게 화면 캡처해 둔다"
+       ],
+       "a": 2,
+       "why": "키는 비밀번호와 같아요. 코드나 대화방이 아니라 스크립트 속성·환경 변수처럼 남이 볼 수 없는 곳에 둬요."
+      }
+     ]
     }
    ]
   },
