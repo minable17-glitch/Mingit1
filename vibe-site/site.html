@@ -211,6 +211,9 @@ mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .fpv{margin-top:6px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;background:var(--surface);font-size:.95rem}
 .fpv>small{display:block;color:var(--muted);font-size:.75rem;margin-bottom:4px}
 .fld.rich{display:flex;flex-direction:column;gap:4px}
+.ptbox{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;flex:none}.fbar .ptbox button{min-width:auto;white-space:nowrap}.ptl{font-size:.8rem;color:var(--muted)}
+.ptin{width:56px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--fg);font:inherit;font-size:.9rem}
+.fbar .ptbox button{border-color:var(--line);background:var(--surface)}
 .para a,.tbox a,.card a,.note a,.fold a,.col a,.site-foot a{color:var(--accent-text);text-decoration:underline}
 .doc h3{font-size:1.2rem;line-height:1.4;margin:6px 0 0;font-weight:800}
 .al-c{text-align:center}.al-c .flist{display:inline-block;text-align:left}
@@ -314,7 +317,7 @@ body.dragging,body.dragging *{cursor:grabbing!important;user-select:none!importa
 .drop-line .dl-tip{position:absolute;right:0;top:-22px;background:var(--accent);color:var(--accent-fg);font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .drop-line.in .dl-tip{top:-24px}
 .fld{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:.9rem}
-.fld span{color:var(--muted)}
+.fld>span{color:var(--muted)}
 input[type=text],input[type=number],input[type=password],select,textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
 textarea.mono{font-family:var(--font-mono);font-size:.88rem}
 .meta{max-width:760px;margin-bottom:22px;padding:14px;border:1px dashed var(--line);border-radius:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 14px}
@@ -378,13 +381,25 @@ function add(e,c){
 }
 // Inline: **굵게** *기울임* ==형광펜== `코드` [글자](https://… 또는 #페이지) {빨강 크게:글자}
 var FMT_WORDS={'빨강':'fc-red','파랑':'fc-blue','초록':'fc-green','주황':'fc-orange','보라':'fc-purple','회색':'fc-gray','작게':'fs-sm','크게':'fs-lg','아주크게':'fs-xl','노랑배경':'bg-yellow','굵게':'b'};
+function fmtWord(w){return FMT_WORDS[w]||(/^\d{1,2}pt$/.test(w)&&+w.slice(0,-2)>=6&&+w.slice(0,-2)<=72?'pt':'');}
+// {크게:여러 줄} → 줄마다 {크게:한 줄} (글머리표·번호는 바깥에 둔다)
+function splitSpans(t){
+  return String(t||'').replace(/\{((?:[가-힣]+|\d{1,2}pt)(?: (?:[가-힣]+|\d{1,2}pt))*):([^{}]*)\}/g,function(all,spec,body){
+    if(body.indexOf('\n')<0) return all;
+    return body.split('\n').map(function(l){
+      if(!l.trim()) return l;
+      var m=/^(\s*(?:[-•·]|\d+[.)])\s+)?([\s\S]*?)(\s*)$/.exec(l);
+      return (m[1]||'')+'{'+spec+':'+m[2]+'}'+m[3];
+    }).join('\n');
+  });
+}
 function inlineFmt(line,f){
-  line.split(/(\{[가-힣]+(?: [가-힣]+)*:[^{}\n]+\}|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|==[^=]+==|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/[^)\s]+|#[\w-]+)\))/).forEach(function(s){
+  line.split(/(\{(?:[가-힣]+|\d{1,2}pt)(?: (?:[가-힣]+|\d{1,2}pt))*:[^{}\n]+\}|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|==[^=]+==|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/[^)\s]+|#[\w-]+)\))/).forEach(function(s){
     if(!s) return;
     var m,x;
-    if((m=/^\{([가-힣 ]+):([\s\S]+)\}$/.exec(s))&&m[1].split(' ').every(function(w){return FMT_WORDS[w];})){
-      var cls=m[1].split(' ').map(function(w){return FMT_WORDS[w];});
-      x=el(cls.indexOf('b')>=0?'strong':'span',{class:cls.filter(function(c){return c!=='b';}).join(' ')||null}); inlineFmt(m[2],x); f.append(x);
+    if((m=/^\{([가-힣0-9pt ]+):([\s\S]+)\}$/.exec(s))&&m[1].split(' ').every(fmtWord)){
+      var ws=m[1].split(' '), cls=ws.map(fmtWord), pt=ws.filter(function(w){return fmtWord(w)==='pt';}).pop();
+      x=el(cls.indexOf('b')>=0?'strong':'span',{class:cls.filter(function(c){return c!=='b'&&c!=='pt';}).join(' ')||null,style:pt?'font-size:'+pt+';line-height:1.4':null}); inlineFmt(m[2],x); f.append(x);
     }
     else if(s.length>4&&s.slice(0,2)==='**'&&s.slice(-2)==='**'){x=el('strong');inlineFmt(s.slice(2,-2),x);f.append(x);}
     else if(s.length>2&&s[0]==='*'&&s.slice(-1)==='*'&&s[1]!=='*'){x=el('em');inlineFmt(s.slice(1,-1),x);f.append(x);}
@@ -401,7 +416,7 @@ function inlineFmt(line,f){
 // Lines starting with "- " / "· " / "• " become a bullet list, "1. " a numbered list.
 function fmt(t){
   var f=document.createDocumentFragment(), list=null, kind=null, first=true;
-  String(t||'').split('\n').forEach(function(line){
+  splitSpans(t).split('\n').forEach(function(line){
     var mb=/^\s*[-•·]\s+(.*)$/.exec(line), mn=/^\s*\d+[.)]\s+(.*)$/.exec(line), k=mb?'ul':mn?'ol':null;
     if(k){
       if(!list||kind!==k){list=el(k,{class:'flist'});kind=k;f.append(list);}
@@ -830,7 +845,7 @@ function carouselView(b){
 function blockView(b){
   switch(b.t){
     case 'h': return el(b.size==='sm'?'h3':'h2',{class:b.align==='center'?'al-c':null},fmt(b.text));
-    case 'p': return el('div',{class:'para'+(b.align==='center'?' al-c':'')+(b.fs?' pfs-'+b.fs:'')},fmt(b.text));
+    case 'p': return el('div',{class:'para'+(b.align==='center'?' al-c':'')+(b.fs?' pfs-'+b.fs:''),style:b.pt?'font-size:'+b.pt+'pt':null},fmt(b.text));
     case 'toc':
       var hs=cp().blocks.filter(function(x){return x.t==='h';});
       return el('nav',{class:'toc','aria-label':'페이지 차례'},el('b',null,b.title||'이 페이지 차례'),
@@ -945,23 +960,25 @@ function fmtBar(t){
     put(s_.v.slice(0,s_.a)+l+mid+r+s_.v.slice(s_.b),s_.a+l.length,s_.a+l.length+mid.length);
   }
   // {spec:text}: add a word to the spec around the selection, replacing words of the same kind (color / size)
-  function style(word,kind){
+  function style(word,kind,keep){
     var s_=sel(), v=s_.v, a=s_.a, b=s_.b;
-    var m=/^\{([가-힣 ]+):([\s\S]*)\}$/.exec(v.slice(a,b));
-    if(!m){var pre=/\{([가-힣 ]+):$/.exec(v.slice(Math.max(0,a-20),a));
-      if(pre&&v.slice(b,b+1)==='}'){a-=pre[0].length;b+=1;m=/^\{([가-힣 ]+):([\s\S]*)\}$/.exec(v.slice(a,b));}}
+    var m=/^\{([가-힣0-9pt ]+):([^{}]*)\}$/.exec(v.slice(a,b));
+    if(!m){var pre=/\{([가-힣0-9pt ]+):$/.exec(v.slice(Math.max(0,a-24),a));
+      if(pre&&v.slice(b,b+1)==='}'){a-=pre[0].length;b+=1;m=/^\{([가-힣0-9pt ]+):([^{}]*)\}$/.exec(v.slice(a,b));}}
     var words=m?m[1].split(' '):[], text=m?m[2]:(v.slice(a,b)||'글자');
-    var same=words.filter(function(w){return kind(w);}).indexOf(word)>=0;
-    words=words.filter(function(w){return !kind(w);}); if(!same) words.push(word);
-    var out=words.length?'{'+words.join(' ')+':'+text+'}':text, st=words.length?a+words.join(' ').length+2:a;
+    var same=!keep&&words.filter(function(w){return kind(w);}).indexOf(word)>=0;
+    words=words.filter(function(w){return !kind(w);}); if(word&&!same) words.push(word);
+    var out=words.length?'{'+words.join(' ')+':'+text+'}':text;
+    if(text.indexOf('\n')>=0){out=splitSpans(out);put(v.slice(0,a)+out+v.slice(b),a,a+out.length);return;}
+    var st=words.length?a+words.join(' ').length+2:a;
     put(v.slice(0,a)+out+v.slice(b),st,st+text.length);
   }
   function isColor(w){return /^(빨강|파랑|초록|주황|보라|회색|노랑배경)$/.test(w);}
-  function isSize(w){return /^(작게|크게|아주크게)$/.test(w);}
+  function isSize(w){return /^(작게|크게|아주크게|\d{1,2}pt)$/.test(w);}
   function clear(){
     var s_=sel(); if(s_.a===s_.b) return;
     var mid=s_.v.slice(s_.a,s_.b), prev;
-    do{prev=mid;mid=mid.replace(/\{[가-힣 ]+:([^{}]*)\}/g,'$1');}while(mid!==prev);
+    do{prev=mid;mid=mid.replace(/\{[가-힣0-9pt ]+:([^{}]*)\}/g,'$1');}while(mid!==prev);
     mid=mid.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/==([^=]+)==/g,'$1').replace(/\*([^*\s][^*]*)\*/g,'$1');
     put(s_.v.slice(0,s_.a)+mid+s_.v.slice(s_.b),s_.a,s_.a+mid.length);
   }
@@ -984,13 +1001,19 @@ function fmtBar(t){
     el('span',{class:'sep'}),
     FB_COLORS.map(function(c){return B('',c[0]+' 글자',function(){style(c[0],isColor);},{class:'sw',style:'background:'+c[1]});}),
     el('span',{class:'sep'}),
-    B(el('small',null,'가'),'작게',function(){style('작게',isSize);}),
-    B('가','크게 (한 번 더 누르면 원래대로)',function(){style('크게',isSize);},{style:'font-size:1.05rem;font-weight:700'}),
-    B('가','아주 크게',function(){style('아주크게',isSize);},{style:'font-size:1.3rem;font-weight:800'}),
+    ptBox(function(n){style(n?n+'pt':'',isSize,true);}),
     el('span',{class:'sep'}),
     B('•','글머리표',function(){lines('-');}),
     B('1.','번호 목록',function(){lines('1.');}),
     B('⌫','고른 글자의 꾸밈 지우기',clear));
+}
+/* 글자 크기(pt) 칸: 숫자를 적고 적용(또는 Enter). 비우고 적용하면 크기 꾸밈을 뺀다. 본문 기본은 12pt. */
+function ptBox(apply){
+  var n=el('input',{type:'number',class:'ptin',min:6,max:72,step:1,placeholder:'12','aria-label':'글자 크기(pt)',title:'글자 크기 (pt) — 본문 기본 12'});
+  function go(){var v=parseInt(n.value,10); apply(v?Math.max(6,Math.min(72,v)):0);}
+  n.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();go();}});
+  return el('span',{class:'ptbox'},el('span',{class:'ptl'},'크기'),n,el('span',{class:'ptl'},'pt'),
+    el('button',{type:'button',title:'고른 글자에 이 크기 적용 (비우면 크기 꾸밈 빼기)',onmousedown:function(e){e.preventDefault();},onclick:go},'바꾸기'));
 }
 function fmtPreview(t){
   var box=el('div',{class:'fpv'});
@@ -1035,7 +1058,7 @@ function editorFor(b){
     n=inp(b.text);var hz=el('select',null,el('option',{value:''},'큰 제목'),el('option',{value:'sm'},'작은 제목'));hz.value=b.size||'';
     f('제목',n,function(){b.text=n.value;});f('크기',hz,function(){if(hz.value)b.size=hz.value;else delete b.size;});alignBox();
   }
-  else if(b.t==='p'){n=rta(b.text,6);f('문단 — 글자를 고른 뒤 위 단추로 꾸며요',n,function(){b.text=n.value;});var pz=el('select',null,el('option',{value:'sm'},'작게'),el('option',{value:''},'보통'),el('option',{value:'lg'},'크게'),el('option',{value:'xl'},'아주 크게'));pz.value=b.fs||'';f('문단 전체 글자 크기',pz,function(){if(pz.value)b.fs=pz.value;else delete b.fs;});alignBox();}
+  else if(b.t==='p'){n=rta(b.text,6);f('문단 — 글자를 고른 뒤 위 단추로 꾸며요',n,function(){b.text=n.value;});var pz=el('input',{type:'number',min:6,max:72,step:1,placeholder:'12 (기본)',value:b.pt||({sm:11,lg:14,xl:16})[b.fs]||''});f('문단 전체 글자 크기 (pt, 비우면 기본 12)',pz,function(){var v=parseInt(pz.value,10);delete b.fs;if(v)b.pt=Math.max(6,Math.min(72,v));else delete b.pt;});alignBox();}
   else if(b.t==='toc'){var tt_=inp(b.title);f('차례 제목',tt_,function(){b.title=tt_.value;});fields.push(el('p',{class:'foot'},'이 페이지의 제목 블록이 저절로 차례가 돼요. 누르면 그 자리로 내려가요.'));}
   else if(b.t==='space'){var sz=el('input',{type:'number',min:8,max:200,value:b.size||40});f('높이(px)',sz,function(){b.size=Math.max(8,Math.min(200,parseInt(sz.value,10)||40));});}
   else if(b.t==='map'){
