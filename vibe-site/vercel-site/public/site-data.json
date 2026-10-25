@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 12,
+ "rev": 13,
  "pages": [
   {
    "id": "home",
@@ -1264,19 +1264,6 @@
    ]
   },
   {
-   "id": "api-prac",
-   "title": "API 실습",
-   "parent": "api",
-   "tag": "",
-   "desc": "",
-   "blocks": [
-    {
-     "t": "h",
-     "text": "API 실습"
-    }
-   ]
-  },
-  {
    "id": "api-concept",
    "title": "API 개념",
    "parent": "api",
@@ -1286,6 +1273,19 @@
     {
      "t": "h",
      "text": "API 개념"
+    }
+   ]
+  },
+  {
+   "id": "api-prac",
+   "title": "API 실습",
+   "parent": "api",
+   "tag": "",
+   "desc": "",
+   "blocks": [
+    {
+     "t": "h",
+     "text": "API 실습"
     }
    ]
   },
@@ -1386,5 +1386,5 @@
    ]
   }
  ],
- "updated": "2026-10-25T13:41:28.151Z"
+ "updated": "2026-10-25T13:41:39.866Z"
 }
