@@ -73,6 +73,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .shell{display:grid;grid-template-columns:262px minmax(0,1fr);gap:36px;padding-top:28px;padding-bottom:110px}
 .nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto;padding-right:4px}
 .nav-row{display:flex;align-items:center;gap:4px}
+.nav-caret{flex:none;width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;position:relative}
+.nav-caret:hover{background:var(--soft)}
+.nav-caret::before{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translate(-65%,-50%) rotate(-45deg);transition:transform .15s}
+.nav-caret.open::before{transform:translate(-50%,-70%) rotate(45deg)}
 .nav a{display:block;flex:1;min-width:0;text-decoration:none;border-radius:8px;padding:7px 12px;color:var(--fg)}
 .nav a:hover{background:var(--soft)}
 .nav a.nav-top{font-weight:700;margin-top:6px}
@@ -374,7 +378,7 @@ var SLUG=(function(){
 })();
 function siteHome(slug){return slug?'/'+slug:'/';}
 var PREVIEW={}; // uploaded image path -> local data URL, until the next deploy serves the file
-var S={cur:'home',edit:false,dirty:false,can:false,ns:null,eb:null,nav:false,arm:null,saving:false,msg:'',err:false,admin:false,token:null,ins:null,hist:[],fut:[],preview:false,q:'',menu:false};
+var S={cur:'home',edit:false,dirty:false,can:false,ns:null,eb:null,nav:false,arm:null,saving:false,msg:'',err:false,admin:false,token:null,ins:null,hist:[],fut:[],preview:false,q:'',menu:false,open:{}};
 var PROPS={value:1,checked:1,selected:1,srcdoc:1,disabled:1,hidden:1};
 
 function el(tag,props){
@@ -594,18 +598,34 @@ function renderNav(){
   scrimEl.classList.toggle('open',S.nav);
   if(S.q){renderSearch();return;}
   var navEl_=navEl; navEl=navList;
-  vkids(null).forEach(function(t){
-    navEl.append(navItem(t,'nav-top'));
-    vkids(t.id).forEach(function(c){navEl.append(navItem(c,'nav-sub'));vkids(c.id).forEach(function(d){navEl.append(navItem(d,'nav-sub nav-sub2'));vkids(d.id).forEach(function(g){navEl.append(navItem(g,'nav-sub nav-sub3'));});});});
-  });
+  var CLS=['nav-top','nav-sub','nav-sub nav-sub2','nav-sub nav-sub3'];
+  (function walk(pid,lv){
+    vkids(pid).forEach(function(c){
+      navEl.append(navItem(c,CLS[Math.min(lv,3)]));
+      if(vkids(c.id).length&&navOpen(c)) walk(c.id,lv+1);
+    });
+  })(null,0);
   if(S.edit) navEl.append(addPageForm());
   navEl=navEl_;
 }
+/* Sub-pages stay folded until their parent is opened. The path to the current page opens by itself; editing shows everything. */
+function navOpen(p){
+  if(S.edit) return true;
+  if(S.open[p.id]!==undefined) return S.open[p.id];
+  return p.id===S.cur||under(cp(),p);
+}
 function mvBtn(label,fn){return el('button',{class:'mvb',type:'button','aria-label':label==='↑'?'위로':'아래로',onclick:fn},label);}
 function navItem(p,cls){
+  var hasKids=vkids(p.id).length>0;
   var row=el('div',{class:'nav-row','data-id':p.id},
     S.edit&&p.id!=='home'?el('span',{class:'nav-grip grip',title:'끌어서 위치 바꾸기','aria-hidden':'true',onpointerdown:function(e){dragPage(e,p,row);}},'⠿'):null,
-    el('a',{class:cls+(p.id===S.cur?' on':'')+(p.hidden?' is-hidden':''),href:'#'+p.id,onclick:function(e){e.preventDefault();go(p.id);}},p.title+(p.hidden?' (숨김)':'')));
+    el('a',{class:cls+(p.id===S.cur?' on':'')+(p.hidden?' is-hidden':''),href:'#'+p.id,onclick:function(e){
+      e.preventDefault();
+      if(hasKids&&!S.edit){ if(p.id===S.cur){S.open[p.id]=!navOpen(p);renderNav();return;} S.open[p.id]=true; }
+      go(p.id);
+    }},p.title+(p.hidden?' (숨김)':'')),
+    hasKids&&!S.edit?el('button',{class:'nav-caret'+(navOpen(p)?' open':''),type:'button','aria-expanded':navOpen(p)?'true':'false',
+      'aria-label':p.title+(navOpen(p)?' 접기':' 펼치기'),onclick:function(){S.open[p.id]=!navOpen(p);renderNav();}}):null);
   if(S.edit&&p.id!=='home') row.append(el('span',{class:'mv'},
     mvBtn('↑',function(){moveSib(p.id,-1);}),mvBtn('↓',function(){moveSib(p.id,1);}),
     depth(p)<3?el('button',{class:'mvb',type:'button',title:'이 아래에 페이지 추가','aria-label':p.title+' 아래에 페이지 추가',onclick:function(){addChild(p);}},'＋'):null,
