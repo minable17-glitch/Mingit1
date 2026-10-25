@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 34,
+ "rev": 35,
  "pages": [
   {
    "id": "home",
@@ -1241,6 +1241,65 @@
      "t": "prompt",
      "label": "프롬프트",
      "text": "구글 앱스크립트로 이 웹앱을 옮겨줘. 화면은 그대로 두고, 저장을 구글 시트로 바꿔서 기록이 남게 해줘.\n코드는 Code.gs와 index.html로 나눠서, 각 파일에 무엇을 넣는지 알려줘. 설치하고 배포하는 방법도 단계별로 알려줘.\n아래는 기존 코드야:\n[여기에 기존 코드 붙여넣기]"
+    },
+    {
+     "t": "fold",
+     "title": "💡 힌트 — 앱스크립트로 옮기고 배포하는 과정 (사진으로 보기)",
+     "text": "처음 한 번은 **권한 허용(⑥~⑨)**이 필요해요. '확인하지 않은 앱', '안전하지 않음'이라고 떠도 **내가 만든 앱**이라 괜찮아요.\n코드를 고친 뒤에는 **배포 → 배포 관리 → ✏ → 버전: 새 버전 → 배포**를 해야 웹앱에 반영돼요. 그림은 PAPS 실습 화면이지만 순서는 똑같아요.",
+     "imgs": [
+      {
+       "src": "images/as-1.jpg",
+       "caption": "① 스프레드시트에서 확장 프로그램 → Apps Script"
+      },
+      {
+       "src": "images/as-2.jpg",
+       "caption": "② Code.gs 에 처음 들어 있는 코드를 모두 지우기"
+      },
+      {
+       "src": "images/as-3.jpg",
+       "caption": "③ 받은 Code.gs 코드를 붙여 넣고 💾 저장"
+      },
+      {
+       "src": "images/as-4.jpg",
+       "caption": "④ 파일 옆 ＋ → HTML"
+      },
+      {
+       "src": "images/as-5.jpg",
+       "caption": "⑤ 이름을 index 로 → index.html 안의 내용을 지우고 받은 코드 붙여 넣기 → 💾 저장"
+      },
+      {
+       "src": "images/as-6.jpg",
+       "caption": "⑥ 위쪽에서 doGet 고르고 ▶ 실행 → 승인 필요 → 권한 검토"
+      },
+      {
+       "src": "images/as-7.jpg",
+       "caption": "⑦ 'Google에서 확인하지 않은 앱' → 왼쪽 아래 고급"
+      },
+      {
+       "src": "images/as-8.jpg",
+       "caption": "⑧ (프로젝트 이름)(으)로 이동 — 내가 만든 앱이라 괜찮아요"
+      },
+      {
+       "src": "images/as-9.jpg",
+       "caption": "⑨ 모두 선택 → 계속"
+      },
+      {
+       "src": "images/as-10.jpg",
+       "caption": "⑩ 오른쪽 위 배포 → 새 배포"
+      },
+      {
+       "src": "images/as-11.jpg",
+       "caption": "⑪ 유형 선택 ⚙ → 웹 앱"
+      },
+      {
+       "src": "images/as-12.jpg",
+       "caption": "⑫ 액세스 권한이 있는 사용자: 모든 사용자 → 배포"
+      },
+      {
+       "src": "images/as-13.jpg",
+       "caption": "⑬ 웹 앱 URL 복사 → 새 탭 주소창에 붙여 넣어 열기"
+      }
+     ]
     }
    ]
   },
@@ -1627,6 +1686,65 @@
      "title": "",
      "tone": "plain",
      "text": "1. **sheets.new** → 스프레드시트 **확장 프로그램 → Apps Script**\n2. `Code.gs` 내용을 지우고 아래 **Code.gs** 코드로 교체\n3. 왼쪽 **＋ → HTML** → 파일명 `index` 로 생성 → 아래 **index.html** 코드 붙여넣기 → 💾 저장\n4. 왼쪽 **⚙ 톱니바퀴(프로젝트 설정) → 스크립트 속성 → 스크립트 속성 추가** — 속성: `GEMINI_API_KEY` / 값: 발급받은 API 키 → 저장 ([자세히 보기](#api-key))\n5. 오른쪽 위 **배포 → 새 배포 → 유형: 웹 앱** — 실행: **나** / 액세스 권한: **모든 사용자** (처음엔 권한 허용: 고급 → 이동 → 허용)\n6. 배포 후 나오는 **웹 앱 URL** 접속 → 실습 (시트에 **PAPS처방** 탭이 생기고 기록이 쌓여요)"
+    },
+    {
+     "t": "fold",
+     "title": "📸 화면으로 따라 하기 (눌러서 보기)",
+     "text": "처음 한 번은 **권한 허용(⑥~⑨)**이 필요해요. '확인하지 않은 앱', '안전하지 않음'이라고 떠도 **내가 만든 앱**이라 괜찮아요.\n코드를 고친 뒤에는 **배포 → 배포 관리 → ✏ → 버전: 새 버전 → 배포**를 해야 웹앱에 반영돼요. 그림은 PAPS 실습 화면이지만 순서는 똑같아요.\n**API 키 넣기(스크립트 속성)**는 ⑤ 다음, ⑥ 실행 전에 해요 → [API 키 발급](#api-key) 페이지의 \"앱스크립트에 API 키 넣기\".",
+     "imgs": [
+      {
+       "src": "images/as-1.jpg",
+       "caption": "① 스프레드시트에서 확장 프로그램 → Apps Script"
+      },
+      {
+       "src": "images/as-2.jpg",
+       "caption": "② Code.gs 에 처음 들어 있는 코드를 모두 지우기"
+      },
+      {
+       "src": "images/as-3.jpg",
+       "caption": "③ 받은 Code.gs 코드를 붙여 넣고 💾 저장"
+      },
+      {
+       "src": "images/as-4.jpg",
+       "caption": "④ 파일 옆 ＋ → HTML"
+      },
+      {
+       "src": "images/as-5.jpg",
+       "caption": "⑤ 이름을 index 로 → index.html 안의 내용을 지우고 받은 코드 붙여 넣기 → 💾 저장"
+      },
+      {
+       "src": "images/as-6.jpg",
+       "caption": "⑥ 위쪽에서 doGet 고르고 ▶ 실행 → 승인 필요 → 권한 검토"
+      },
+      {
+       "src": "images/as-7.jpg",
+       "caption": "⑦ 'Google에서 확인하지 않은 앱' → 왼쪽 아래 고급"
+      },
+      {
+       "src": "images/as-8.jpg",
+       "caption": "⑧ (프로젝트 이름)(으)로 이동 — 내가 만든 앱이라 괜찮아요"
+      },
+      {
+       "src": "images/as-9.jpg",
+       "caption": "⑨ 모두 선택 → 계속"
+      },
+      {
+       "src": "images/as-10.jpg",
+       "caption": "⑩ 오른쪽 위 배포 → 새 배포"
+      },
+      {
+       "src": "images/as-11.jpg",
+       "caption": "⑪ 유형 선택 ⚙ → 웹 앱"
+      },
+      {
+       "src": "images/as-12.jpg",
+       "caption": "⑫ 액세스 권한이 있는 사용자: 모든 사용자 → 배포"
+      },
+      {
+       "src": "images/as-13.jpg",
+       "caption": "⑬ 웹 앱 URL 복사 → 새 탭 주소창에 붙여 넣어 열기"
+      }
+     ]
     },
     {
      "t": "h",
