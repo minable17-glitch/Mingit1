@@ -75,3 +75,11 @@
   만들기·지우기는 Git Data API로 파일 3개를 **커밋 하나**로 올린다(api `createSite`/`deleteSite`). 사이트마다 버전 기록이 따로다.
 - 화면 틀(template.html)을 고친 뒤 `python3 build_vercel.py` 를 돌리면 `sites.json` 에 있는 모든 `<slug>.html` 사본도 새로 만든다.
 - 주소 이름 금지어: admin, api, images, sites, index, favicon, site-data.
+
+## 구글 사이트 기능 (2026-10-25 추가)
+- 글 서식(`fmt`): **굵게** *기울임* ==형광펜== `코드` [글자](https://… 또는 #페이지), 줄 앞 "- / · / •" 글머리표, "1." 번호 목록. 문단(p)은 이제 div.para.
+- 제목 크기(큰/작은 = h2/h3)·가운데 정렬(h, p). 새 블록: 여러 단(cols, 최대 3칸·사진), 사진 슬라이드(carousel, 자동 넘기기), 지도(map — maps.google.com ?output=embed, 키 없음), 목차(toc — 그 페이지 제목 블록), 빈 공간(space).
+- 삽입(embed)은 `toEmbed`로 유튜브·구글 문서/시트/슬라이드(/preview)·설문(embedded=true)·드라이브 파일 주소를 바꿔 보여 줌. 사진 블록에 누르면 갈 링크.
+- 편집: 블록 ⧉ 복제, 페이지 복제, ↶ 되돌리기/↷ 다시 하기(`S.hist`/`S.fut`, touch 때마다 저장), 👀 미리보기(PC·휴대폰 틀).
+- ⚙ 사이트 설정(`data.site`): 이름·로고·강조색(`ACCENTS`, `applyTheme`)·머리 배경(dots/plain/accent)·📢 공지 배너(notice {on,text,link}, 닫으면 그 탭에서 숨김)·꼬리말(footer). 페이지마다 머리 배경 사진(`page.cover`).
+- 방문자: 왼쪽 메뉴 위 사이트 검색(`pageText`), 맨 위로 버튼.
