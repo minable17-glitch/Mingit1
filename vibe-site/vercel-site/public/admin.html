@@ -209,6 +209,23 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 .flist{margin:4px 0;padding-left:1.4em}.flist li{margin:2px 0}
 mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
+/* {빨강:글자} {크게:글자} text colors and sizes */
+:root{--fc-red:#d42a20;--fc-blue:#1c5bd0;--fc-green:#12804a;--fc-orange:#d4520a;--fc-purple:#7034e0;--fc-gray:#6b7280}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--fc-red:#ff7a70;--fc-blue:#7fb0ff;--fc-green:#5fd497;--fc-orange:#ffa266;--fc-purple:#b998ff;--fc-gray:#a3aab6}}
+.fc-red{color:var(--fc-red)}.fc-blue{color:var(--fc-blue)}.fc-green{color:var(--fc-green)}.fc-orange{color:var(--fc-orange)}.fc-purple{color:var(--fc-purple)}.fc-gray{color:var(--fc-gray)}
+.fs-sm{font-size:.86em}.fs-lg{font-size:1.25em;line-height:1.45}.fs-xl{font-size:1.6em;line-height:1.35;font-weight:700}
+.bg-yellow{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
+.para.pfs-sm{font-size:.92rem}.para.pfs-lg{font-size:1.15rem}.para.pfs-xl{font-size:1.35rem;line-height:1.6}
+/* editor formatting toolbar */
+.fbar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:5px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--soft)}
+.fbar+textarea{border-top-left-radius:0;border-top-right-radius:0}
+.fbar button{min-width:30px;height:30px;padding:0 7px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--fg);font:inherit;font-size:.86rem;cursor:pointer;line-height:1}
+.fbar button:hover{background:var(--surface);border-color:var(--line)}
+.fbar .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+.fbar .sw{width:22px;height:22px;min-width:22px;padding:0;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.fpv{margin-top:6px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;background:var(--surface);font-size:.95rem}
+.fpv>small{display:block;color:var(--muted);font-size:.75rem;margin-bottom:4px}
+.fld.rich{display:flex;flex-direction:column;gap:4px}
 .para a,.tbox a,.card a,.note a,.fold a,.col a,.site-foot a{color:var(--accent-text);text-decoration:underline}
 .doc h3{font-size:1.2rem;line-height:1.4;margin:6px 0 0;font-weight:800}
 .al-c{text-align:center}.al-c .flist{display:inline-block;text-align:left}
@@ -374,14 +391,19 @@ function add(e,c){
   if(Array.isArray(c)){c.forEach(function(x){add(e,x)});return;}
   e.append(c.nodeType?c:document.createTextNode(String(c)));
 }
-// Inline: **굵게** *기울임* ==형광펜== `코드` [글자](https://… 또는 #페이지)
+// Inline: **굵게** *기울임* ==형광펜== `코드` [글자](https://… 또는 #페이지) {빨강 크게:글자}
+var FMT_WORDS={'빨강':'fc-red','파랑':'fc-blue','초록':'fc-green','주황':'fc-orange','보라':'fc-purple','회색':'fc-gray','작게':'fs-sm','크게':'fs-lg','아주크게':'fs-xl','노랑배경':'bg-yellow','굵게':'b'};
 function inlineFmt(line,f){
-  line.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|==[^=]+==|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/[^)\s]+|#[\w-]+)\))/).forEach(function(s){
+  line.split(/(\{[가-힣]+(?: [가-힣]+)*:[^{}\n]+\}|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|==[^=]+==|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/[^)\s]+|#[\w-]+)\))/).forEach(function(s){
     if(!s) return;
-    var m;
-    if(s.length>4&&s.slice(0,2)==='**'&&s.slice(-2)==='**') f.append(el('strong',null,s.slice(2,-2)));
-    else if(s.length>2&&s[0]==='*'&&s.slice(-1)==='*') f.append(el('em',null,s.slice(1,-1)));
-    else if(s.length>4&&s.slice(0,2)==='=='&&s.slice(-2)==='==') f.append(el('mark',null,s.slice(2,-2)));
+    var m,x;
+    if((m=/^\{([가-힣 ]+):([\s\S]+)\}$/.exec(s))&&m[1].split(' ').every(function(w){return FMT_WORDS[w];})){
+      var cls=m[1].split(' ').map(function(w){return FMT_WORDS[w];});
+      x=el(cls.indexOf('b')>=0?'strong':'span',{class:cls.filter(function(c){return c!=='b';}).join(' ')||null}); inlineFmt(m[2],x); f.append(x);
+    }
+    else if(s.length>4&&s.slice(0,2)==='**'&&s.slice(-2)==='**'){x=el('strong');inlineFmt(s.slice(2,-2),x);f.append(x);}
+    else if(s.length>2&&s[0]==='*'&&s.slice(-1)==='*'&&s[1]!=='*'){x=el('em');inlineFmt(s.slice(1,-1),x);f.append(x);}
+    else if(s.length>4&&s.slice(0,2)==='=='&&s.slice(-2)==='=='){x=el('mark');inlineFmt(s.slice(2,-2),x);f.append(x);}
     else if(s.length>2&&s[0]==='`'&&s.slice(-1)==='`') f.append(el('code',null,s.slice(1,-1)));
     else if((m=/^\[([^\]]+)\]\((.+)\)$/.exec(s))){
       var u=m[2];
@@ -823,7 +845,7 @@ function carouselView(b){
 function blockView(b){
   switch(b.t){
     case 'h': return el(b.size==='sm'?'h3':'h2',{class:b.align==='center'?'al-c':null},fmt(b.text));
-    case 'p': return el('div',{class:'para'+(b.align==='center'?' al-c':'')},fmt(b.text));
+    case 'p': return el('div',{class:'para'+(b.align==='center'?' al-c':'')+(b.fs?' pfs-'+b.fs:'')},fmt(b.text));
     case 'toc':
       var hs=cp().blocks.filter(function(x){return x.t==='h';});
       return el('nav',{class:'toc','aria-label':'페이지 차례'},el('b',null,b.title||'이 페이지 차례'),
@@ -921,7 +943,75 @@ function quizView(b){
 }
 
 /* ---------- blocks: edit ---------- */
-function fld(label,input){return el('label',{class:'fld'},el('span',null,label),input);}
+function fld(label,input){
+  if(input&&input.classList&&input.classList.contains('rich')) return el('div',{class:'fld rich'},el('span',null,label),fmtBar(input),input,fmtPreview(input));
+  return el('label',{class:'fld'},el('span',null,label),input);
+}
+function rta(v,rows){var t=ta(v,rows);t.classList.add('rich');return t;}
+/* Formatting toolbar for a text box: wraps the selected text in the site's text marks. */
+var FB_COLORS=[['빨강','#d42a20'],['파랑','#1c5bd0'],['초록','#12804a'],['주황','#d4520a'],['보라','#7034e0'],['회색','#6b7280']];
+function fmtBar(t){
+  function sel(){return {a:t.selectionStart,b:t.selectionEnd,v:t.value};}
+  function put(v,a,b){t.value=v;t.focus();t.setSelectionRange(a,b);t.dispatchEvent(new Event('input',{bubbles:true}));}
+  function wrap(l,r,ph){
+    var s_=sel(), mid=s_.v.slice(s_.a,s_.b)||ph;
+    if(s_.v.slice(s_.a-l.length,s_.a)===l&&s_.v.slice(s_.b,s_.b+r.length)===r&&s_.a!==s_.b){ // already wrapped: unwrap
+      put(s_.v.slice(0,s_.a-l.length)+mid+s_.v.slice(s_.b+r.length),s_.a-l.length,s_.a-l.length+mid.length);return;}
+    put(s_.v.slice(0,s_.a)+l+mid+r+s_.v.slice(s_.b),s_.a+l.length,s_.a+l.length+mid.length);
+  }
+  // {spec:text}: add a word to the spec around the selection, replacing words of the same kind (color / size)
+  function style(word,kind){
+    var s_=sel(), v=s_.v, a=s_.a, b=s_.b;
+    var m=/^\{([가-힣 ]+):([\s\S]*)\}$/.exec(v.slice(a,b));
+    if(!m){var pre=/\{([가-힣 ]+):$/.exec(v.slice(Math.max(0,a-20),a));
+      if(pre&&v.slice(b,b+1)==='}'){a-=pre[0].length;b+=1;m=/^\{([가-힣 ]+):([\s\S]*)\}$/.exec(v.slice(a,b));}}
+    var words=m?m[1].split(' '):[], text=m?m[2]:(v.slice(a,b)||'글자');
+    var same=words.filter(function(w){return kind(w);}).indexOf(word)>=0;
+    words=words.filter(function(w){return !kind(w);}); if(!same) words.push(word);
+    var out=words.length?'{'+words.join(' ')+':'+text+'}':text, st=words.length?a+words.join(' ').length+2:a;
+    put(v.slice(0,a)+out+v.slice(b),st,st+text.length);
+  }
+  function isColor(w){return /^(빨강|파랑|초록|주황|보라|회색|노랑배경)$/.test(w);}
+  function isSize(w){return /^(작게|크게|아주크게)$/.test(w);}
+  function clear(){
+    var s_=sel(); if(s_.a===s_.b) return;
+    var mid=s_.v.slice(s_.a,s_.b), prev;
+    do{prev=mid;mid=mid.replace(/\{[가-힣 ]+:([^{}]*)\}/g,'$1');}while(mid!==prev);
+    mid=mid.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/==([^=]+)==/g,'$1').replace(/\*([^*\s][^*]*)\*/g,'$1');
+    put(s_.v.slice(0,s_.a)+mid+s_.v.slice(s_.b),s_.a,s_.a+mid.length);
+  }
+  function link(){
+    var url=window.prompt('연결할 주소 (https://… 또는 #페이지주소)','https://'); if(!url||url==='https://') return;
+    var s_=sel(), txt=s_.v.slice(s_.a,s_.b)||'링크 글자';
+    put(s_.v.slice(0,s_.a)+'['+txt+']('+url.trim()+')'+s_.v.slice(s_.b),s_.a+1,s_.a+1+txt.length);
+  }
+  function lines(prefix){
+    var s_=sel(), v=s_.v, a=v.lastIndexOf('\n',s_.a-1)+1, b=v.indexOf('\n',s_.b); if(b<0) b=v.length;
+    var n=0, out=v.slice(a,b).split('\n').map(function(l){n++;var bare=l.replace(/^\s*([-•·]|\d+[.)])\s+/,'');return prefix==='1.'?n+'. '+bare:prefix+' '+bare;}).join('\n');
+    put(v.slice(0,a)+out+v.slice(b),a,a+out.length);
+  }
+  function B(label,title,fn,extra){return el('button',Object.assign({type:'button',title:title,'aria-label':title,onmousedown:function(e){e.preventDefault();},onclick:fn},extra||{}),label);}
+  return el('div',{class:'fbar',role:'toolbar','aria-label':'글자 꾸미기'},
+    B(el('b',null,'B'),'굵게',function(){wrap('**','**','굵은 글자');}),
+    B(el('i',null,'I'),'기울임',function(){wrap('*','*','기울인 글자');}),
+    B(el('mark',null,'형광'),'형광펜',function(){wrap('==','==','강조할 글자');}),
+    B('🔗','링크',link),
+    el('span',{class:'sep'}),
+    FB_COLORS.map(function(c){return B('',c[0]+' 글자',function(){style(c[0],isColor);},{class:'sw',style:'background:'+c[1]});}),
+    el('span',{class:'sep'}),
+    B(el('small',null,'가'),'작게',function(){style('작게',isSize);}),
+    B('가','크게 (한 번 더 누르면 원래대로)',function(){style('크게',isSize);},{style:'font-size:1.05rem;font-weight:700'}),
+    B('가','아주 크게',function(){style('아주크게',isSize);},{style:'font-size:1.3rem;font-weight:800'}),
+    el('span',{class:'sep'}),
+    B('•','글머리표',function(){lines('-');}),
+    B('1.','번호 목록',function(){lines('1.');}),
+    B('⌫','고른 글자의 꾸밈 지우기',clear));
+}
+function fmtPreview(t){
+  var box=el('div',{class:'fpv'});
+  function draw(){box.textContent='';box.append(el('small',null,'미리보기'),fmt(t.value));}
+  t.addEventListener('input',draw); draw(); return box;
+}
 function inp(v){return el('input',{type:'text',value:v||''});}
 function ta(v,rows,mono){return el('textarea',{rows:rows||4,class:mono?'mono':'',value:v||'',spellcheck:'false'});}
 function stepsToText(items){return (items||[]).map(function(i){return i.title+'\n'+i.body;}).join('\n---\n');}
@@ -960,7 +1050,7 @@ function editorFor(b){
     n=inp(b.text);var hz=el('select',null,el('option',{value:''},'큰 제목'),el('option',{value:'sm'},'작은 제목'));hz.value=b.size||'';
     f('제목',n,function(){b.text=n.value;});f('크기',hz,function(){if(hz.value)b.size=hz.value;else delete b.size;});alignBox();
   }
-  else if(b.t==='p'){n=ta(b.text,6);f('문단 (줄바꿈 가능 · **굵게** *기울임* ==형광펜== [글자](https://주소) · 줄 앞에 “- ” 글머리표, “1. ” 번호)',n,function(){b.text=n.value;});alignBox();}
+  else if(b.t==='p'){n=rta(b.text,6);f('문단 — 글자를 고른 뒤 위 단추로 꾸며요',n,function(){b.text=n.value;});var pz=el('select',null,el('option',{value:'sm'},'작게'),el('option',{value:''},'보통'),el('option',{value:'lg'},'크게'),el('option',{value:'xl'},'아주 크게'));pz.value=b.fs||'';f('문단 전체 글자 크기',pz,function(){if(pz.value)b.fs=pz.value;else delete b.fs;});alignBox();}
   else if(b.t==='toc'){var tt_=inp(b.title);f('차례 제목',tt_,function(){b.title=tt_.value;});fields.push(el('p',{class:'foot'},'이 페이지의 제목 블록이 저절로 차례가 돼요. 누르면 그 자리로 내려가요.'));}
   else if(b.t==='space'){var sz=el('input',{type:'number',min:8,max:200,value:b.size||40});f('높이(px)',sz,function(){b.size=Math.max(8,Math.min(200,parseInt(sz.value,10)||40));});}
   else if(b.t==='map'){
@@ -972,7 +1062,7 @@ function editorFor(b){
   else if(b.t==='cols'){
     var ci=(b.items||[]).slice();while(ci.length<3)ci.push({title:'',text:'',src:''});
     var colEds=ci.slice(0,3).map(function(c,k){
-      var t_=inp(c.title),x_=ta(c.text,5),s_=inp(c.src),fi_=el('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp'}),st_=el('span',{class:'foot'});
+      var t_=inp(c.title),x_=rta(c.text,5),s_=inp(c.src),fi_=el('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp'}),st_=el('span',{class:'foot'});
       fi_.addEventListener('change',function(){var file=fi_.files&&fi_.files[0];if(!file)return;st_.textContent=' 올리는 중…';
         uploadImage(file).then(function(src){s_.value=src;st_.textContent=' 올렸어요';},function(e){st_.textContent=' '+((e&&e.message)||'못 올렸어요');});});
       fields.push(el('div',{class:'tbox soft'},el('div',{class:'tt'},(k+1)+'번째 칸'+(k===2?' (비우면 두 칸)':'')),fld('칸 제목',t_),fld('내용 ('+'줄바꿈 가능 · **굵게** *기울임* ==형광펜== [글자](https://주소) · 줄 앞에 “- ” 글머리표, “1. ” 번호'+')',x_),fld('사진 (선택)',el('div',null,fi_,st_,s_))));
@@ -982,9 +1072,9 @@ function editorFor(b){
   }
   else if(b.t==='note'){
     var s=el('select',null,el('option',{value:'tip'},'팁'),el('option',{value:'warn'},'주의'),el('option',{value:'info'},'참고'));s.value=b.tone||'tip';
-    n=ta(b.text,4);f('종류',s,function(){b.tone=s.value;});f('내용',n,function(){b.text=n.value;});
+    n=rta(b.text,4);f('종류',s,function(){b.tone=s.value;});f('내용',n,function(){b.text=n.value;});
   }
-  else if(b.t==='steps'){n=ta(stepsToText(b.items),10);f('단계 (첫 줄=제목, 다음 줄=설명, 단계 사이는 --- 한 줄)',n,function(){b.items=textToSteps(n.value);});}
+  else if(b.t==='steps'){n=rta(stepsToText(b.items),10);f('단계 (첫 줄=제목, 다음 줄=설명, 단계 사이는 --- 한 줄)',n,function(){b.items=textToSteps(n.value);});}
   else if(b.t==='prompt'){
     var l=inp(b.label),ph=el('input',{type:'checkbox',checked:!!b.hide});n=ta(b.text,8,true);
     f('상자 제목',l,function(){b.label=l.value;});f('복사될 내용',n,function(){b.text=n.value;});
@@ -992,11 +1082,11 @@ function editorFor(b){
     getters.push(function(){if(ph.checked)b.hide=true;else delete b.hide;});
   }
   else if(b.t==='box'){
-    var bt=inp(b.title),bx=ta(b.text,6),bc=el('select',null,el('option',{value:'plain'},'흰 상자'),el('option',{value:'soft'},'회색 상자'),el('option',{value:'accent'},'빨간 테두리 상자'));bc.value=b.tone||'plain';
+    var bt=inp(b.title),bx=rta(b.text,6),bc=el('select',null,el('option',{value:'plain'},'흰 상자'),el('option',{value:'soft'},'회색 상자'),el('option',{value:'accent'},'빨간 테두리 상자'));bc.value=b.tone||'plain';
     f('상자 제목 (없으면 비워 두세요)',bt,function(){b.title=bt.value;});f('내용 (줄바꿈 가능, **굵게**)',bx,function(){b.text=bx.value;});f('모양',bc,function(){b.tone=bc.value;});
   }
   else if(b.t==='fold'){
-    var ft=inp(b.title),fx=ta(b.text,8);
+    var ft=inp(b.title),fx=rta(b.text,8);
     f('보이는 제목 (누르면 아래 내용이 펼쳐져요)',ft,function(){b.title=ft.value;});f('숨겨 둘 내용 (줄바꿈 가능, **굵게**)',fx,function(){b.text=fx.value;});
   }
   else if(b.t==='html'){
@@ -1008,7 +1098,7 @@ function editorFor(b){
     getters.push(function(){if(sto.checked)b.storage=true;else delete b.storage;});
   }
   else if(b.t==='quiz'){
-    var q=inp(b.q),o=ta((b.opts||[]).join('\n'),5),a=el('input',{type:'number',value:(b.a||0)+1,min:1}),w=ta(b.why,3);
+    var q=inp(b.q),o=ta((b.opts||[]).join('\n'),5),a=el('input',{type:'number',value:(b.a||0)+1,min:1}),w=rta(b.why,3);
     f('질문',q,function(){b.q=q.value;});f('보기 (한 줄에 하나)',o,function(){b.opts=o.value.split('\n').map(function(x){return x.trim();}).filter(Boolean);});
     f('정답 번호',a,function(){b.a=Math.max(0,Math.min((b.opts||[]).length-1,(parseInt(a.value,10)||1)-1));});f('해설',w,function(){b.why=w.value;});
   }
@@ -1038,7 +1128,7 @@ function editorFor(b){
   }
   else if(b.t==='hr'){fields.push(el('p',{class:'foot'},'구분선은 고칠 내용이 없어요.'));}
   else if(b.t==='cards'){
-    n=ta(stepsToText(b.items),10); var nm=el('input',{type:'checkbox',checked:!!b.num});
+    n=rta(stepsToText(b.items),10); var nm=el('input',{type:'checkbox',checked:!!b.num});
     f('카드 (첫 줄=제목, 다음 줄=설명, 카드 사이는 --- 한 줄)',n,function(){b.items=textToSteps(n.value);});
     fields.push(el('label',{class:'fld chk'},nm,el('span',null,'카드에 번호 붙이기')));
     getters.push(function(){if(nm.checked)b.num=true;else delete b.num;});
@@ -1334,7 +1424,7 @@ function openSiteSettings(){
     r.addEventListener('change',function(){acc=k;});sw.append(el('label',null,r,el('i',{style:'background:'+ACCENTS[k][1]}),ACCENTS[k][0]));});
   var hs=el('select',null,el('option',{value:'dots'},'어두운 점무늬 (기본)'),el('option',{value:'plain'},'어두운 단색'),el('option',{value:'accent'},'강조색'));hs.value=s.hero||'dots';
   var non=el('input',{type:'checkbox',checked:!!nt.on}), ntx=inp(nt.text), nlk=inp(nt.link); nlk.placeholder='https://… 또는 #페이지주소 (선택)';
-  var ft=ta(s.footer||'',3);
+  var ft=rta(s.footer||'',3);
   openDlg('사이트 설정',el('div',{class:'hist'},
     fld('사이트 이름 (맨 위 검은 줄)',nm),
     fld('로고 (사이트 이름 앞 작은 그림, 선택)',el('div',null,lf,lst,lg)),
