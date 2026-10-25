@@ -41,7 +41,7 @@ out = here/'vercel-site'
 if out.exists(): shutil.rmtree(out)
 (out/'public').mkdir(parents=True)
 (out/'public'/'index.html').write_text(doc,encoding='utf8')
-(out/'vercel.json').write_text(json.dumps({"cleanUrls":True,"headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]}]},indent=2),encoding='utf8')
+(out/'vercel.json').write_text(json.dumps({"framework":None,"buildCommand":"","outputDirectory":"public","cleanUrls":True,"headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]}]},indent=2),encoding='utf8')
 (out/'README.md').write_text("""# 바이브 코딩 연수(체육) 사이트
 
 정적 사이트 한 장(`public/index.html`)입니다. 빌드 과정이 없어요.
