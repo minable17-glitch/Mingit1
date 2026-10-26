@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 55,
+ "rev": 56,
  "pages": [
   {
    "id": "home",
@@ -78,7 +78,8 @@
      "t": "embed",
      "title": "코딩 용어 카드",
      "url": "https://coding-term-cards.minable17.chatgpt.site/",
-     "height": 800
+     "height": 800,
+     "zoom": 0.75
     }
    ]
   },

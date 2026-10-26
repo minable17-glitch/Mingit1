@@ -195,6 +195,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .embedbox{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
 .embedbox .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--soft)}
 .embed-frame{display:block;width:100%;border:0;background:#fff}
+.zoomwrap{overflow:hidden;position:relative}
+.zoomwrap>iframe{transform-origin:0 0}
 .figure{margin:0}
 .figure img{display:block;max-width:100%;height:auto;margin:0 auto;border-radius:12px;border:1px solid var(--line)}
 .figure figcaption{color:var(--muted);font-size:.9rem;margin-top:6px;text-align:center}
@@ -954,7 +956,7 @@ function blockView(b){
       var eu=safeUrl(b.url); if(!eu) return el('p',{class:'para'},'(웹사이트 주소가 없어요)');
       return el('div',{class:'embedbox'},
         el('div',{class:'hd'},el('b',null,b.title||'웹앱'),el('a',{class:'btn small',href:eu,target:'_blank',rel:'noopener noreferrer'},'새 창에서 열기 ↗')),
-        el('iframe',{class:'embed-frame',src:toEmbed(eu),title:b.title||'웹앱',loading:'lazy',allow:'fullscreen; autoplay; encrypted-media; picture-in-picture',allowfullscreen:true,style:'height:'+(b.height||760)+'px'}));
+        zoomBox(el('iframe',{class:'embed-frame',src:toEmbed(eu),title:b.title||'웹앱',loading:'lazy',allow:'fullscreen; autoplay; encrypted-media; picture-in-picture',allowfullscreen:true,style:'height:'+(b.height||760)+'px'}),zoomOf(b),parseInt(b.height,10)||760));
     case 'hr': return el('hr',{class:'hr'});
     case 'cards': var cn=(b.items||[]).length; return el('div',{class:'cards'+(b.num?' num':'')+(cn===2||cn===4?' c2':'')},(b.items||[]).map(function(it){
       return el('div',{class:'card'},el('b',null,fmt(it.title)),it.body?el('div',{class:'cb'},fmt(it.body)):null);}));
@@ -977,12 +979,23 @@ var FIT='<scr'+'ipt>(function(){function s(){try{var b=document.body,r=b.getBoun
   'window.addEventListener("load",s);if(window.ResizeObserver)new ResizeObserver(s).observe(document.body);setTimeout(s,300);})();<'+'/script>';
 window.addEventListener('message',function(e){
   if(e.data&&typeof e.data.vcH==='number'){
-    document.querySelectorAll('iframe.lab-frame').forEach(function(f){ if(f.contentWindow===e.source&&f._fit) f.style.height=Math.max(160,Math.min(5000,e.data.vcH+4))+'px'; });
+    document.querySelectorAll('iframe.lab-frame').forEach(function(f){ if(f.contentWindow===e.source&&f._fit){var hh=Math.max(160,Math.min(5000,e.data.vcH+4));f.style.height=hh+'px';if(f._zoom&&f.parentNode)f.parentNode.style.height=Math.round(hh*f._zoom)+'px';} });
     return;
   }
   if(e.data!=='vc-ready') return;
   document.querySelectorAll('iframe.lab-frame').forEach(function(f){ if(f.contentWindow===e.source&&f._ok) f._ok(); });
 });
+// 배율: 안쪽 화면을 z배로 줄여 보여 준다. 보이는 높이는 h 그대로, iframe 은 1/z 만큼 크게 그려 축소.
+function zoomOf(b){var z=parseFloat(b.zoom);return z>0&&z<1?z:1;}
+function zoomBox(frame,z,h){
+  if(z===1) return frame;
+  frame._zoom=z; frame.style.width=(100/z)+'%'; frame.style.height=Math.round(h/z)+'px'; frame.style.transform='scale('+z+')';
+  return el('div',{class:'zoomwrap',style:'height:'+h+'px'},frame);
+}
+function zoomSelect(b){
+  var s=el('select',null,[100,90,80,75,70,60,50].map(function(v){return el('option',{value:String(v/100)},v+'%'+(v===100?' (원래 크기)':''));}));
+  s.value=String(zoomOf(b)); return s;
+}
 function labView(b){
   var ready=false, timer;
   var frame=el('iframe',{class:'lab-frame',sandbox:'allow-scripts allow-modals allow-popups'+(b.storage?' allow-same-origin':''),title:b.title||'체험',style:'height:'+(b.height||320)+'px'});
@@ -1001,7 +1014,7 @@ function labView(b){
   var reset=el('button',{class:'btn small',type:'button',onclick:function(){tx.value=b.code||'';run(tx.value);}},'처음으로');
   var cpy=el('button',{class:'btn small',type:'button'},'코드 복사');
   cpy.addEventListener('click',function(){copyText(tx.value,cpy);});
-  var box=el('div',{class:'lab'},el('div',{class:'hd'},el('b',null,b.title||'체험'),toggle,runB,reset,cpy),frame,fail,src);
+  var box=el('div',{class:'lab'},el('div',{class:'hd'},el('b',null,b.title||'체험'),toggle,runB,reset,cpy),zoomBox(frame,zoomOf(b),parseInt(b.height,10)||320),fail,src);
   run(b.code||'');
   return box;
 }
@@ -1253,6 +1266,7 @@ function editorFor(b){
     var fit=el('input',{type:'checkbox',checked:!!b.fit});
     fields.push(el('label',{class:'fld chk'},fit,el('span',null,'높이를 내용에 맞추기 (아래 빈 공간 없애기 — 화면 높이(vh)에 맞춰 커지는 코드에는 쓰지 마세요)')));
     getters.push(function(){if(fit.checked)b.fit=true;else delete b.fit;});
+    var hz=zoomSelect(b); f('배율 (안의 화면이 크게 보이면 줄이세요)',hz,function(){var z=parseFloat(hz.value);if(z<1)b.zoom=z;else delete b.zoom;});
     f('HTML 코드 (AI가 만들어 준 한 파일짜리 HTML을 붙여 넣으세요)',n,function(){b.code=n.value;});
     var sto=el('input',{type:'checkbox',checked:!!b.storage});
     fields.push(el('label',{class:'fld chk'},sto,el('span',null,'이 코드가 브라우저 저장(localStorage)을 써요')));
@@ -1290,6 +1304,7 @@ function editorFor(b){
     f('제목',et,function(){b.title=et.value;});
     f('웹사이트 주소 (https://…)',eu,function(){b.url=eu.value.trim();});
     f('높이(px)',eh,function(){b.height=Math.max(200,Math.min(2000,parseInt(eh.value,10)||760));});
+    var ez=zoomSelect(b); f('배율 (안의 화면이 크게 보이면 줄이세요)',ez,function(){var z=parseFloat(ez.value);if(z<1)b.zoom=z;else delete b.zoom;});
     fields.push(el('div',{class:'foot'},'유튜브 주소, 구글 문서·시트·슬라이드 공유 주소, 구글 설문 주소, 드라이브 파일 주소는 그대로 붙여 넣으면 화면 안에 보여요. (구글 파일은 “링크가 있는 모든 사용자”에게 공유돼 있어야 해요.) 어떤 사이트는 끼워 넣기를 막아 두어서 빈 화면이 나와요 — 그럴 땐 “링크 버튼”을 쓰세요.'));
   }
   else if(b.t==='hr'){fields.push(el('p',{class:'foot'},'구분선은 고칠 내용이 없어요.'));}
