@@ -321,10 +321,16 @@ mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .kid:hover{border-color:var(--accent)}
 .kid b{display:block}
 .kid span{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
-.pager{display:flex;gap:12px;justify-content:space-between;max-width:760px;margin-top:34px;flex-wrap:wrap}
-.pager a{flex:1 1 220px;text-decoration:none;border:1px solid var(--line);border-radius:12px;padding:10px 16px;background:var(--surface)}
-.pager a small{display:block;color:var(--muted)}
-.pager a.nx{text-align:right}
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:760px;margin-top:34px;padding-top:18px;border-top:1px solid var(--line)}
+.pager a{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--surface);transition:border-color .15s,background .15s}
+.pager a:hover{border-color:var(--accent)}
+.pager a .pt{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.pager a small{color:var(--muted);font-size:.78rem}
+.pager a b{font-size:.95rem;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all}
+.pager a i{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:1.1rem;background:var(--soft);color:var(--muted)}
+.pager a.pv{grid-column:1}
+.pager a.nx{grid-column:2;text-align:right;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.pager a.nx i{background:var(--accent);color:var(--accent-fg)}
 
 /* edit mode */
 .blk{position:relative}
@@ -809,8 +815,9 @@ function explore(){
 function flat(){var out=[];(function walk(pid){vkids(pid).forEach(function(c){out.push(c);walk(c.id);});})(null);return out;}
 function pager(p){
   var list=flat(), i=list.indexOf(p), prev=list[i-1], next=list[i+1];
-  function card(q,cls,label){return el('a',{class:cls,href:'#'+q.id,onclick:function(e){e.preventDefault();go(q.id);}},el('small',null,label),q.title);}
-  return el('div',{class:'pager'},prev?card(prev,'pv','← 이전'):null,next?card(next,'nx','다음 →'):null);
+  function card(q,cls,label,arrow){var txt=el('span',{class:'pt'},el('small',null,label),el('b',null,q.title)), ic=el('i',{'aria-hidden':'true'},arrow);
+    return el('a',{class:cls,href:'#'+q.id,onclick:function(e){e.preventDefault();go(q.id);}},cls==='pv'?[ic,txt]:[txt,ic]);}
+  return el('div',{class:'pager'},prev?card(prev,'pv','이전','‹'):null,next?card(next,'nx','다음','›'):null);
 }
 function metaEditor(p){
   var t=el('input',{type:'text',value:p.title}), g=el('input',{type:'text',value:p.tag||''}), d=el('input',{type:'text',value:p.desc||''});
