@@ -107,6 +107,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* document */
 .main{min-width:0}
 .doc{max-width:1240px;display:flex;flex-direction:column;gap:22px}
+.bgroup{display:flex;flex-direction:column;gap:16px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:16px;padding:18px 18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.bgroup>.blk>.codebox,.bgroup>.blk>.cards .card,.bgroup>.blk>.cols .col{background:var(--bg)}
+.edit .bgroup>.blk.joined{border-top:1px dashed var(--line);padding-top:10px}
+@media (max-width:600px){.bgroup{padding:14px 12px 16px}}
 /* hands-on labs (code | result side by side) get the whole column width */
 .doc:has(.lab){max-width:none}.doc:has(.lab)>.blk:not(:has(.lab)){max-width:1240px;width:100%}
 .doc h2{font-size:1.55rem;line-height:1.35;margin:18px 0 0;font-weight:800;text-wrap:balance;padding-left:12px;border-left:5px solid var(--accent)}
@@ -802,7 +806,14 @@ function renderMain(){
   var p=cp(); mainEl.textContent=''; mainEl.classList.toggle('edit',S.edit);
   if(S.edit) mainEl.append(metaEditor(p));
   var doc=el('div',{class:'doc'});
-  p.blocks.forEach(function(b,i){doc.append(blockWrap(p,b,i));});
+  // join: 바로 위 블록과 한 덩어리(같은 상자)로 묶어 보여 준다
+  var grp=null;
+  p.blocks.forEach(function(b,i){
+    var w=blockWrap(p,b,i), nx=p.blocks[i+1];
+    if(b.join&&grp){grp.append(w);if(S.edit)w.classList.add('joined');}
+    else if(nx&&nx.join){grp=el('div',{class:'bgroup'},w);doc.append(grp);}
+    else{grp=null;doc.append(w);}
+  });
   if(S.edit) doc.append(addBlockRow(p));
   mainEl.append(doc);
   var ch=vkids(p.id);
@@ -1337,6 +1348,9 @@ function editorFor(b){
     else{var au=el('input',{type:'checkbox',checked:!!b.auto});fields.push(el('label',{class:'fld chk'},au,el('span',null,'4초마다 저절로 넘기기')));getters.push(function(){if(au.checked)b.auto=true;else delete b.auto;});
       var tl=el('input',{type:'checkbox',checked:!!b.tall});fields.push(el('label',{class:'fld chk'},tl,el('span',null,'세로로 긴 사진(활동지·폰 화면)이라 크게 보이기')));getters.push(function(){if(tl.checked)b.tall=true;else delete b.tall;});}
   }
+  var jn=el('input',{type:'checkbox',checked:!!b.join});
+  fields.push(el('label',{class:'fld chk'},jn,el('span',null,'바로 위 블록과 한 상자로 묶어 보이기')));
+  getters.push(function(){if(jn.checked)b.join=true;else delete b.join;});
   return el('div',null,fields,el('div',{class:'tools'},
     el('button',{class:'btn pri small',type:'button',onclick:function(){getters.forEach(function(g){g();});S.eb=null;touch();renderMain();}},'적용'),
     el('button',{class:'btn small',type:'button',onclick:function(){S.eb=null;renderMain();}},'취소')));
