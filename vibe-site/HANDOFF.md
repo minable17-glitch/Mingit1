@@ -125,3 +125,9 @@
 - 수업 성찰 AI 코치: 이름·한 줄 성찰 → '성찰' 탭 저장 + Gemini 피드백. 조건 4개(저장·AI 피드백·키는 스크립트 속성·이름은 AI에 안 보냄).
 - 채점 봇은 배드민턴 채점기를 바꾼 것: 가짜 SpreadsheetApp + 가짜 UrlFetchApp(Gemini 흉내, 스크립트 속성 GEMINI_API_KEY='TEST-KEY-1234'
   가 요청에 들어가야 200). AI에게 보낸 글에 이름이 있으면 ❌, 코드에 AIza… 키가 있으면 ❌. 오류·프롬프트에 키는 '(키 가림)'.
+
+## AI 는 Gemini 로 (2026-10-26)
+- `api/_gemini.js` askGemini(prompt,{json,system,...}) — 키 Vercel 환경 변수 GEMINI_API_KEY, 모델 GEMINI_MODEL 또는 후보(gemini-flash-latest → 2.5-flash → 3.8-flash), 404·429·5xx 면 다음 후보.
+- `api/feedback.js`(러닝 코치)는 GEMINI_API_KEY 있으면 Gemini, 없으면 Groq.
+- `api/review.js` = 종합 실습 AI 채점 봇. 기준 10개(RUBRIC: 기본 b1~b4, 심화 d1a~d3b) 마다 pass/partial/fail + 이유, 기록 항목, 잘한 점, 피드백, 다음 프롬프트(JSON). 코드 속 키(AIza…, AQ.…)는 보내기 전에 가림. vercel.json maxDuration 60.
+- **키는 저장소에 절대 넣지 않는다.** Vercel → pevibecode → Settings → Environment Variables → GEMINI_API_KEY → Redeploy.

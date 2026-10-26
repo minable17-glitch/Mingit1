@@ -82,7 +82,8 @@ if '--reset' in sys.argv or not data_file.exists():
 (out/'vercel.json').write_text(json.dumps({"framework":None,"buildCommand":"","outputDirectory":"public","cleanUrls":True,
   "headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"}]},
     {"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]},
-    {"source":"/(.*).webmanifest","headers":[{"key":"Content-Type","value":"application/manifest+json"}]}]},indent=2),encoding='utf8')
+    {"source":"/(.*).webmanifest","headers":[{"key":"Content-Type","value":"application/manifest+json"}]}],
+  "functions":{"api/review.js":{"maxDuration":60}}},indent=2),encoding='utf8')
 (out/'README.md').write_text("""# 바이브 코딩 연수(체육) 사이트
 
 - `public/index.html` : 화면 틀 (template.html에서 만들어짐)

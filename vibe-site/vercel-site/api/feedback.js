@@ -1,11 +1,13 @@
 // AI 러닝 코치 피드백 — 파라런(running-journal) src/lib/feedback.ts 와 같은 방식.
-// 화면은 숫자(1km 구간 시간, 지난 최고 페이스)만 보내고, 이 함수가 Groq API 에 프롬프트를 보낸다.
-// API 키(GROQ_API_KEY)는 Vercel 환경 변수에만 있고 화면에는 내려가지 않는다.
+// 화면은 숫자(1km 구간 시간, 지난 최고 페이스)만 보내고, 이 함수가 AI 에 프롬프트를 보낸다.
+// Gemini(GEMINI_API_KEY)가 있으면 Gemini, 없으면 Groq(GROQ_API_KEY). 키는 Vercel 환경 변수에만 있다.
 // 키가 없거나 AI 가 실패하면 규칙으로 만든 피드백을 돌려준다(앱과 같음).
 // 받는 값은 숫자뿐이라 아무 글이나 AI 에게 시키는 통로로 쓸 수 없다.
 
 const WALK_PACE = 600; // 10'00"/km 보다 느리면 걷기 (파라런 학생 기준)
 const { askGroq, limited, cors, bodyOf } = require('./_groq');
+const { askGemini } = require('./_gemini');
+const askAI = (p) => (process.env.GEMINI_API_KEY ? askGemini(p, { temperature: 0.7, maxTokens: 700 }) : askGroq(p));
 
 function pace(sec) {
   const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60;
@@ -63,8 +65,8 @@ module.exports = async (req, res) => {
 
   let out = { source: 'rule', feedback: ruleFeedback(cur, best, laps), reason: isLimited ? '한 시간에 30번까지만 AI에게 물어봐요' : '' };
   if (!isLimited) {
-    try { const a = await askGroq(prompt); out = { source: 'ai', model: a.model, feedback: a.text }; }
-    catch (e) { out.reason = e.message === 'no key' ? 'AI 열쇠(GROQ_API_KEY)가 아직 없어요' : 'AI가 답하지 못했어요'; }
+    try { const a = await askAI(prompt); out = { source: 'ai', model: a.model, feedback: a.text }; }
+    catch (e) { out.reason = e.message === 'no key' ? 'AI 열쇠(GEMINI_API_KEY)가 아직 없어요' : 'AI가 답하지 못했어요'; }
   }
   return res.status(200).json(Object.assign(out, { prompt, pace: Math.round(cur) }));
 };
