@@ -1095,6 +1095,11 @@ function fmtBar(t){
   // {spec:text}: add a word to the spec around the selection, replacing words of the same kind (color / size)
   function style(word,kind,keep){
     var s_=sel(), v=s_.v, a=s_.a, b=s_.b;
+    if(a===b){ // 고른 글자가 없으면 커서가 있는 줄 전체에 (목록 기호는 빼고)
+      var la=v.lastIndexOf('\n',a-1)+1, lb=v.indexOf('\n',a); if(lb<0) lb=v.length;
+      var bul=/^\s*([-•·]|\d+[.)])\s+/.exec(v.slice(la,lb)); if(bul) la+=bul[0].length;
+      if(v.slice(la,lb).trim()){a=la;b=lb;}
+    }
     var m=/^\{([가-힣0-9pt ]+):([^{}]*)\}$/.exec(v.slice(a,b));
     if(!m){var pre=/\{([가-힣0-9pt ]+):$/.exec(v.slice(Math.max(0,a-24),a));
       if(pre&&v.slice(b,b+1)==='}'){a-=pre[0].length;b+=1;m=/^\{([가-힣0-9pt ]+):([^{}]*)\}$/.exec(v.slice(a,b));}}
