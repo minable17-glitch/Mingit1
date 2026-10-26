@@ -269,6 +269,7 @@ mark{background:#fff1a8;color:#3a2f00;padding:0 3px;border-radius:3px}
 .carousel figure{flex:0 0 100%;scroll-snap-align:start;margin:0;display:flex;flex-direction:column;min-width:0}
 .carousel .frame{height:min(60vw,440px);display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
 .carousel.tall .frame{height:min(120vw,680px)}
+.carousel .czoom{display:contents;cursor:zoom-in}
 .carousel img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;display:block}
 .carousel figcaption{padding:2px 16px 4px;text-align:center;color:var(--muted);font-size:.92rem}
 .carousel .cnav{position:absolute;top:calc(min(60vw,440px)/2);transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:1.3rem;cursor:pointer}
@@ -900,7 +901,8 @@ function carouselView(b){
   var items=(b.items||[]).filter(function(it){return imgSrc(it.src);});
   if(!items.length) return el('p',{class:'para'},'(사진이 없어요)');
   var track=el('div',{class:'ctrack'},items.map(function(it){
-    return el('figure',null,el('div',{class:'frame'},el('img',{src:imgSrc(it.src),alt:it.alt||it.caption||'',loading:'lazy'})),it.caption?el('figcaption',null,fmt(it.caption)):null);}));
+    var im_=el('img',{src:imgSrc(it.src),alt:it.alt||it.caption||'',loading:'lazy'});
+    return el('figure',null,el('div',{class:'frame'},b.tall?el('a',{href:imgSrc(it.src),target:'_blank',rel:'noopener',title:'크게 보기',class:'czoom'},im_):im_),it.caption?el('figcaption',null,fmt(it.caption)):null);}));
   var dots=el('div',{class:'cdots'},items.map(function(_,k){return el('button',{type:'button','aria-label':(k+1)+'번째 사진',onclick:function(){stop();goTo(k);}});}));
   function cur(){return Math.round(track.scrollLeft/Math.max(1,track.clientWidth));}
   function goTo(k){track.scrollTo({left:track.clientWidth*((k+items.length)%items.length),behavior:'smooth'});}

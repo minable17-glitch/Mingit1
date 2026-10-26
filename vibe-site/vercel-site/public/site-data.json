@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 62,
+ "rev": 63,
  "pages": [
   {
    "id": "home",
@@ -370,20 +370,24 @@
      "t": "carousel",
      "items": [
       {
-       "src": "images/class-read-1.jpg",
-       "caption": "왜 힘든 걸 할까? — 무라카미 하루키, 고통은 피할 수 없지만"
+       "src": "images/class-read-1-o.jpg",
+       "caption": "왜 힘든 걸 할까? — 매일 달리는 소설가 무라카미 하루키, 고통은 피할 수 없지만 괴로워할지는 내가 선택"
       },
       {
        "src": "images/class-read-2.jpg",
        "caption": "나의 출발점 — 『마라닉 페이스』, 빠르지 않아도 나의 속도로"
       },
       {
-       "src": "images/class-read-3.jpg",
+       "src": "images/class-read-3-o.jpg",
        "caption": "딱 맞을 때, 푹 빠져든다 — 『몰입』, 나에게 맞는 레벨 고르기"
       },
       {
        "src": "images/class-read-4.jpg",
        "caption": "끝까지, 걷지 않는다 — 하루키 다시 만나기, 오늘 나의 첫 도전"
+      },
+      {
+       "src": "images/class-read-inner.jpg",
+       "caption": "이번 바퀴만 — 『내면 근력』, 마음을 지금으로 데려오는 연습"
       },
       {
        "src": "images/class-read-5.jpg",
@@ -409,8 +413,8 @@
        "caption": "페이스 배분 — 처음엔 천천히, 끝까지 일정하게"
       },
       {
-       "src": "images/class-learn-2.jpg",
-       "caption": "호흡법"
+       "src": "images/class-learn-2-o.jpg",
+       "caption": "달리기 호흡법 — 걷기 전에, 호흡부터! (2:2 기본, 힘들 땐 2:1)"
       },
       {
        "src": "images/class-learn-3.jpg",
@@ -421,8 +425,8 @@
        "caption": "마음 전략 · 구간 쪼개기"
       },
       {
-       "src": "images/class-learn-5.jpg",
-       "caption": "달리기 후 정리운동"
+       "src": "images/class-learn-5-o.jpg",
+       "caption": "달리기 후 정리운동 — 쿨다운 걷기·조깅 3~5분, 정적 스트레칭 20~30초"
       }
      ],
      "tall": true
