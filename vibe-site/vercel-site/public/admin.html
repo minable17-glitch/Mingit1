@@ -109,6 +109,15 @@ button,input,select,textarea{font:inherit;color:inherit}
 .doc{max-width:1240px;display:flex;flex-direction:column;gap:22px}
 .bgroup{display:flex;flex-direction:column;gap:16px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:16px;padding:18px 18px 20px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
 .bgroup>.blk>.codebox,.bgroup>.blk>.cards .card,.bgroup>.blk>.cols .col{background:var(--bg)}
+.bgc{background:var(--bgc)!important;border-radius:14px}
+.blk.bgc{padding:14px 16px}
+.bgroup.bgc{border-color:var(--bgl);border-left-color:var(--bgl)}
+.bgc-yellow{--bgc:rgba(245,190,20,.13);--bgl:#e0a800}
+.bgc-blue{--bgc:rgba(37,99,235,.09);--bgl:#3b82f6}
+.bgc-green{--bgc:rgba(22,163,74,.10);--bgl:#22a356}
+.bgc-pink{--bgc:rgba(236,72,153,.09);--bgl:#e0559a}
+.bgc-purple{--bgc:rgba(124,58,237,.09);--bgl:#8b5cf6}
+.bgc-gray{--bgc:rgba(100,116,139,.11);--bgl:#94a3b8}
 .edit .bgroup>.blk.joined{border-top:1px dashed var(--line);padding-top:10px}
 @media (max-width:600px){.bgroup{padding:14px 12px 16px}}
 /* hands-on labs (code | result side by side) get the whole column width */
@@ -802,6 +811,7 @@ window.addEventListener('hashchange',function(){
 (function(){var h=location.hash.slice(1); if(h&&byId(h)) S.cur=h;})();
 
 /* ---------- main ---------- */
+var BGC={yellow:'노랑',blue:'파랑',green:'초록',pink:'분홍',purple:'보라',gray:'회색'};
 function renderMain(){
   var p=cp(); mainEl.textContent=''; mainEl.classList.toggle('edit',S.edit);
   if(S.edit) mainEl.append(metaEditor(p));
@@ -811,8 +821,8 @@ function renderMain(){
   p.blocks.forEach(function(b,i){
     var w=blockWrap(p,b,i), nx=p.blocks[i+1];
     if(b.join&&grp){grp.append(w);if(S.edit)w.classList.add('joined');}
-    else if(nx&&nx.join){grp=el('div',{class:'bgroup'},w);doc.append(grp);}
-    else{grp=null;doc.append(w);}
+    else if(nx&&nx.join){grp=el('div',{class:'bgroup'+(BGC[b.bg]?' bgc bgc-'+b.bg:'')},w);doc.append(grp);}
+    else{grp=null;if(BGC[b.bg])w.classList.add('bgc','bgc-'+b.bg);doc.append(w);}
   });
   if(S.edit) doc.append(addBlockRow(p));
   mainEl.append(doc);
@@ -1348,6 +1358,9 @@ function editorFor(b){
     else{var au=el('input',{type:'checkbox',checked:!!b.auto});fields.push(el('label',{class:'fld chk'},au,el('span',null,'4초마다 저절로 넘기기')));getters.push(function(){if(au.checked)b.auto=true;else delete b.auto;});
       var tl=el('input',{type:'checkbox',checked:!!b.tall});fields.push(el('label',{class:'fld chk'},tl,el('span',null,'세로로 긴 사진(활동지·폰 화면)이라 크게 보이기')));getters.push(function(){if(tl.checked)b.tall=true;else delete b.tall;});}
   }
+  var bgs=el('select',null,el('option',{value:''},'없음'),Object.keys(BGC).map(function(k){return el('option',{value:k},'연한 '+BGC[k]);}));
+  bgs.value=b.bg||'';
+  f('배경색 (묶은 상자는 맨 위 블록의 색을 따라요)',bgs,function(){if(bgs.value)b.bg=bgs.value;else delete b.bg;});
   var jn=el('input',{type:'checkbox',checked:!!b.join});
   fields.push(el('label',{class:'fld chk'},jn,el('span',null,'바로 위 블록과 한 상자로 묶어 보이기')));
   getters.push(function(){if(jn.checked)b.join=true;else delete b.join;});
