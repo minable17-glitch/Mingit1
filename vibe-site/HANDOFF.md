@@ -120,3 +120,8 @@
 - `join: true` = 바로 위 블록과 한 상자(.bgroup). 묶음의 첫 블록은 join 없이 시작.
 - `bg`: yellow·blue·green·pink·purple·gray (BGC). 단독 블록은 .blk 에, 묶음은 첫 블록의 bg 를 상자에. 색은 rgba 연한 색이라 어두운 화면에서도 그대로.
 - 편집 화면 맨 아래 "배경색"·"바로 위 블록과 한 상자로 묶어 보이기".
+
+## 종합 실습 + 채점 봇 (2026-10-26, page id `final`, API 아래)
+- 수업 성찰 AI 코치: 이름·한 줄 성찰 → '성찰' 탭 저장 + Gemini 피드백. 조건 4개(저장·AI 피드백·키는 스크립트 속성·이름은 AI에 안 보냄).
+- 채점 봇은 배드민턴 채점기를 바꾼 것: 가짜 SpreadsheetApp + 가짜 UrlFetchApp(Gemini 흉내, 스크립트 속성 GEMINI_API_KEY='TEST-KEY-1234'
+  가 요청에 들어가야 200). AI에게 보낸 글에 이름이 있으면 ❌, 코드에 AIza… 키가 있으면 ❌. 오류·프롬프트에 키는 '(키 가림)'.
