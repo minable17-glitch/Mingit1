@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 70,
+ "rev": 71,
  "pages": [
   {
    "id": "home",
@@ -14,13 +14,10 @@
      "text": "바이브 코딩"
     },
     {
-     "t": "links",
-     "items": [
-      {
-       "label": "bit.ly/eduvibecode",
-       "url": "https://bit.ly/eduvibecode"
-      }
-     ]
+     "t": "box",
+     "tone": "soft",
+     "title": "📮 문의",
+     "text": "**경기도 메신저** · 낙원중학교 **민동수**"
     }
    ]
   },
