@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 63,
+ "rev": 64,
  "pages": [
   {
    "id": "home",
@@ -1574,6 +1574,12 @@
        "caption": "⑬ 웹 앱 URL 복사 → 새 탭 주소창에 붙여 넣어 열기"
       }
      ]
+    },
+    {
+     "t": "prompt",
+     "label": "Code.gs",
+     "text": "function doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('배드민턴 마스터 아카데미')\n    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');\n}\n\n/**\n * 퀴즈 결과 데이터를 구글 시트에 누적 저장합니다.\n * @param {Object} data - { studentName, score, wrongQuestions, elapsedTime }\n * @return {Object} { success: boolean, message: string }\n */\nfunction saveQuizResult(data) {\n  try {\n    const ss = SpreadsheetApp.getActiveSpreadsheet();\n    let sheet = ss.getSheetByName('결과기록');\n    \n    // 시트가 없으면 생성하고 기본 헤더 작성\n    if (!sheet) {\n      sheet = ss.insertSheet('결과기록');\n      const headers = ['제출 시각', '학생 이름', '점수', '틀린 문제 번호', '풀이에 걸린 시간'];\n      sheet.appendRow(headers);\n      \n      const headerRange = sheet.getRange(1, 1, 1, headers.length);\n      headerRange.setBackground('#0f766e')\n                 .setFontColor('#ffffff')\n                 .setFontWeight('bold')\n                 .setHorizontalAlignment('center');\n      sheet.setFrozenRows(1);\n    }\n    \n    const timestamp = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');\n    const studentName = data.studentName || '미입력';\n    const score = Number(data.score) || 0;\n    const wrongQuestions = data.wrongQuestions || '없음';\n    const elapsedTime = data.elapsedTime || '0초';\n    \n    // 신규 행 데이터 추가 (누적 기록)\n    sheet.appendRow([\n      timestamp,\n      studentName,\n      score,\n      wrongQuestions,\n      elapsedTime\n    ]);\n    \n    return { success: true, message: '기록이 저장되었습니다' };\n  } catch (error) {\n    return { success: false, message: error.toString() };\n  }\n}\n",
+     "bg": "pink"
     }
    ]
   },
@@ -2498,5 +2504,5 @@
    ]
   }
  ],
- "updated": "2026-10-26T02:44:46.601Z"
+ "updated": "2026-10-26T06:01:09.478Z"
 }
