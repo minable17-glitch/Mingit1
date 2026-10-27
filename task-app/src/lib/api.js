@@ -265,6 +265,7 @@ export async function reopenTask(task) {
 export async function deleteTask(task) {
   const ids = [task.calendar_event_id, ...(task.steps ?? []).map((s) => s.calendar_event_id)].filter(Boolean);
   if (ids.length) await deleteCalendarEvents(ids);
+  await removeAttachments({ taskId: task.id }).catch(() => {}); // 첨부 파일도 저장소에서 지움
   check(await supabase.from('tasks').delete().eq('id', task.id));
 }
 
@@ -712,6 +713,68 @@ export async function addThrow(content) {
 
 export async function deleteThrow(id) {
   check(await supabase.from('throw_items').delete().eq('id', id));
+}
+
+// ── 첨부(캡처 사진·파일): 비공개 저장소 task-files 의 "본인 ID/" 폴더 + attachments 표 ──────
+const FILES = 'task-files';
+export const MAX_FILE_MB = 20;
+
+// 업무 하나 또는 던져 둔 것 하나의 첨부 목록 (표가 아직 없으면 [])
+export async function loadAttachments({ taskId, throwId }) {
+  let q = supabase.from('attachments').select('*').order('created_at');
+  q = taskId ? q.eq('task_id', taskId) : q.eq('throw_id', throwId);
+  const { data, error } = await q;
+  return error ? [] : data;
+}
+
+// 던져 둔 것들 각각 첨부 몇 개인지 { throw_id: n }
+export async function throwAttachmentCounts() {
+  const { data, error } = await supabase.from('attachments').select('throw_id').not('throw_id', 'is', null);
+  if (error) return {};
+  return data.reduce((m, r) => ({ ...m, [r.throw_id]: (m[r.throw_id] ?? 0) + 1 }), {});
+}
+
+// 파일 하나 올리기. 저장소 이름은 무작위(한글 이름은 저장소 키로 못 씀), 원래 이름은 표에
+export async function uploadAttachment(file, { taskId = null, throwId = null }) {
+  if (file.size > MAX_FILE_MB * 1024 * 1024) throw new Error(`${file.name}: ${MAX_FILE_MB}MB보다 큰 파일은 넣을 수 없어요`);
+  const uid = (await supabase.auth.getUser()).data.user.id;
+  const ext = (file.name.match(/\.([A-Za-z0-9]{1,8})$/)?.[1] ?? (file.type.split('/')[1] || 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `${uid}/${crypto.randomUUID()}.${ext || 'bin'}`;
+  const up = await supabase.storage.from(FILES).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+  if (up.error) throw new Error(up.error.message.includes('Bucket not found') ? '첨부 저장소를 준비하는 중이에요. 잠시 뒤 다시 해 주세요.' : up.error.message);
+  const { data, error } = await supabase.from('attachments')
+    .insert({ task_id: taskId, throw_id: throwId, path, name: (file.name || `캡처.${ext}`).slice(0, 200), mime: file.type || '', size: file.size })
+    .select().single();
+  if (error) {
+    await supabase.storage.from(FILES).remove([path]);
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+// 보기·내려받기용 임시 주소(1시간) { path: url }
+export async function attachmentUrls(list) {
+  if (!list.length) return {};
+  const { data } = await supabase.storage.from(FILES).createSignedUrls(list.map((a) => a.path), 3600);
+  return Object.fromEntries((data ?? []).filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
+}
+
+export async function deleteAttachment(att) {
+  await supabase.storage.from(FILES).remove([att.path]);
+  check(await supabase.from('attachments').delete().eq('id', att.id));
+}
+
+// 업무나 던져 둔 것에 달린 첨부를 파일까지 모두 지움
+export async function removeAttachments(where) {
+  const list = await loadAttachments(where);
+  if (!list.length) return;
+  await supabase.storage.from(FILES).remove(list.map((a) => a.path));
+  check(await supabase.from('attachments').delete().in('id', list.map((a) => a.id)));
+}
+
+// 던져 둔 것을 업무로 정리할 때 첨부를 그 업무로 옮김
+export async function moveThrowAttachments(throwId, taskId) {
+  check(await supabase.from('attachments').update({ task_id: taskId, throw_id: null }).eq('throw_id', throwId));
 }
 
 // ── 학급(담임): 명렬표·전달사항·출결·특이사항 ─────────

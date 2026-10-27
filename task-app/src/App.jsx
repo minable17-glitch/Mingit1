@@ -224,7 +224,10 @@ function Main({ userId, features }) {
         onCancel={close}
         onConfirm={async (draft) => {
           const task = await api.createFromDraft(draft);
-          if (overlay.throwId) await api.deleteThrow(overlay.throwId).catch(() => {}); // 던져 둔 것에서 만든 업무면 보관함에서 빼기
+          if (overlay.throwId) { // 던져 둔 것에서 만든 업무면 첨부는 그 업무로 옮기고 보관함에서 빼기
+            await api.moveThrowAttachments(overlay.throwId, task.id).catch(() => {});
+            await api.deleteThrow(overlay.throwId).catch(() => {});
+          }
           await reload();
           setOverlay({ type: 'task', id: task.id });
         }}

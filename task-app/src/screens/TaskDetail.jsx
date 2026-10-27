@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import { diffDays, dueLabel, formatShort, toDateKST, todayKST } from '../lib/date.js';
 import Breakdown from './Breakdown.jsx';
+import Attachments from './Attachments.jsx';
 import { extractFromLongText } from '../lib/notice.js';
 import { isoToLocal, localToISO, parseRemindTime, remindLabel } from '../lib/remindTime.js';
 
@@ -163,6 +164,8 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
       )}
 
       <Links task={task} links={links} tasks={tasks} onOpen={onOpen} />
+
+      <Attachments taskId={task.id} pasteAnywhere />
 
       {active && <NoteForm onSave={(note, next) => run(() => api.addNote(task, note, next))} />}
 

@@ -81,6 +81,17 @@ jobs:
           fi
           echo "데이터베이스 표 설치·갱신 완료"
 
+      # 첨부(캡처·파일) 저장소가 만들어졌는지 확인만 함 (실패해도 배포는 계속)
+      - name: 첨부 저장소 확인
+        continue-on-error: true
+        run: |
+          q="select (select count(*) from storage.buckets where id = 'task-files') as bucket, (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'task_keeper_files_owner') as policy"
+          body=$(jq -n --arg q "$q" '{query: $q}')
+          out=$(curl -sS -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" -H "Content-Type: application/json" -d "$body")
+          echo "첨부 저장소 상태: $out"
+          echo "$out" | grep -q '"bucket":1' && echo "$out" | grep -q '"policy":1' || echo "::warning::첨부 저장소(task-files) 준비가 안 됐어요: $out"
+
       - name: 함수용 비밀값 설정
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.TASK_GOOGLE_CLIENT_ID }}
