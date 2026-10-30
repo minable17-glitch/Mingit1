@@ -17,6 +17,11 @@ const state = {
   tab: 'todo', // 'todo' | 'done'
   filter: 'all', // 'all' | 'none'(미분류) | 카테고리 id
   manageOpen: false,
+  search: '',
+  minutes: 0, // '지금 몇 분 있어요' 필터 (0 = 상관없음)
+  goodOnly: false, // 다 본 영상 중 별점 4점 이상만
+  settings: null, // user_settings (주간 정리 알림)
+  cleanup: null, // 정리 도우미: 남은 영상 id 목록
   adding: false,
   lastAddedId: null,
   detailId: null,
@@ -110,6 +115,29 @@ function formatWhen(iso) {
   return `${year}${d.getMonth() + 1}월 ${d.getDate()}일(${weekday}) ${time}`;
 }
 
+// 3750 → "1:02:30", 754 → "12:34"
+function formatDuration(sec) {
+  if (!sec) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+const DAY = 86400000;
+
+// 한 달 넘게 안 본 영상 (앞으로 알림이 잡혀 있거나, 최근 한 달 안에 "아직 볼래요"를 누른 건 제외)
+function staleItems() {
+  const monthAgo = Date.now() - 30 * DAY;
+  return state.items.filter(
+    (i) =>
+      !i.watched_at &&
+      new Date(i.created_at).getTime() < monthAgo &&
+      !(i.kept_at && new Date(i.kept_at).getTime() >= monthAgo) &&
+      !(i.remind_at && !i.notified_at),
+  );
+}
+
 function urlBase64ToUint8Array(base64) {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
   const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
@@ -162,12 +190,13 @@ function takeSharedLink() {
 // ───────────── 데이터 ─────────────
 
 async function loadItems() {
-  const [items, cats, map] = await Promise.all([
+  const [items, cats, map, settings] = await Promise.all([
     supabase.from('watch_items').select('*').order('created_at', { ascending: false }),
     supabase.from('categories').select('id, name').order('name'),
     supabase.from('channel_categories').select('channel_key, category_id'),
+    supabase.from('user_settings').select('*').maybeSingle(),
   ]);
-  const error = items.error || cats.error || map.error;
+  const error = items.error || cats.error || map.error || settings.error;
   if (error) {
     toast('목록을 불러오지 못했어요');
     console.error(error);
@@ -176,6 +205,7 @@ async function loadItems() {
   state.items = items.data;
   state.categories = cats.data;
   state.channelMap = Object.fromEntries(map.data.map((m) => [m.channel_key, m.category_id]));
+  state.settings = settings.data;
   if (state.filter !== 'all' && state.filter !== 'none' && !cats.data.some((c) => c.id === state.filter)) {
     state.filter = 'all';
   }
@@ -270,6 +300,7 @@ async function addItem(input) {
         channel_key: info.channel_key || null,
         channel_title: info.author || null,
         category_id: categoryId,
+        duration_sec: info.duration_sec || null,
       })
       .select('id')
       .single();
@@ -353,6 +384,31 @@ async function deleteCategory(id) {
   await loadItems();
   render();
 }
+
+async function saveSettings(patch) {
+  const next = {
+    digest_enabled: false,
+    digest_dow: 0,
+    digest_hour: 20,
+    ...state.settings,
+    ...patch,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul',
+    app_url: location.origin + location.pathname,
+    updated_at: new Date().toISOString(),
+  };
+  delete next.user_id;
+  delete next.last_digest_at;
+  const { data, error } = await supabase.from('user_settings').upsert(next, { onConflict: 'user_id' }).select().single();
+  if (error) {
+    console.error(error);
+    return toast('설정을 저장하지 못했어요');
+  }
+  state.settings = data;
+  render();
+  toast(data.digest_enabled ? `매주 ${WEEKDAY_NAMES[data.digest_dow]}요일 ${data.digest_hour}시에 정리해 드릴게요` : '주간 정리 알림을 껐어요');
+}
+
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 // ───────────── 푸시 알림 ─────────────
 
@@ -498,7 +554,12 @@ function categoryOptions(value) {
 
 // 썸네일 위 작은 표시 (알림 예정 / 시청 완료 / 알림 문제)
 function badge(item) {
-  if (item.watched_at) return '<span class="badge done">✓ 봤어요</span>';
+  const dur = item.duration_sec ? `<span class="badge dur">${formatDuration(item.duration_sec)}</span>` : '';
+  return statusBadge(item) + dur;
+}
+
+function statusBadge(item) {
+  if (item.watched_at) return `<span class="badge done">✓ 봤어요${item.rating ? ` · ${'★'.repeat(item.rating)}` : ''}</span>`;
   if (!item.remind_at) return '';
   if (item.notified_at && item.notify_status !== 'sent') return '<span class="badge warn">⚠ 알림 실패</span>';
   if (item.notified_at) return '';
@@ -557,12 +618,26 @@ function renderMyPage() {
     .filter((i) => !i.watched_at)
     .sort((a, b) => (a.remind_at || '9999').localeCompare(b.remind_at || '9999') || b.created_at.localeCompare(a.created_at));
   const done = state.items.filter((i) => i.watched_at).sort((a, b) => b.watched_at.localeCompare(a.watched_at));
-  const tabList = state.tab === 'todo' ? todo : done;
+  const q = state.search.trim().toLowerCase();
+  const matches = (i) =>
+    !q || [i.title, i.channel_title, i.memo].some((t) => String(t || '').toLowerCase().includes(q));
+  const fitsTime = (i) => state.tab !== 'todo' || !state.minutes || (i.duration_sec && i.duration_sec <= state.minutes * 60);
+  const isGood = (i) => state.tab !== 'done' || !state.goodOnly || i.rating >= 4;
+  const tabList = (state.tab === 'todo' ? todo : done).filter((i) => matches(i) && fitsTime(i) && isGood(i));
   const inFilter = (i) =>
     state.filter === 'all' || (state.filter === 'none' ? !i.category_id : i.category_id === state.filter);
   const list = tabList.filter(inFilter);
+  // 시간 필터를 켜면 주어진 시간을 가장 알차게 채우는 긴 영상부터
+  if (state.tab === 'todo' && state.minutes) list.sort((a, b) => b.duration_sec - a.duration_sec);
+  const stale = state.tab === 'todo' ? staleItems() : [];
   const empty =
-    state.filter !== 'all'
+    q
+      ? `'${esc(state.search)}'(으)로 찾은 영상이 없어요.`
+      : state.tab === 'todo' && state.minutes
+        ? `${state.minutes}분 안에 볼 수 있는 영상이 없어요.<br /><span class="small">(길이를 아는 영상만 골라져요)</span>`
+        : state.tab === 'done' && state.goodOnly
+          ? '별점 4점 이상인 영상이 아직 없어요.'
+          : state.filter !== 'all'
       ? '이 카테고리에는 영상이 없어요.'
       : state.tab === 'todo'
         ? '아직 저장한 영상이 없어요.<br /><a href="#/">영상 추가하러 가기 →</a>'
@@ -578,11 +653,33 @@ function renderMyPage() {
     uncategorized || state.filter === 'none' ? chip('none', '미분류', uncategorized) : '',
   ].join('');
 
+  const minuteChip = (m, label) =>
+    `<button class="chip" data-action="minutes" data-minutes="${m}" aria-pressed="${state.minutes === m}">${label}</button>`;
+
   return `
+    <input type="search" class="search" name="search" placeholder="🔍 제목·채널·메모로 찾기" value="${esc(state.search)}" autocomplete="off" />
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
       <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
     </div>
+    ${
+      stale.length && !q
+        ? `<div class="notice row cleanup-notice">
+             <span>🧹 한 달 넘게 안 본 영상이 <b>${stale.length}개</b> 있어요.</span>
+             <button class="btn sm" data-action="cleanup-start">정리하기</button>
+           </div>`
+        : ''
+    }
+    ${
+      state.tab === 'todo'
+        ? `<div class="chips time-chips">
+             <span class="chips-label">⏱ 지금 몇 분 있어요?</span>
+             ${minuteChip(5, '5분')}${minuteChip(15, '15분')}${minuteChip(30, '30분')}${minuteChip(60, '1시간')}
+           </div>`
+        : `<div class="chips time-chips">
+             <button class="chip" data-action="good" aria-pressed="${state.goodOnly}">⭐ 좋았던 영상만</button>
+           </div>`
+    }
     <div class="chips filter-chips">
       ${chips}
       <button class="chip ghost" data-action="manage" aria-pressed="${state.manageOpen}">⚙ 관리</button>
@@ -622,6 +719,37 @@ function renderCategoryManager() {
     </div>`;
 }
 
+// ───────────── 주간 정리 알림 설정 (내 관심사 화면 아래) ─────────────
+
+function renderDigestSettings() {
+  const s = { digest_enabled: false, digest_dow: 0, digest_hour: 20, ...state.settings };
+  const hours = Array.from({ length: 24 }, (_, h) => h);
+  const hourLabel = (h) => (h === 0 ? '밤 12시' : h < 12 ? `오전 ${h}시` : h === 12 ? '낮 12시' : `오후 ${h - 12}시`);
+  return `
+    <section class="card digest">
+      <label class="switch-row">
+        <span>
+          <b>📺 주간 정리 알림</b><br />
+          <span class="small muted">일주일에 한 번, 안 본 영상과 이번 주 기록을 알려 드려요.</span>
+        </span>
+        <input type="checkbox" name="digest_enabled" ${s.digest_enabled ? 'checked' : ''} />
+      </label>
+      ${
+        s.digest_enabled
+          ? `<div class="row" style="margin-top:12px">
+               <select name="digest_dow" aria-label="요일">
+                 ${WEEKDAY_NAMES.map((d, i) => `<option value="${i}" ${i === s.digest_dow ? 'selected' : ''}>매주 ${d}요일</option>`).join('')}
+               </select>
+               <select name="digest_hour" aria-label="시각">
+                 ${hours.map((h) => `<option value="${h}" ${h === s.digest_hour ? 'selected' : ''}>${hourLabel(h)}</option>`).join('')}
+               </select>
+             </div>
+             ${state.push.status !== 'on' ? '<p class="small warn" style="margin:8px 0 0">이 기기에서 알림을 켜야 받을 수 있어요. (영상 추가 화면에서 켜기)</p>' : ''}`
+          : ''
+      }
+    </section>`;
+}
+
 // ───────────── 영상 상세 (아래에서 올라오는 창) ─────────────
 
 function remindStatus(item) {
@@ -642,6 +770,26 @@ function renderDetail() {
       <button class="link sheet-close" data-action="close" aria-label="닫기">✕</button>
       ${renderFrame(item, { large: true })}
       <a class="btn primary block" href="${esc(item.url)}" target="_blank" rel="noopener">▶ 영상 보기</a>
+
+      ${
+        item.watched_at
+          ? `<div class="section review">
+               <span class="label">어땠어요?</span>
+               <div class="stars" role="group" aria-label="별점">
+                 ${[1, 2, 3, 4, 5]
+                   .map(
+                     (n) =>
+                       `<button class="star ${item.rating >= n ? 'on' : ''}" data-action="rate" data-value="${n}" aria-label="${n}점">★</button>`,
+                   )
+                   .join('')}
+               </div>
+               <form class="row" data-form="memo">
+                 <input type="text" name="memo" maxlength="500" placeholder="한 줄 메모 (기억하고 싶은 내용)" value="${esc(item.memo)}" />
+                 <button class="btn">저장</button>
+               </form>
+             </div>`
+          : ''
+      }
 
       ${
         item.watched_at
@@ -670,6 +818,33 @@ function renderDetail() {
         }
         <button class="btn danger" data-action="delete">삭제</button>
       </div>
+    </div>`;
+  if (!$sheet.open) $sheet.showModal();
+}
+
+// 정리 도우미: 오래된 영상을 하나씩 보여 주고 "아직 볼래요 / 지울래요"
+function renderCleanup() {
+  const item = state.items.find((i) => i.id === state.cleanup?.[0]);
+  if (!item) {
+    const done = state.cleanup !== null;
+    state.cleanup = null;
+    if ($sheet.open) $sheet.close();
+    if (done) toast('정리 끝! 깔끔해졌어요 ✨');
+    return;
+  }
+  const left = state.cleanup.length;
+  const days = Math.floor((Date.now() - new Date(item.created_at).getTime()) / DAY);
+  $sheet.innerHTML = `
+    <div class="sheet-body">
+      <button class="link sheet-close" data-action="cleanup-stop" aria-label="닫기">✕</button>
+      <p class="muted small center" style="margin:0">🧹 정리 도우미 · 남은 영상 ${left}개</p>
+      ${renderFrame(item, { large: true })}
+      <p class="center" style="margin:0">${days}일 전에 저장한 영상이에요. 아직 볼 거예요?</p>
+      <div class="row">
+        <button class="btn grow" data-action="cleanup-keep">👀 아직 볼래요</button>
+        <button class="btn grow danger" data-action="cleanup-delete">🗑 지울래요</button>
+      </div>
+      <a class="btn block" href="${esc(item.url)}" target="_blank" rel="noopener">▶ 잠깐 영상 확인하기</a>
     </div>`;
   if (!$sheet.open) $sheet.showModal();
 }
@@ -703,14 +878,20 @@ function render() {
   // 링크 입력 중에 다시 그려져도 입력값이 사라지지 않게 보관
   const urlInput = $app.querySelector('input[name="url"]');
   const typed = urlInput && !state.adding ? urlInput.value : '';
+  const searching = document.activeElement?.name === 'search';
   $app.innerHTML =
     state.page === 'my'
       ? renderMyPage()
       : state.page === 'insights'
-        ? renderInsights(state.items, categoryName)
+        ? renderInsights(state.items, categoryName) + renderDigestSettings()
         : renderAddPage();
   const newInput = $app.querySelector('input[name="url"]');
   if (newInput && typed) newInput.value = typed;
+  if (searching) {
+    const search = $app.querySelector('input[name="search"]');
+    search.focus();
+    search.setSelectionRange(search.value.length, search.value.length);
+  }
 
   if (state.detailId) renderDetail();
 }
@@ -769,8 +950,46 @@ async function handleAction(el) {
       deleteCategory(id);
       break;
     case 'watched':
-      closeDetail();
-      updateItem(id, { watched_at: new Date().toISOString() }, '다 본 영상으로 옮겼어요');
+      // 창을 닫지 않고 바로 별점·메모를 남길 수 있게 함
+      updateItem(id, { watched_at: new Date().toISOString() }, '다 봤어요! 별점을 남겨 보세요');
+      break;
+    case 'rate': {
+      const value = Number(el.dataset.value);
+      updateItem(id, { rating: item?.rating === value ? null : value });
+      break;
+    }
+    case 'minutes': {
+      const m = Number(el.dataset.minutes);
+      state.minutes = state.minutes === m ? 0 : m;
+      render();
+      break;
+    }
+    case 'good':
+      state.goodOnly = !state.goodOnly;
+      render();
+      break;
+    case 'cleanup-start':
+      state.cleanup = staleItems().map((i) => i.id);
+      renderCleanup();
+      break;
+    case 'cleanup-keep':
+    case 'cleanup-delete': {
+      const target = state.cleanup?.[0];
+      if (!target) break;
+      const { error } =
+        action === 'cleanup-keep'
+          ? await supabase.from('watch_items').update({ kept_at: new Date().toISOString() }).eq('id', target)
+          : await supabase.from('watch_items').delete().eq('id', target);
+      if (error) return toast('처리하지 못했어요');
+      state.cleanup.shift();
+      await loadItems();
+      render();
+      renderCleanup();
+      break;
+    }
+    case 'cleanup-stop':
+      state.cleanup = null;
+      $sheet.close();
       break;
     case 'unwatch':
       closeDetail();
@@ -820,7 +1039,10 @@ for (const root of [$app, $sheet]) {
 $sheet.addEventListener('click', (e) => {
   if (e.target === $sheet) closeDetail();
 });
-$sheet.addEventListener('close', () => (state.detailId = null));
+$sheet.addEventListener('close', () => {
+  state.detailId = null;
+  state.cleanup = null;
+});
 
 $sheet.addEventListener('change', (e) => {
   const select = e.target;
@@ -835,6 +1057,20 @@ $sheet.addEventListener('change', (e) => {
   if (item) moveItem(item, value);
 });
 
+$app.addEventListener('input', (e) => {
+  if (e.target.name === 'search') {
+    state.search = e.target.value;
+    render();
+  }
+});
+
+$app.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.name === 'digest_enabled') saveSettings({ digest_enabled: el.checked });
+  else if (el.name === 'digest_dow') saveSettings({ digest_dow: Number(el.value) });
+  else if (el.name === 'digest_hour') saveSettings({ digest_hour: Number(el.value) });
+});
+
 $app.addEventListener('submit', (e) => {
   e.preventDefault();
   if (e.target.dataset.form === 'add') addItem(e.target.url.value);
@@ -842,6 +1078,9 @@ $app.addEventListener('submit', (e) => {
 
 $sheet.addEventListener('submit', (e) => {
   e.preventDefault();
+  if (e.target.dataset.form === 'memo') {
+    return updateItem(state.detailId, { memo: e.target.memo.value.trim() || null }, '메모를 저장했어요');
+  }
   if (e.target.dataset.form !== 'remind') return;
   const when = new Date(e.target.remindAt.value);
   if (when.getTime() < Date.now() - 60000) return toast('앞으로의 시각을 골라 주세요');

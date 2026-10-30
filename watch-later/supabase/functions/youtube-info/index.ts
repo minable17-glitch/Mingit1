@@ -1,6 +1,6 @@
 // 유튜브 영상의 제목·채널·썸네일·유튜브 분류를 가져오는 서버 함수.
-// - YOUTUBE_API_KEY 비밀값이 있으면 YouTube Data API 로 분류(categoryId)까지 가져옴
-// - 없거나 실패하면 oEmbed 로 제목·채널·썸네일만 가져옴 (분류 없음)
+// - YOUTUBE_API_KEY 비밀값이 있으면 YouTube Data API 로 분류(categoryId)·영상 길이까지 가져옴
+// - 없거나 실패하면 oEmbed 로 제목·채널·썸네일만 가져옴 (분류·길이 없음)
 // 로그인한 사용자만 쓸 수 있도록 기본 JWT 확인을 켜 둔 채로 배포합니다.
 // 배포: supabase functions deploy youtube-info
 
@@ -21,13 +21,14 @@ function json(body: unknown, status = 200) {
 
 async function fromDataApi(id: string) {
   const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${id}&key=${YOUTUBE_API_KEY}`,
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${id}&key=${YOUTUBE_API_KEY}`,
   );
   if (!res.ok) {
     console.error("YouTube Data API 실패", res.status, await res.text());
     return null;
   }
-  const s = (await res.json()).items?.[0]?.snippet;
+  const video = (await res.json()).items?.[0];
+  const s = video?.snippet;
   if (!s) return null;
   return {
     title: s.title ?? null,
@@ -35,7 +36,17 @@ async function fromDataApi(id: string) {
     channel_key: s.channelId ?? null,
     yt_category_id: s.categoryId ?? null,
     thumbnail_url: s.thumbnails?.high?.url ?? s.thumbnails?.medium?.url ?? null,
+    duration_sec: parseDuration(video.contentDetails?.duration),
   };
+}
+
+// "PT1H2M30S" → 3750 (초). 생방송 등 길이가 없으면 null
+function parseDuration(iso?: string) {
+  const m = iso?.match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return null;
+  const [, d, h, min, sec] = m.map((x) => Number(x) || 0);
+  const total = d * 86400 + h * 3600 + min * 60 + sec;
+  return total || null;
 }
 
 async function fromOEmbed(id: string) {
@@ -49,6 +60,7 @@ async function fromOEmbed(id: string) {
     channel_key: info.author_url ?? null,
     yt_category_id: null,
     thumbnail_url: info.thumbnail_url ?? null,
+    duration_sec: null,
   };
 }
 

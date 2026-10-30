@@ -34,6 +34,23 @@ select cron.schedule(
   $$
 );
 
+-- 매시 정각: 주간 정리 알림 (각자 정한 요일·시각이 된 사람에게만 보냄)
+select cron.schedule(
+  'watch-later-weekly-digest',
+  '0 * * * *',
+  $$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'watch_later_function_url'),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'watch_later_cron_secret')
+    ),
+    body := '{"mode":"digest"}'::jsonb
+  )
+  where exists (select 1 from public.user_settings where digest_enabled);
+  $$
+);
+
 -- 확인: select * from cron.job;
 -- 실행 기록: select * from cron.job_run_details order by start_time desc limit 20;
--- 멈추기:   select cron.unschedule('watch-later-reminders');
+-- 멈추기:   select cron.unschedule('watch-later-reminders'); select cron.unschedule('watch-later-weekly-digest');

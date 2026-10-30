@@ -72,6 +72,15 @@ export function analyze(items, categoryName) {
     .filter((c) => c.count >= 3 && c.rate < 30)
     .sort((a, b) => a.rate - b.rate || b.count - a.count)[0] ?? null;
 
+  // 별점이 가장 높은 분야 (별점 준 영상이 2개 이상인 카테고리 중 평균이 가장 높은 곳)
+  let favorite = null;
+  for (const c of byCategory) {
+    const rated = items.filter((i) => (i.category_id ?? '') === c.id && i.rating);
+    if (rated.length < 2) continue;
+    const avg = rated.reduce((sum, i) => sum + i.rating, 0) / rated.length;
+    if (avg >= 3.5 && (!favorite || avg > favorite.avg)) favorite = { ...c, avg };
+  }
+
   const channels = countBy(items, (i) => i.channel_title || null).slice(0, 5);
 
   const keywordCounts = new Map();
@@ -88,7 +97,7 @@ export function analyze(items, categoryName) {
   }
   const topSlot = [...slots].sort((a, b) => b.count - a.count)[0];
 
-  return { total, watched, byCategory, rising, neglected, channels, keywords, slots, topSlot };
+  return { total, watched, byCategory, rising, neglected, favorite, channels, keywords, slots, topSlot };
 }
 
 function esc(s) {
@@ -121,6 +130,7 @@ export function renderInsights(items, categoryName) {
   const sentences = [
     top && `가장 관심이 많은 분야는 <b>'${esc(top.name)}'</b>예요. 저장한 영상의 ${pct(top.count, a.total)}%를 차지해요.`,
     a.rising && `최근 2주 동안 <b>'${esc(a.rising.name)}'</b> 영상이 눈에 띄게 늘었어요.`,
+    a.favorite && `다 보고 나서 가장 만족한 분야는 <b>'${esc(a.favorite.name)}'</b>예요 (평균 ★${a.favorite.avg.toFixed(1)}).`,
     a.keywords.length && `제목에 <b>${a.keywords.slice(0, 3).map(([w]) => `'${esc(w)}'`).join(', ')}</b> 같은 말이 자주 나와요.`,
     a.neglected && `<b>'${esc(a.neglected.name)}'</b> 영상은 저장만 하고 잘 안 보는 편이에요 (본 비율 ${a.neglected.rate}%). 알림을 걸어 보는 건 어때요?`,
     a.topSlot.count && `주로 <b>${a.topSlot.name}</b>(${a.topSlot.range})에 영상을 저장해요.`,

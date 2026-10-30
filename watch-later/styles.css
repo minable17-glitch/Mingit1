@@ -90,6 +90,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px; }
   text-decoration: none;
   white-space: nowrap;
 }
+a.btn { color: inherit; }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 .btn.block { width: 100%; }
 .btn.sm { min-height: 36px; padding: 0 12px; font-size: 14px; }
@@ -358,3 +359,39 @@ main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 
 .keywords { display: flex; flex-wrap: wrap; gap: 8px; }
 .kw { padding: 4px 12px; border-radius: 999px; background: var(--primary-soft); font-size: 14px; }
+
+/* ── 검색, 시간 필터, 정리 도우미 ── */
+.search { margin-bottom: 8px; }
+input[type='search'] {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.time-chips { margin: 0 0 8px; align-items: center; }
+.chips-label { font-size: 14px; color: var(--muted); margin-right: 2px; }
+.cleanup-notice { align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+.badge.dur { left: auto; right: 12px; }
+
+/* ── 별점·메모 ── */
+.review { display: grid; gap: 10px; }
+.review .label { margin: 0; }
+.stars { display: flex; gap: 4px; }
+.star {
+  font-size: 30px;
+  line-height: 1;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--line);
+  cursor: pointer;
+}
+.star.on { color: var(--accent); }
+
+/* ── 주간 정리 알림 설정 ── */
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
+.switch-row input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--primary); }
+.digest select { flex: 1; }

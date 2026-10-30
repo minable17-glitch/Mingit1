@@ -1,5 +1,5 @@
 // 서비스워커: 오프라인 화면 + 푸시 알림 받기 + 알림 누르면 영상 열기
-const CACHE = 'watch-later-v3';
+const CACHE = 'watch-later-v4';
 const SHELL = [
   './',
   './index.html',

@@ -101,3 +101,30 @@ create policy "channel_categories: 본인 것만" on public.channel_categories
   for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- 6) 영상 길이, 별점·메모, 정리 도우미용 칼럼
+alter table public.watch_items
+  add column if not exists duration_sec integer,                              -- 영상 길이(초)
+  add column if not exists rating       smallint check (rating between 1 and 5), -- 다 본 뒤 별점
+  add column if not exists memo         text check (char_length(memo) <= 500),   -- 다 본 뒤 한 줄 메모
+  add column if not exists kept_at      timestamptz;                          -- 정리 도우미에서 "아직 볼래요"를 누른 시각
+
+-- 7) 사용자 설정 (주간 정리 알림)
+create table if not exists public.user_settings (
+  user_id         uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  digest_enabled  boolean not null default false,
+  digest_dow      smallint not null default 0 check (digest_dow between 0 and 6),   -- 0=일요일
+  digest_hour     smallint not null default 20 check (digest_hour between 0 and 23),
+  timezone        text not null default 'Asia/Seoul',
+  app_url         text,                                                         -- 알림을 누르면 열 앱 주소
+  last_digest_at  timestamptz,
+  updated_at      timestamptz not null default now()
+);
+
+alter table public.user_settings enable row level security;
+
+drop policy if exists "user_settings: 본인 것만" on public.user_settings;
+create policy "user_settings: 본인 것만" on public.user_settings
+  for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
