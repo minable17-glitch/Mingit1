@@ -48,3 +48,16 @@ create policy "push_subscriptions: 본인 것만" on public.push_subscriptions
   for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- 3) 회원 탈퇴: 로그인한 본인 계정과 모든 데이터를 지움 (위 표들은 on delete cascade 로 함께 삭제)
+create or replace function public.delete_my_account()
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from auth.users where id = auth.uid();
+$$;
+
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

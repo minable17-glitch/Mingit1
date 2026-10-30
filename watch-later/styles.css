@@ -151,7 +151,7 @@ input[type='url'], input[type='text'], input[type='datetime-local'] {
 
 .item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .item:last-child { border-bottom: 0; }
-.item .thumb { width: 112px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--line); }
+.item .thumb { align-self: flex-start; width: 112px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--line); }
 .item .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .item .body { flex: 1; min-width: 0; }
 .item .title {
