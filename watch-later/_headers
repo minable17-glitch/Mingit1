@@ -1,0 +1,12 @@
+# Netlify, Cloudflare Pages 둘 다 이 파일을 읽습니다.
+# 서비스워커·설정 파일은 항상 최신을 받도록 브라우저 캐시를 끕니다.
+/sw.js
+  Cache-Control: no-cache
+/config.js
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Content-Type: application/manifest+json

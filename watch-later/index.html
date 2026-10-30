@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>나중에 볼 영상</title>
+    <meta name="description" content="유튜브 영상을 저장해 두면 정한 시간에 알려 드려요" />
+    <meta name="theme-color" content="#3B3F8F" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="나중에 볼 영상" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1><img src="icons/icon.svg" alt="" width="28" height="28" /> 나중에 볼 영상</h1>
+      <button id="logout" class="link" hidden>로그아웃</button>
+    </header>
+
+    <main id="app">
+      <p class="muted center">불러오는 중…</p>
+    </main>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
