@@ -1,5 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
+import { renderInsights } from './insights.js';
 
 const $app = document.getElementById('app');
 const $nav = document.getElementById('nav');
@@ -12,7 +13,7 @@ const state = {
   items: [],
   categories: [],
   channelMap: {}, // 채널 → 카테고리 id (사용자가 옮긴 기록으로 학습)
-  page: 'add', // 'add'(영상 추가) | 'my'(내 영상)
+  page: 'add', // 'add'(영상 추가) | 'my'(내 영상) | 'insights'(내 관심사)
   tab: 'todo', // 'todo' | 'done'
   filter: 'all', // 'all' | 'none'(미분류) | 카테고리 id
   manageOpen: false,
@@ -118,14 +119,16 @@ function urlBase64ToUint8Array(base64) {
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-// ───────────── 화면 이동 (#/ = 영상 추가, #/my = 내 영상) ─────────────
+// ───────────── 화면 이동 (#/ = 영상 추가, #/my = 내 영상, #/insights = 내 관심사) ─────────────
 
 function pageFromHash() {
-  return location.hash.startsWith('#/my') ? 'my' : 'add';
+  if (location.hash.startsWith('#/my')) return 'my';
+  if (location.hash.startsWith('#/insights')) return 'insights';
+  return 'add';
 }
 
 function go(page) {
-  location.hash = page === 'my' ? '#/my' : '#/';
+  location.hash = page === 'add' ? '#/' : `#/${page}`;
 }
 
 window.addEventListener('hashchange', () => {
@@ -700,7 +703,12 @@ function render() {
   // 링크 입력 중에 다시 그려져도 입력값이 사라지지 않게 보관
   const urlInput = $app.querySelector('input[name="url"]');
   const typed = urlInput && !state.adding ? urlInput.value : '';
-  $app.innerHTML = state.page === 'my' ? renderMyPage() : renderAddPage();
+  $app.innerHTML =
+    state.page === 'my'
+      ? renderMyPage()
+      : state.page === 'insights'
+        ? renderInsights(state.items, categoryName)
+        : renderAddPage();
   const newInput = $app.querySelector('input[name="url"]');
   if (newInput && typed) newInput.value = typed;
 
