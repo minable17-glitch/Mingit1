@@ -100,7 +100,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px; }
 .row { display: flex; gap: 8px; }
 .row > input { flex: 1; min-width: 0; }
 
-input[type='url'], input[type='text'], input[type='datetime-local'] {
+input[type='url'], input[type='text'], input[type='datetime-local'], select {
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
@@ -188,6 +188,18 @@ input[type='url'], input[type='text'], input[type='datetime-local'] {
   max-width: calc(100% - 32px);
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+select { appearance: auto; }
+.item .cat-select { width: auto; max-width: 100%; min-height: 32px; margin-bottom: 8px; padding: 0 8px; font-size: 13px; border-radius: 8px; }
+
+.filter-chips { margin: 0 0 4px; }
+.chip.ghost { background: none; border-style: dashed; color: var(--muted); }
+.chip.ghost[aria-pressed='true'] { background: var(--primary-soft); border-color: var(--primary); color: var(--text); }
+
+.cat-manager { background: var(--bg); border-radius: 10px; padding: 8px 12px 12px; margin-bottom: 8px; }
+.cat-manager .cat-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cat-manager > .btn { margin-top: 10px; }
+.cat-manager p { margin: 10px 0 0; }
 
 @media (max-width: 420px) {
   .preview img, .item .thumb { width: 96px; }

@@ -5,13 +5,38 @@ const $app = document.getElementById('app');
 const $logout = document.getElementById('logout');
 const $toast = document.getElementById('toast');
 
+const emptyDraft = () => ({ url: '', video: null, info: null, remindAt: '', category: '', categoryTouched: false });
+
 const state = {
   user: null,
   items: [],
+  categories: [],
+  channelMap: {}, // 채널 → 카테고리 id (사용자가 옮긴 기록으로 학습)
   tab: 'todo', // 'todo' | 'done'
-  draft: { url: '', video: null, info: null, remindAt: '' },
+  filter: 'all', // 'all' | 'none'(미분류) | 카테고리 id
+  manageOpen: false,
+  draft: emptyDraft(),
   editingId: null,
   push: { status: 'checking', busy: false }, // checking | ios-install | unsupported | denied | off | on
+};
+
+// 유튜브 기본 분류(categoryId) → 처음 넣을 카테고리 이름
+const YT_CATEGORIES = {
+  1: '영화·애니',
+  2: '자동차',
+  10: '음악',
+  15: '동물',
+  17: '스포츠',
+  19: '여행',
+  20: '게임',
+  22: '일상·브이로그',
+  23: '코미디',
+  24: '엔터테인먼트',
+  25: '뉴스·시사',
+  26: '노하우·스타일',
+  27: '교육',
+  28: '과학기술',
+  29: '사회공헌',
 };
 
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -114,13 +139,79 @@ function takeSharedLink() {
 // ───────────── 데이터 ─────────────
 
 async function loadItems() {
-  const { data, error } = await supabase.from('watch_items').select('*').order('created_at', { ascending: false });
+  const [items, cats, map] = await Promise.all([
+    supabase.from('watch_items').select('*').order('created_at', { ascending: false }),
+    supabase.from('categories').select('id, name').order('name'),
+    supabase.from('channel_categories').select('channel_key, category_id'),
+  ]);
+  const error = items.error || cats.error || map.error;
   if (error) {
     toast('목록을 불러오지 못했어요');
     console.error(error);
     return;
   }
-  state.items = data;
+  state.items = items.data;
+  state.categories = cats.data;
+  state.channelMap = Object.fromEntries(map.data.map((m) => [m.channel_key, m.category_id]));
+  if (state.filter !== 'all' && state.filter !== 'none' && !cats.data.some((c) => c.id === state.filter)) {
+    state.filter = 'all';
+  }
+}
+
+function categoryName(id) {
+  return state.categories.find((c) => c.id === id)?.name ?? '미분류';
+}
+
+// 자동 분류: ① 이 채널을 전에 옮긴 적 있으면 그 카테고리 ② 같은 채널의 최근 영상이 있는 카테고리
+// ③ 아니면 유튜브 기본 분류
+// 돌려주는 값: 카테고리 id, 아직 없는 카테고리면 'new:이름', 모르면 ''(미분류)
+function suggestCategory(info) {
+  const key = info?.channel_key;
+  const learned = key && state.channelMap[key];
+  if (learned && state.categories.some((c) => c.id === learned)) return learned;
+  const sameChannel = key && state.items.find((i) => i.channel_key === key && i.category_id); // 최신순 정렬
+  if (sameChannel) return sameChannel.category_id;
+  const name = YT_CATEGORIES[info?.yt_category_id];
+  if (!name) return '';
+  return state.categories.find((c) => c.name === name)?.id ?? `new:${name}`;
+}
+
+// 이름으로 카테고리를 찾고, 없으면 만듦
+async function ensureCategory(name) {
+  name = name.trim().slice(0, 30);
+  const existing = state.categories.find((c) => c.name === name);
+  if (existing) return existing.id;
+  const { data, error } = await supabase.from('categories').insert({ name }).select('id, name').single();
+  if (error) {
+    // 다른 기기에서 같은 이름을 먼저 만든 경우
+    const { data: found } = await supabase.from('categories').select('id, name').eq('name', name).maybeSingle();
+    if (!found) throw error;
+    state.categories.push(found);
+    return found.id;
+  }
+  state.categories.push(data);
+  state.categories.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  return data.id;
+}
+
+async function resolveCategory(value) {
+  if (!value) return null;
+  if (value.startsWith('new:')) return ensureCategory(value.slice(4));
+  return value;
+}
+
+// 사용자가 직접 고른 카테고리를 채널 단위로 기억
+async function learnChannel(channelKey, categoryId) {
+  if (!channelKey) return;
+  if (!categoryId) {
+    delete state.channelMap[channelKey];
+    await supabase.from('channel_categories').delete().eq('channel_key', channelKey);
+    return;
+  }
+  state.channelMap[channelKey] = categoryId;
+  await supabase
+    .from('channel_categories')
+    .upsert({ channel_key: channelKey, category_id: categoryId, updated_at: new Date().toISOString() }, { onConflict: 'user_id,channel_key' });
 }
 
 let infoRequest = 0;
@@ -129,39 +220,99 @@ async function setDraftUrl(value) {
   state.draft.url = value;
   state.draft.video = video;
   state.draft.info = null;
+  state.draft.category = '';
+  state.draft.categoryTouched = false;
   render();
   if (!video) return;
 
   const req = ++infoRequest;
-  const { data } = await supabase.functions.invoke('youtube-info', { body: { url: video.url } });
+  const { data } = await supabase.functions.invoke('youtube-info', { body: { id: video.id } });
   if (req !== infoRequest) return; // 그 사이 다른 링크로 바뀐 경우
   state.draft.info = data && !data.error ? data : { title: null };
+  if (!state.draft.categoryTouched) state.draft.category = suggestCategory(state.draft.info);
   render();
 }
 
 async function addItem() {
-  const { video, info, remindAt } = state.draft;
+  const { video, info, remindAt, category, categoryTouched } = state.draft;
   if (!video) return toast('유튜브 영상 링크를 넣어 주세요');
   if (!remindAt) return toast('알림 받을 날짜와 시각을 골라 주세요');
   const when = new Date(remindAt);
   if (when.getTime() < Date.now() - 60000) return toast('지난 시각이에요. 앞으로의 시각을 골라 주세요');
 
+  let categoryId = null;
+  try {
+    categoryId = await resolveCategory(category);
+  } catch (e) {
+    console.error(e);
+  }
   const { error } = await supabase.from('watch_items').insert({
     url: video.url,
     video_id: video.id,
     title: info?.title || null,
     thumbnail_url: info?.thumbnail_url || video.thumbnail,
+    channel_key: info?.channel_key || null,
+    channel_title: info?.author || null,
+    category_id: categoryId,
     remind_at: when.toISOString(),
   });
   if (error) {
     console.error(error);
     return toast('저장하지 못했어요. 잠시 후 다시 해 주세요');
   }
-  state.draft = { url: '', video: null, info: null, remindAt: '' };
+  if (categoryTouched) await learnChannel(info?.channel_key, categoryId);
+  state.draft = emptyDraft();
   state.tab = 'todo';
   await loadItems();
   render();
   toast(`${formatWhen(when.toISOString())}에 알려 드릴게요`);
+}
+
+async function moveItem(item, value) {
+  let categoryId;
+  try {
+    categoryId = await resolveCategory(value);
+  } catch {
+    return toast('카테고리를 만들지 못했어요');
+  }
+  const { error } = await supabase.from('watch_items').update({ category_id: categoryId }).eq('id', item.id);
+  if (error) return toast('옮기지 못했어요');
+  await learnChannel(item.channel_key, categoryId);
+  await loadItems();
+  render();
+  toast(
+    item.channel_title && categoryId
+      ? `앞으로 '${item.channel_title}' 영상은 '${categoryName(categoryId)}'에 넣을게요`
+      : `'${categoryName(categoryId)}'(으)로 옮겼어요`,
+  );
+}
+
+async function addCategory() {
+  const name = prompt('새 카테고리 이름')?.trim();
+  if (!name) return;
+  try {
+    await ensureCategory(name);
+  } catch {
+    return toast('만들지 못했어요');
+  }
+  render();
+}
+
+async function renameCategory(id) {
+  const name = prompt('카테고리 이름 바꾸기', categoryName(id))?.trim();
+  if (!name || name === categoryName(id)) return;
+  const { error } = await supabase.from('categories').update({ name: name.slice(0, 30) }).eq('id', id);
+  if (error) return toast(error.code === '23505' ? '같은 이름의 카테고리가 이미 있어요' : '바꾸지 못했어요');
+  await loadItems();
+  render();
+}
+
+async function deleteCategory(id) {
+  if (!confirm(`'${categoryName(id)}' 카테고리를 지울까요? 안에 있던 영상은 '미분류'로 옮겨져요.`)) return;
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) return toast('지우지 못했어요');
+  await loadItems();
+  render();
 }
 
 async function updateItem(id, patch, message) {
@@ -317,8 +468,19 @@ function renderPushNotice() {
   }
 }
 
+// 카테고리 고르는 <select> 의 선택지. value 가 'new:이름'이면 새로 만들 카테고리로 보여 줌
+function categoryOptions(value) {
+  const pendingNew = value?.startsWith('new:') ? value.slice(4) : null;
+  return [
+    `<option value="" ${!value ? 'selected' : ''}>미분류</option>`,
+    ...state.categories.map((c) => `<option value="${c.id}" ${c.id === value ? 'selected' : ''}>${esc(c.name)}</option>`),
+    pendingNew ? `<option value="${esc(value)}" selected>${esc(pendingNew)} (새로 만들기)</option>` : '',
+    '<option value="__new">+ 새 카테고리…</option>',
+  ].join('');
+}
+
 function renderAddForm() {
-  const { url, video, info, remindAt } = state.draft;
+  const { url, video, info, remindAt, category } = state.draft;
   const min = toLocalInput(new Date());
   let preview = '';
   if (url && !video) {
@@ -343,6 +505,12 @@ function renderAddForm() {
         ${navigator.clipboard?.readText ? '<button type="button" class="btn" data-action="paste">붙여넣기</button>' : ''}
       </div>
       ${preview}
+      ${
+        video
+          ? `<label class="label" for="draft-category">카테고리 ${info && !state.draft.categoryTouched && category ? '<span class="small">· 자동으로 골랐어요</span>' : ''}</label>
+             <select id="draft-category" name="category">${categoryOptions(category)}</select>`
+          : ''
+      }
       <label class="label" for="remind-at">알림 받을 날짜·시각</label>
       <input type="datetime-local" id="remind-at" name="remindAt" min="${min}" value="${esc(remindAt)}" />
       <button type="submit" class="btn primary block" style="margin-top:12px">저장하기</button>
@@ -371,7 +539,10 @@ function renderItem(item) {
       </a>
       <div class="body">
         <a class="title" href="${esc(item.url)}" target="_blank" rel="noopener">${esc(title)}</a>
-        <div class="meta">${itemStatus(item)}</div>
+        <div class="meta">
+          ${item.channel_title ? `${esc(item.channel_title)}<br />` : ''}${itemStatus(item)}
+        </div>
+        <select class="cat-select" data-item-category="${item.id}" aria-label="카테고리">${categoryOptions(item.category_id ?? '')}</select>
         <div class="actions">
           ${
             item.watched_at
@@ -401,8 +572,23 @@ function renderList() {
   const done = state.items
     .filter((i) => i.watched_at)
     .sort((a, b) => b.watched_at.localeCompare(a.watched_at));
-  const list = state.tab === 'todo' ? todo : done;
-  const empty = state.tab === 'todo' ? '아직 저장한 영상이 없어요.' : '다 본 영상이 여기에 모여요.';
+  const tabList = state.tab === 'todo' ? todo : done;
+  const inFilter = (i) =>
+    state.filter === 'all' || (state.filter === 'none' ? !i.category_id : i.category_id === state.filter);
+  const list = tabList.filter(inFilter);
+  const empty = state.filter !== 'all'
+    ? '이 카테고리에는 영상이 없어요.'
+    : state.tab === 'todo' ? '아직 저장한 영상이 없어요.' : '다 본 영상이 여기에 모여요.';
+
+  const count = (pred) => tabList.filter(pred).length;
+  const chip = (value, label, n) =>
+    `<button class="chip" data-action="filter" data-filter="${value}" aria-pressed="${state.filter === value}">${esc(label)} ${n}</button>`;
+  const uncategorized = count((i) => !i.category_id);
+  const chips = [
+    chip('all', '전체', tabList.length),
+    ...state.categories.map((c) => chip(c.id, c.name, count((i) => i.category_id === c.id))),
+    uncategorized || state.filter === 'none' ? chip('none', '미분류', uncategorized) : '',
+  ].join('');
 
   return `
     <div class="card">
@@ -410,7 +596,33 @@ function renderList() {
         <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
         <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
       </div>
+      <div class="chips filter-chips">
+        ${chips}
+        <button class="chip ghost" data-action="manage" aria-pressed="${state.manageOpen}">⚙ 카테고리 관리</button>
+      </div>
+      ${state.manageOpen ? renderCategoryManager() : ''}
       ${list.length ? list.map(renderItem).join('') : `<div class="empty">${empty}</div>`}
+    </div>`;
+}
+
+function renderCategoryManager() {
+  const rows = state.categories
+    .map(
+      (c) => `
+        <div class="cat-row">
+          <span>${esc(c.name)} <span class="muted small">${state.items.filter((i) => i.category_id === c.id).length}</span></span>
+          <span class="row">
+            <button class="btn sm" data-action="cat-rename" data-id="${c.id}">이름 바꾸기</button>
+            <button class="btn sm danger" data-action="cat-delete" data-id="${c.id}">삭제</button>
+          </span>
+        </div>`,
+    )
+    .join('');
+  return `
+    <div class="cat-manager">
+      ${rows || '<p class="muted small">아직 카테고리가 없어요. 영상을 저장하면 자동으로 만들어져요.</p>'}
+      <button class="btn sm" data-action="cat-add">+ 새 카테고리</button>
+      <p class="muted small">영상의 카테고리를 바꾸면, 같은 채널의 다음 영상부터는 바꾼 카테고리로 자동으로 들어가요.</p>
     </div>`;
 }
 
@@ -464,6 +676,23 @@ $app.addEventListener('click', async (e) => {
       state.tab = el.dataset.tab;
       render();
       break;
+    case 'filter':
+      state.filter = el.dataset.filter;
+      render();
+      break;
+    case 'manage':
+      state.manageOpen = !state.manageOpen;
+      render();
+      break;
+    case 'cat-add':
+      addCategory();
+      break;
+    case 'cat-rename':
+      renameCategory(id);
+      break;
+    case 'cat-delete':
+      deleteCategory(id);
+      break;
     case 'watched':
       updateItem(id, { watched_at: new Date().toISOString() }, '다 본 영상으로 옮겼어요');
       break;
@@ -508,6 +737,25 @@ $app.addEventListener('input', (e) => {
     urlTimer = setTimeout(() => setDraftUrl(e.target.value), 400);
   } else if (e.target.id === 'remind-at') {
     state.draft.remindAt = e.target.value;
+  }
+});
+
+$app.addEventListener('change', (e) => {
+  const select = e.target;
+  if (select.tagName !== 'SELECT') return;
+  let value = select.value;
+  if (value === '__new') {
+    const name = prompt('새 카테고리 이름')?.trim();
+    if (!name) return render(); // 취소하면 원래 선택으로 되돌림
+    value = state.categories.find((c) => c.name === name)?.id ?? `new:${name}`;
+  }
+  if (select.name === 'category') {
+    state.draft.category = value;
+    state.draft.categoryTouched = true;
+    render();
+  } else if (select.dataset.itemCategory) {
+    const item = state.items.find((i) => i.id === select.dataset.itemCategory);
+    if (item) moveItem(item, value);
   }
 });
 

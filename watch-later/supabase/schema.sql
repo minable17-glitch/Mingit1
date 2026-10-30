@@ -61,3 +61,43 @@ $$;
 
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- 4) 카테고리 (사용자마다 따로)
+create table if not exists public.categories (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name       text not null check (char_length(name) between 1 and 30),
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+
+alter table public.categories enable row level security;
+
+drop policy if exists "categories: 본인 것만" on public.categories;
+create policy "categories: 본인 것만" on public.categories
+  for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+-- 영상에 카테고리·채널 정보 추가 (카테고리를 지우면 그 영상들은 '미분류'가 됨)
+alter table public.watch_items
+  add column if not exists category_id   uuid references public.categories(id) on delete set null,
+  add column if not exists channel_key   text,   -- 유튜브 채널 ID (없으면 채널 주소)
+  add column if not exists channel_title text;
+
+-- 5) 채널별 학습: 사용자가 영상을 다른 카테고리로 옮기면 "이 채널 → 이 카테고리"를 기억
+create table if not exists public.channel_categories (
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  channel_key text not null,
+  category_id uuid not null references public.categories(id) on delete cascade,
+  updated_at  timestamptz not null default now(),
+  primary key (user_id, channel_key)
+);
+
+alter table public.channel_categories enable row level security;
+
+drop policy if exists "channel_categories: 본인 것만" on public.channel_categories;
+create policy "channel_categories: 본인 것만" on public.channel_categories
+  for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));

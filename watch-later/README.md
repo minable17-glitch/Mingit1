@@ -15,6 +15,7 @@
   유튜브 영상
 ```
 
+- **카테고리 자동 분류**: 저장할 때 ① 내가 전에 옮겨 둔 채널이면 그 카테고리 ② 같은 채널 영상이 이미 있으면 그 카테고리 ③ 아니면 유튜브 기본 분류(음악, 교육, 게임…)로 자동으로 넣어요. 카테고리는 언제든 바꿀 수 있고, 바꾸면 그 채널의 다음 영상부터는 바꾼 카테고리로 들어가요. 카테고리 이름 바꾸기·삭제·추가는 목록의 **⚙ 카테고리 관리**에서 해요.
 - **화면**: 이 폴더의 HTML/CSS/JS 그대로 (빌드 과정 없음). Cloudflare Pages 또는 Netlify 에 올립니다.
 - **안드로이드**: 크롬에서 바로 알림이 와요. 앱을 설치하면(홈 화면에 추가) 유튜브 앱의 **공유 → 나중에 볼 영상**으로 링크를 바로 보낼 수 있어요.
 - **아이폰**: iOS 16.4 이상에서 사파리 **공유 → 홈 화면에 추가** 후, 홈 화면 아이콘으로 열어야 알림이 와요. (공유 버튼으로 보내기는 아이폰 웹앱에선 안 돼서 링크를 복사 → 붙여넣기 버튼을 쓰면 돼요.)
@@ -31,7 +32,7 @@
 | `supabase/schema.sql` | DB 표와 보안 규칙 |
 | `supabase/cron.sql` | 1분마다 알림 확인 예약 |
 | `supabase/functions/send-due-reminders` | 알림 보내는 서버 함수 |
-| `supabase/functions/youtube-info` | 링크에서 영상 제목·썸네일 가져오는 서버 함수 |
+| `supabase/functions/youtube-info` | 링크에서 영상 제목·채널·썸네일·유튜브 분류를 가져오는 서버 함수 |
 
 ---
 
@@ -66,8 +67,16 @@ npx web-push generate-vapid-keys
 ```
 **Public Key** 와 **Private Key** 가 나와요. Private Key 는 남에게 보여주거나 GitHub 에 올리면 안 돼요.
 
+### 3-2. 유튜브 API 키 만들기 (자동 분류용, 무료)
+1. Google Cloud Console (2번과 같은 프로젝트) → API 및 서비스 → **라이브러리** → "YouTube Data API v3" 검색 → **사용**
+2. **사용자 인증 정보 → 사용자 인증 정보 만들기 → API 키**
+3. 만든 키의 **API 제한사항**에서 "YouTube Data API v3" 만 고르기 (키가 새도 다른 데 못 쓰게)
+
+무료 사용량은 하루 10,000 단위이고 영상 정보 1번 가져오기가 1 단위라, 하루 영상 1만 개까지 무료예요.
+키가 없어도 앱은 동작하지만, 유튜브 기본 분류를 못 가져와서 처음 보는 채널은 '미분류'로 들어가요.
+
 ### 4. 서버 함수 올리기
-Supabase → **Edge Functions → Secrets** 에 4개 추가:
+Supabase → **Edge Functions → Secrets** 에 5개 추가:
 
 | 이름 | 값 |
 | --- | --- |
@@ -75,6 +84,7 @@ Supabase → **Edge Functions → Secrets** 에 4개 추가:
 | `VAPID_PRIVATE_KEY` | 3번의 Private Key |
 | `VAPID_SUBJECT` | `mailto:내이메일@gmail.com` |
 | `CRON_SECRET` | 아무 긴 무작위 문자열 (예: 비밀번호 생성기로 40자) |
+| `YOUTUBE_API_KEY` | 3-2번의 API 키 |
 
 함수 배포 — 둘 중 편한 방법:
 - **대시보드에서**: Edge Functions → Deploy a new function → Via Editor → 이름을 정확히 `send-due-reminders` 로 하고 `index.ts` 내용 붙여넣기 → Deploy. 배포 후 함수 설정(Details)에서 **Verify JWT 를 끄기**. `youtube-info` 도 같은 방법으로 올리되 **Verify JWT 는 켜 둔 채로**.
@@ -122,6 +132,7 @@ export const VAPID_PUBLIC_KEY = 'B...';                  // 3번의 Public Key
   - SQL Editor 에서 `select * from cron.job_run_details order by start_time desc limit 10;` 로 예약 실행이 도는지 확인.
   - Supabase → Edge Functions → send-due-reminders → **Logs** 에서 오류 확인.
 - **로그인 후 다른 주소로 가요** → 2-4번 Redirect URLs 에 앱 주소가 정확히 들어갔는지 확인.
+- **카테고리가 전부 '미분류'로 들어가요** → `YOUTUBE_API_KEY` 비밀값을 넣었는지, 키에서 YouTube Data API v3 를 허용했는지 확인. (Edge Functions → youtube-info → Logs)
 - **제목이 안 나와요** → `youtube-info` 함수가 배포됐는지 확인. 제목이 없어도 링크·썸네일로 저장은 돼요.
 
 ## 내 PC에서 미리 보기
