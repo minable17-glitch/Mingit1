@@ -175,6 +175,7 @@ function takeSharedLink() {
   if (shared) {
     const video = parseYouTube(shared);
     if (video) sessionStorage.setItem('pendingShare', video.url);
+    else setTimeout(() => toast('유튜브 영상 페이지에서 눌러 주세요'), 500);
     ['url', 'text', 'title'].forEach((k) => params.delete(k));
     const qs = params.toString();
     history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
@@ -608,7 +609,29 @@ function renderAddPage() {
              </div>
            </div>`
         : ''
-    }`;
+    }
+    ${renderBookmarklet()}`;
+}
+
+// PC 크롬 즐겨찾기 줄에 끌어다 놓는 버튼(북마클릿).
+// 유튜브 영상을 보다가 누르면 새 탭에서 이 앱을 ?url=영상주소 로 열고 → 공유 받기와 같은 길로 자동 저장.
+function bookmarkletHref() {
+  const app = location.origin + location.pathname;
+  return `javascript:(()=>{window.open(${JSON.stringify(app)}+'?url='+encodeURIComponent(location.href),'_blank')})()`;
+}
+
+function renderBookmarklet() {
+  if (!matchMedia('(pointer: fine)').matches) return ''; // 마우스가 있는 PC 에서만
+  return `
+    <details class="card bookmarklet-card">
+      <summary>💻 PC에서 더 빠르게 저장하기</summary>
+      <ol>
+        <li>아래 버튼을 마우스로 끌어서 크롬 <b>즐겨찾기 줄</b>에 놓아 주세요.<br />
+          <span class="small muted">즐겨찾기 줄이 안 보이면 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd></span></li>
+        <li>유튜브에서 영상을 보다가 즐겨찾기 줄의 버튼을 누르면 바로 저장돼요.</li>
+      </ol>
+      <a class="bookmarklet" href="${esc(bookmarkletHref())}" data-action="bookmarklet" draggable="true">📌 나중에 볼 영상</a>
+    </details>`;
 }
 
 // ───────────── 페이지: 내 영상 (액자 갤러리) ─────────────
@@ -918,6 +941,9 @@ async function handleAction(el) {
       } catch {
         toast('붙여넣기를 할 수 없어요. 입력칸을 길게 눌러 붙여넣어 주세요');
       }
+      break;
+    case 'bookmarklet':
+      toast('누르지 말고, 즐겨찾기 줄로 끌어다 놓아 주세요');
       break;
     case 'go-my':
       go('my');
