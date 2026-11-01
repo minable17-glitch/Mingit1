@@ -4,7 +4,9 @@ import { renderInsights } from './insights.js';
 
 const $app = document.getElementById('app');
 const $nav = document.getElementById('nav');
-const $logout = document.getElementById('logout');
+const $profile = document.getElementById('profile');
+const $searchBtn = document.getElementById('search-btn');
+const $pageTitle = document.getElementById('page-title');
 const $toast = document.getElementById('toast');
 const $sheet = document.getElementById('sheet');
 
@@ -22,6 +24,7 @@ const state = {
   goodOnly: false, // 다 본 영상 중 별점 4점 이상만
   settings: null, // user_settings (주간 정리 알림)
   cleanup: null, // 정리 도우미: 남은 영상 id 목록
+  accountOpen: false, // 내 계정 창이 열려 있는지
   adding: false,
   lastAddedId: null,
   detailId: null,
@@ -487,26 +490,57 @@ async function testPush() {
 
 // ───────────── 화면 조각 ─────────────
 
+const ICON = {
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 1 1 12 0v6l2 2H4l2-2z"/><path d="M10 21h4"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  google: '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>',
+};
+
+// 채널 이름 → 동그란 아바타 (첫 글자 + 이름마다 고정된 색)
+const AVATAR_COLORS = ['#E9A23B', '#5C6BC0', '#26A69A', '#EF5350', '#AB47BC', '#42A5F5', '#8D6E63', '#66BB6A'];
+function channelAvatar(name) {
+  const s = String(name || '?');
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return `<span class="ch-avatar" style="background:${AVATAR_COLORS[h % AVATAR_COLORS.length]}">${esc([...s][0].toUpperCase())}</span>`;
+}
+
+function savedAgo(iso) {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return '방금 저장';
+  if (min < 60) return `${min}분 전 저장`;
+  if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전 저장`;
+  return `${Math.floor(min / 60 / 24)}일 전 저장`;
+}
+
+function thumbSrc(item) {
+  return item.thumbnail_url || `https://i.ytimg.com/vi/${item.video_id}/hqdefault.jpg`;
+}
+
 function renderSetupNeeded() {
   $app.innerHTML = `
-    <div class="card">
-      <h2>설정이 필요해요</h2>
+    <div class="notice">
+      <p><b>설정이 필요해요</b></p>
       <p class="muted">config.js 에 Supabase 주소와 키, 알림용 공개 키를 넣어 주세요. 자세한 방법은 README.md 에 있어요.</p>
     </div>`;
 }
 
 function renderLogin() {
   $app.innerHTML = `
-    <div class="card center">
-      <p style="font-size:40px;margin:8px 0">🔔</p>
-      <h2>보고 싶은 영상, 잊지 말고 보세요</h2>
-      <p class="muted">유튜브 링크를 저장해 두면<br />원하는 시간에 휴대폰으로 알려 드려요.</p>
-      <button class="btn primary block" data-action="login">구글 계정으로 시작하기</button>
-      ${sessionStorage.getItem('pendingShare') ? '<p class="small muted">로그인하면 공유한 영상이 바로 저장돼요.</p>' : ''}
-    </div>
-    <p class="small muted center"><a href="privacy.html">개인정보처리방침</a></p>`;
+    <section class="login">
+      <img class="big-logo" src="icons/icon.svg" alt="" />
+      <h2>보고 싶은 영상,<br />잊지 말고 보세요</h2>
+      <p>유튜브 링크를 저장해 두면<br />원하는 시간에 휴대폰으로 알려 드려요.</p>
+      <button class="google-btn" data-action="login">${ICON.google} 구글 계정으로 시작하기</button>
+      ${sessionStorage.getItem('pendingShare') ? '<p class="small">로그인하면 공유한 영상이 바로 저장돼요.</p>' : ''}
+      <a class="small muted" href="privacy.html">개인정보처리방침</a>
+    </section>`;
 }
 
+// 알림이 아직 안 켜진 경우에만 위쪽에 안내 (켜진 뒤 관리는 프로필 → 내 계정)
 function renderPushNotice() {
   const { status, busy } = state.push;
   switch (status) {
@@ -527,18 +561,9 @@ function renderPushNotice() {
       return `<div class="notice"><p><b>알림이 차단되어 있어요.</b> 브라우저(또는 휴대폰) 설정에서 이 사이트의 알림을 허용한 뒤 새로고침해 주세요.</p></div>`;
     case 'off':
       return `
-        <div class="notice">
-          <p>이 기기에서 알림을 받으려면 알림을 켜 주세요.</p>
-          <button class="btn primary" data-action="push-on" ${busy ? 'disabled' : ''}>🔔 이 기기에서 알림 받기</button>
-        </div>`;
-    case 'on':
-      return `
-        <div class="notice row" style="align-items:center;justify-content:space-between;flex-wrap:wrap">
-          <span>🔔 이 기기에서 알림을 받고 있어요</span>
-          <span class="row">
-            <button class="btn sm" data-action="push-test" ${busy ? 'disabled' : ''}>테스트</button>
-            <button class="btn sm" data-action="push-off">끄기</button>
-          </span>
+        <div class="notice row">
+          <span>🔔 알림을 켜야 정한 시간에 알려 드려요</span>
+          <button class="chip white" data-action="push-on" ${busy ? 'disabled' : ''}>알림 켜기</button>
         </div>`;
     default:
       return '';
@@ -554,34 +579,41 @@ function categoryOptions(value) {
   ].join('');
 }
 
-// 썸네일 위 작은 표시 (알림 예정 / 시청 완료 / 알림 문제)
-function badge(item) {
-  const dur = item.duration_sec ? `<span class="badge dur">${formatDuration(item.duration_sec)}</span>` : '';
-  return statusBadge(item) + dur;
+// 카드 아래 회색 한 줄: 채널 · 카테고리 · 알림/시청 상태
+function statusText(item) {
+  if (item.watched_at) return `✓ 봤어요${item.rating ? ` ${'★'.repeat(item.rating)}` : ''}`;
+  if (item.remind_at && !item.notified_at) return `🔔 ${formatWhen(item.remind_at)}`;
+  if (item.remind_at && item.notify_status && item.notify_status !== 'sent') return '<span class="warn">⚠ 알림 실패</span>';
+  return savedAgo(item.created_at);
 }
 
-function statusBadge(item) {
-  if (item.watched_at) return `<span class="badge done">✓ 봤어요${item.rating ? ` · ${'★'.repeat(item.rating)}` : ''}</span>`;
-  if (!item.remind_at) return '';
-  if (item.notified_at && item.notify_status !== 'sent') return '<span class="badge warn">⚠ 알림 실패</span>';
-  if (item.notified_at) return '';
-  return `<span class="badge">🔔 ${esc(formatWhen(item.remind_at))}</span>`;
-}
-
-function renderFrame(item, { large = false } = {}) {
-  const title = item.title || item.url;
+// 썸네일: 길이(오른쪽 아래), 알림 예정(왼쪽 아래), 빨간 줄(알림 예정 · 다 봄)
+function renderThumb(item, { play = false } = {}) {
+  const pending = item.remind_at && !item.notified_at && !item.watched_at;
   return `
-    <figure class="frame ${large ? 'large' : ''}">
-      <div class="mat">
-        <img src="${esc(item.thumbnail_url || `https://i.ytimg.com/vi/${item.video_id}/hqdefault.jpg`)}" alt="" loading="lazy"
-          onerror="this.style.visibility='hidden'" />
-        ${badge(item)}
+    <img src="${esc(thumbSrc(item))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
+    ${play ? `<span class="play">${ICON.play}</span>` : ''}
+    ${pending ? `<span class="badge status">🔔 ${esc(formatWhen(item.remind_at))}</span>` : ''}
+    ${item.duration_sec ? `<span class="badge dur">${formatDuration(item.duration_sec)}</span>` : ''}
+    ${item.watched_at ? '<span class="progress done"></span>' : pending ? '<span class="progress"></span>' : ''}`;
+}
+
+function renderCard(item) {
+  const sub = [item.channel_title && esc(item.channel_title), esc(categoryName(item.category_id)), statusText(item)]
+    .filter(Boolean)
+    .join(' · ');
+  return `
+    <article class="vcard" data-action="open" data-id="${item.id}">
+      <div class="thumb">${renderThumb(item)}</div>
+      <div class="vmeta">
+        ${channelAvatar(item.channel_title || categoryName(item.category_id))}
+        <div class="vtexts">
+          <h3 class="vtitle">${esc(item.title || item.url)}</h3>
+          <p class="vsub">${sub}</p>
+        </div>
+        <button class="icon-btn kebab" data-action="open" data-id="${item.id}" aria-label="자세히">${ICON.more}</button>
       </div>
-      <figcaption>
-        <span class="title">${esc(title)}</span>
-        <span class="sub">${esc(categoryName(item.category_id))}${item.channel_title ? ` · ${esc(item.channel_title)}` : ''}</span>
-      </figcaption>
-    </figure>`;
+    </article>`;
 }
 
 // ───────────── 페이지: 영상 추가 ─────────────
@@ -590,25 +622,25 @@ function renderAddPage() {
   const last = state.items.find((i) => i.id === state.lastAddedId);
   return `
     ${renderPushNotice()}
-    <form class="add-box" data-form="add">
-      <h2>보고 싶은 영상 링크를 넣어 주세요</h2>
-      <input type="url" name="url" placeholder="https://youtu.be/…" autocomplete="off" inputmode="url" ${state.adding ? 'disabled' : ''} />
-      <div class="row">
-        ${navigator.clipboard?.readText ? `<button type="button" class="btn" data-action="paste" ${state.adding ? 'disabled' : ''}>📋 붙여넣기</button>` : ''}
-        <button type="submit" class="btn primary grow" ${state.adding ? 'disabled' : ''}>${state.adding ? '저장하는 중…' : '저장'}</button>
-      </div>
-      <p class="small muted">제목과 카테고리는 알아서 정리돼요. 알림 시간은 내 영상에서 정할 수 있어요.</p>
+    <form class="add-hero" data-form="add">
+      <h2>보고 싶은 영상,<br />링크만 넣으면 끝</h2>
+      <label class="link-input">
+        ${ICON.link}
+        <input type="url" name="url" placeholder="유튜브 링크 붙여넣기" autocomplete="off" inputmode="url" ${state.adding ? 'disabled' : ''} />
+        ${navigator.clipboard?.readText ? `<button type="button" class="chip" data-action="paste" ${state.adding ? 'disabled' : ''}>붙여넣기</button>` : ''}
+      </label>
+      <button type="submit" class="btn-red" ${state.adding ? 'disabled' : ''}>${state.adding ? '저장하는 중…' : '저장'}</button>
+      <p class="hint">제목·채널·카테고리는 알아서 정리돼요. 알림 시간은 내 영상에서 정할 수 있어요.</p>
     </form>
     ${
       last
-        ? `<div class="just-added">
-             <p class="small muted">방금 저장한 영상</p>
-             <button class="frame-btn" data-action="open" data-id="${last.id}">${renderFrame(last)}</button>
-             <div class="row">
-               <button class="btn grow" data-action="open" data-id="${last.id}">🔔 알림 시간 정하기</button>
-               <button class="btn grow" data-action="go-my">내 영상 보기 →</button>
+        ? `<section class="section-block">
+             <div class="section-head">
+               <h3>방금 저장한 영상</h3>
+               <button class="text-btn" data-action="open" data-id="${last.id}">🔔 알림 정하기</button>
              </div>
-           </div>`
+             ${renderCard(last)}
+           </section>`
         : ''
     }
     ${renderBookmarklet()}`;
@@ -624,7 +656,7 @@ function bookmarkletHref() {
 function renderBookmarklet() {
   if (!matchMedia('(pointer: fine)').matches) return ''; // 마우스가 있는 PC 에서만
   return `
-    <details class="card bookmarklet-card">
+    <details class="bookmarklet-card">
       <summary>💻 PC에서 더 빠르게 저장하기</summary>
       <ol>
         <li>아래 버튼을 마우스로 끌어서 크롬 <b>즐겨찾기 줄</b>에 놓아 주세요.<br />
@@ -635,7 +667,7 @@ function renderBookmarklet() {
     </details>`;
 }
 
-// ───────────── 페이지: 내 영상 (액자 갤러리) ─────────────
+// ───────────── 페이지: 내 영상 (유튜브 피드) ─────────────
 
 function renderMyPage() {
   const todo = state.items
@@ -662,10 +694,10 @@ function renderMyPage() {
         : state.tab === 'done' && state.goodOnly
           ? '별점 4점 이상인 영상이 아직 없어요.'
           : state.filter !== 'all'
-      ? '이 카테고리에는 영상이 없어요.'
-      : state.tab === 'todo'
-        ? '아직 저장한 영상이 없어요.<br /><a href="#/">영상 추가하러 가기 →</a>'
-        : '다 본 영상이 여기에 모여요.';
+            ? '이 카테고리에는 영상이 없어요.'
+            : state.tab === 'todo'
+              ? '아직 저장한 영상이 없어요.<br /><a href="#/">영상 추가하러 가기 →</a>'
+              : '다 본 영상이 여기에 모여요.';
 
   const count = (pred) => tabList.filter(pred).length;
   const chip = (value, label, n) =>
@@ -676,51 +708,41 @@ function renderMyPage() {
     ...state.categories.map((c) => chip(c.id, c.name, count((i) => i.category_id === c.id))),
     uncategorized || state.filter === 'none' ? chip('none', '미분류', uncategorized) : '',
   ].join('');
-
   const minuteChip = (m, label) =>
-    `<button class="chip" data-action="minutes" data-minutes="${m}" aria-pressed="${state.minutes === m}">${label}</button>`;
+    `<button class="chip red" data-action="minutes" data-minutes="${m}" aria-pressed="${state.minutes === m}">${label}</button>`;
 
   return `
-    <input type="search" class="search" name="search" placeholder="🔍 제목·채널·메모로 찾기" value="${esc(state.search)}" autocomplete="off" />
+    <label class="search-pill">
+      ${ICON.search}
+      <input type="search" name="search" placeholder="제목·채널·메모로 찾기" value="${esc(state.search)}" autocomplete="off" />
+    </label>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
       <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
     </div>
-    ${
-      stale.length && !q
-        ? `<div class="notice row cleanup-notice">
-             <span>🧹 한 달 넘게 안 본 영상이 <b>${stale.length}개</b> 있어요.</span>
-             <button class="btn sm" data-action="cleanup-start">정리하기</button>
-           </div>`
-        : ''
-    }
-    ${
-      state.tab === 'todo'
-        ? `<div class="chips time-chips">
-             <span class="chips-label">⏱ 지금 몇 분 있어요?</span>
-             ${minuteChip(5, '5분')}${minuteChip(15, '15분')}${minuteChip(30, '30분')}${minuteChip(60, '1시간')}
-           </div>`
-        : `<div class="chips time-chips">
-             <button class="chip" data-action="good" aria-pressed="${state.goodOnly}">⭐ 좋았던 영상만</button>
-           </div>`
-    }
-    <div class="chips filter-chips">
-      ${chips}
-      <button class="chip ghost" data-action="manage" aria-pressed="${state.manageOpen}">⚙ 관리</button>
+    <div class="filters">
+      <div class="chip-row">
+        ${chips}
+        <button class="chip ghost" data-action="manage" aria-pressed="${state.manageOpen}" aria-label="카테고리 관리">⚙ 관리</button>
+      </div>
+      ${
+        state.tab === 'todo'
+          ? `<div class="chip-row"><span class="label">지금 몇 분?</span>
+               ${minuteChip(5, '5분')}${minuteChip(15, '15분')}${minuteChip(30, '30분')}${minuteChip(60, '1시간')}
+             </div>`
+          : `<div class="chip-row"><button class="chip red" data-action="good" aria-pressed="${state.goodOnly}">⭐ 좋았던 영상만</button></div>`
+      }
     </div>
     ${state.manageOpen ? renderCategoryManager() : ''}
     ${
-      list.length
-        ? `<div class="gallery">${list
-            .map((i) => `<button class="frame-btn" data-action="open" data-id="${i.id}">${renderFrame(i)}</button>`)
-            .join('')}</div>`
-        : `<div class="empty">${empty}</div>`
+      stale.length && !q
+        ? `<div class="notice row cleanup-notice">
+             <span>한 달 넘게 안 본 영상 <b>${stale.length}개</b></span>
+             <button class="chip white" data-action="cleanup-start">정리하기</button>
+           </div>`
+        : ''
     }
-    <p class="small muted center account">
-      ${esc(state.user.email)} 로 로그인됨 ·
-      <button class="link small" data-action="delete-account">회원 탈퇴</button> ·
-      <a class="small muted" href="privacy.html">개인정보처리방침</a>
-    </p>`;
+    ${list.length ? `<div class="feed">${list.map(renderCard).join('')}</div>` : `<div class="empty">${empty}</div>`}`;
 }
 
 function renderCategoryManager() {
@@ -729,9 +751,9 @@ function renderCategoryManager() {
       (c) => `
         <div class="cat-row">
           <span>${esc(c.name)} <span class="muted small">${state.items.filter((i) => i.category_id === c.id).length}</span></span>
-          <span class="row">
-            <button class="btn sm" data-action="cat-rename" data-id="${c.id}">이름 바꾸기</button>
-            <button class="btn sm danger" data-action="cat-delete" data-id="${c.id}">삭제</button>
+          <span class="actions">
+            <button class="chip" data-action="cat-rename" data-id="${c.id}">이름 바꾸기</button>
+            <button class="chip" data-action="cat-delete" data-id="${c.id}">삭제</button>
           </span>
         </div>`,
     )
@@ -739,7 +761,7 @@ function renderCategoryManager() {
   return `
     <div class="cat-manager">
       ${rows || '<p class="muted small">아직 카테고리가 없어요. 영상을 저장하면 자동으로 만들어져요.</p>'}
-      <button class="btn sm" data-action="cat-add">+ 새 카테고리</button>
+      <button class="chip white" data-action="cat-add">+ 새 카테고리</button>
       <p class="muted small">영상의 카테고리를 바꾸면, 같은 채널의 다음 영상부터는 바꾼 카테고리로 자동으로 들어가요.</p>
     </div>`;
 }
@@ -754,14 +776,14 @@ function renderDigestSettings() {
     <section class="card digest">
       <label class="switch-row">
         <span>
-          <b>📺 주간 정리 알림</b><br />
-          <span class="small muted">일주일에 한 번, 안 본 영상과 이번 주 기록을 알려 드려요.</span>
+          <b>주간 정리 알림</b><br />
+          <span class="small muted">${s.digest_enabled ? `매주 ${WEEKDAY_NAMES[s.digest_dow]}요일 ${hourLabel(s.digest_hour)}` : '일주일에 한 번, 안 본 영상과 이번 주 기록을 알려 드려요'}</span>
         </span>
-        <input type="checkbox" name="digest_enabled" ${s.digest_enabled ? 'checked' : ''} />
+        <input type="checkbox" class="switch" name="digest_enabled" ${s.digest_enabled ? 'checked' : ''} />
       </label>
       ${
         s.digest_enabled
-          ? `<div class="row" style="margin-top:12px">
+          ? `<div class="row">
                <select name="digest_dow" aria-label="요일">
                  ${WEEKDAY_NAMES.map((d, i) => `<option value="${i}" ${i === s.digest_dow ? 'selected' : ''}>매주 ${d}요일</option>`).join('')}
                </select>
@@ -769,16 +791,16 @@ function renderDigestSettings() {
                  ${hours.map((h) => `<option value="${h}" ${h === s.digest_hour ? 'selected' : ''}>${hourLabel(h)}</option>`).join('')}
                </select>
              </div>
-             ${state.push.status !== 'on' ? '<p class="small warn" style="margin:8px 0 0">이 기기에서 알림을 켜야 받을 수 있어요. (영상 추가 화면에서 켜기)</p>' : ''}`
+             ${state.push.status !== 'on' ? '<p class="small warn" style="margin:8px 0 0">이 기기에서 알림을 켜야 받을 수 있어요.</p>' : ''}`
           : ''
       }
     </section>`;
 }
 
-// ───────────── 영상 상세 (아래에서 올라오는 창) ─────────────
+// ───────────── 아래에서 올라오는 창: 영상 상세 ─────────────
 
 function remindStatus(item) {
-  if (!item.remind_at) return '알림 없음';
+  if (!item.remind_at) return '알림 시간을 골라 주세요';
   const when = formatWhen(item.remind_at);
   if (!item.notified_at) return new Date(item.remind_at) > new Date() ? `${when}에 알려 드려요` : '곧 알림이 가요';
   if (item.notify_status === 'no_device') return `⚠ ${when} · 알림 받을 기기가 없었어요`;
@@ -786,65 +808,119 @@ function remindStatus(item) {
   return `${when}에 알림을 보냈어요`;
 }
 
+// 자주 쓰는 알림 시각 두 개 (오늘/내일 저녁 9시, 내일 아침 7시 반)
+function quickTimes() {
+  const at = (days, h, m) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+  const tonight = at(0, 21, 0);
+  const evening = tonight.getTime() - Date.now() > 10 * 60000 ? tonight : at(1, 21, 0);
+  return [evening, at(1, 7, 30)];
+}
+
 function renderDetail() {
   const item = state.items.find((i) => i.id === state.detailId);
   if (!item) return closeDetail();
   const pendingRemind = item.remind_at && !item.notified_at;
+  const current = pendingRemind ? new Date(item.remind_at).getTime() : null;
   $sheet.innerHTML = `
     <div class="sheet-body">
-      <button class="link sheet-close" data-action="close" aria-label="닫기">✕</button>
-      ${renderFrame(item, { large: true })}
-      <a class="btn primary block" href="${esc(item.url)}" target="_blank" rel="noopener">▶ 영상 보기</a>
-
+      <div class="handle" tabindex="-1" autofocus></div>
+      <a class="thumb" href="${esc(item.url)}" target="_blank" rel="noopener" aria-label="영상 보기">${renderThumb(item, { play: true })}</a>
+      <h2 class="sheet-title">${esc(item.title || item.url)}</h2>
+      <div class="ch-row">
+        ${channelAvatar(item.channel_title || categoryName(item.category_id))}
+        <b>${esc(item.channel_title || '채널 정보 없음')}</b>
+        <span class="muted small">· ${savedAgo(item.created_at)}</span>
+      </div>
+      <div class="pill-row">
+        <a class="pill white" href="${esc(item.url)}" target="_blank" rel="noopener">${ICON.play} 영상 보기</a>
+        ${
+          item.watched_at
+            ? '<button class="pill" data-action="unwatch">↺ 다시 볼래요</button>'
+            : '<button class="pill" data-action="watched">✓ 다 봤어요</button>'
+        }
+        <button class="pill" data-action="delete">삭제</button>
+      </div>
       ${
         item.watched_at
-          ? `<div class="section review">
+          ? `<div class="review">
                <span class="label">어땠어요?</span>
                <div class="stars" role="group" aria-label="별점">
                  ${[1, 2, 3, 4, 5]
+                   .map((n) => `<button class="star ${item.rating >= n ? 'on' : ''}" data-action="rate" data-value="${n}" aria-label="${n}점">★</button>`)
+                   .join('')}
+               </div>
+               <form data-form="memo">
+                 <input type="text" name="memo" maxlength="500" placeholder="한 줄 메모 (기억하고 싶은 내용)" value="${esc(item.memo)}" />
+                 <button class="chip white">저장</button>
+               </form>
+             </div>`
+          : `<form class="rcard" data-form="remind">
+               <div class="rrow">
+                 ${ICON.bell}
+                 <div class="texts"><b>알림</b><span class="${item.notify_status && item.notify_status !== 'sent' ? 'warn' : ''}">${esc(remindStatus(item))}</span></div>
+                 ${pendingRemind ? '<button type="button" class="chip" data-action="remind-off">끄기</button>' : ''}
+               </div>
+               <div class="chip-row">
+                 ${quickTimes()
                    .map(
-                     (n) =>
-                       `<button class="star ${item.rating >= n ? 'on' : ''}" data-action="rate" data-value="${n}" aria-label="${n}점">★</button>`,
+                     (d) =>
+                       `<button type="button" class="chip" data-action="remind-quick" data-at="${d.toISOString()}" aria-pressed="${current === d.getTime()}">${esc(formatWhen(d.toISOString()))}</button>`,
                    )
                    .join('')}
                </div>
-               <form class="row" data-form="memo">
-                 <input type="text" name="memo" maxlength="500" placeholder="한 줄 메모 (기억하고 싶은 내용)" value="${esc(item.memo)}" />
-                 <button class="btn">저장</button>
-               </form>
-             </div>`
-          : ''
-      }
-
-      ${
-        item.watched_at
-          ? ''
-          : `<form class="section" data-form="remind">
-               <label class="label" for="remind-at">🔔 알림 · <span class="${item.notify_status && item.notify_status !== 'sent' ? 'warn' : ''}">${esc(remindStatus(item))}</span></label>
-               <div class="row">
-                 <input type="datetime-local" id="remind-at" name="remindAt" min="${toLocalInput(new Date())}"
+               <div class="rinput">
+                 <input type="datetime-local" name="remindAt" aria-label="직접 선택" min="${toLocalInput(new Date())}"
                    value="${pendingRemind ? toLocalInput(new Date(item.remind_at)) : ''}" required />
-                 <button class="btn primary">${pendingRemind ? '변경' : '설정'}</button>
+                 <button class="chip white">${pendingRemind ? '변경' : '설정'}</button>
                </div>
-               ${pendingRemind ? '<button type="button" class="link small" data-action="remind-off">알림 끄기</button>' : ''}
              </form>`
       }
-
-      <div class="section">
-        <label class="label" for="detail-category">카테고리</label>
-        <select id="detail-category" data-item-category="${item.id}">${categoryOptions(item.category_id ?? '')}</select>
-      </div>
-
-      <div class="row section">
-        ${
-          item.watched_at
-            ? `<button class="btn grow" data-action="unwatch">↺ 다시 볼래요</button>`
-            : `<button class="btn grow" data-action="watched">✓ 다 봤어요</button>`
-        }
-        <button class="btn danger" data-action="delete">삭제</button>
+      <div class="cat-line">
+        <span>카테고리</span>
+        <select class="chip-select" data-item-category="${item.id}" aria-label="카테고리">${categoryOptions(item.category_id ?? '')}</select>
       </div>
     </div>`;
   if (!$sheet.open) $sheet.showModal();
+}
+
+// 프로필 버튼 → 내 계정 (알림 관리, 로그아웃, 탈퇴)
+function renderAccount() {
+  const { status, busy } = state.push;
+  const pushRow =
+    status === 'on'
+      ? `<div><span>🔔 이 기기 알림 켜짐</span><span class="pill-row">
+           <button class="chip" data-action="push-test" ${busy ? 'disabled' : ''}>테스트</button>
+           <button class="chip" data-action="push-off">끄기</button></span></div>`
+      : status === 'off'
+        ? `<button data-action="push-on" ${busy ? 'disabled' : ''}><span>🔔 이 기기에서 알림 받기</span><span class="muted">켜기</span></button>`
+        : `<div><span class="muted">🔔 ${status === 'denied' ? '알림이 차단되어 있어요' : status === 'ios-install' ? '홈 화면에 추가하면 알림을 켤 수 있어요' : '이 브라우저는 알림을 지원하지 않아요'}</span></div>`;
+  $sheet.innerHTML = `
+    <div class="sheet-body account">
+      <div class="handle" tabindex="-1" autofocus></div>
+      <div class="me">
+        ${profileAvatar()}
+        <div><b>${esc(state.user.user_metadata?.full_name || '내 계정')}</b><div class="small muted">${esc(state.user.email)}</div></div>
+      </div>
+      <div class="list">
+        ${pushRow}
+        <a href="privacy.html"><span>개인정보처리방침</span><span class="muted">›</span></a>
+        <button data-action="logout"><span>로그아웃</span></button>
+        <button class="danger" data-action="delete-account"><span>회원 탈퇴</span></button>
+      </div>
+    </div>`;
+  state.accountOpen = true;
+  if (!$sheet.open) $sheet.showModal();
+}
+
+function profileAvatar() {
+  const pic = state.user?.user_metadata?.avatar_url;
+  const name = state.user?.user_metadata?.full_name || state.user?.email || '?';
+  return `<span class="avatar-btn">${pic ? `<img src="${esc(pic)}" alt="" referrerpolicy="no-referrer" />` : esc([...name][0].toUpperCase())}</span>`;
 }
 
 // 정리 도우미: 오래된 영상을 하나씩 보여 주고 "아직 볼래요 / 지울래요"
@@ -861,15 +937,16 @@ function renderCleanup() {
   const days = Math.floor((Date.now() - new Date(item.created_at).getTime()) / DAY);
   $sheet.innerHTML = `
     <div class="sheet-body">
-      <button class="link sheet-close" data-action="cleanup-stop" aria-label="닫기">✕</button>
-      <p class="muted small center" style="margin:0">🧹 정리 도우미 · 남은 영상 ${left}개</p>
-      ${renderFrame(item, { large: true })}
-      <p class="center" style="margin:0">${days}일 전에 저장한 영상이에요. 아직 볼 거예요?</p>
-      <div class="row">
-        <button class="btn grow" data-action="cleanup-keep">👀 아직 볼래요</button>
-        <button class="btn grow danger" data-action="cleanup-delete">🗑 지울래요</button>
+      <div class="handle" tabindex="-1" autofocus></div>
+      <div class="sheet-head"><span class="muted">정리 도우미 · 남은 영상 ${left}개</span>
+        <button class="text-btn" data-action="cleanup-stop">그만하기</button></div>
+      <a class="thumb" href="${esc(item.url)}" target="_blank" rel="noopener">${renderThumb(item, { play: true })}</a>
+      <h2 class="sheet-title">${esc(item.title || item.url)}</h2>
+      <p class="muted" style="margin:0">${days}일 전에 저장한 영상이에요. 아직 볼 거예요?</p>
+      <div class="pill-row">
+        <button class="pill white" data-action="cleanup-keep">👀 아직 볼래요</button>
+        <button class="pill" data-action="cleanup-delete">🗑 지울래요</button>
       </div>
-      <a class="btn block" href="${esc(item.url)}" target="_blank" rel="noopener">▶ 잠깐 영상 확인하기</a>
     </div>`;
   if (!$sheet.open) $sheet.showModal();
 }
@@ -881,6 +958,7 @@ function openDetail(id) {
 
 function closeDetail() {
   state.detailId = null;
+  state.accountOpen = false;
   if ($sheet.open) $sheet.close();
 }
 
@@ -889,13 +967,15 @@ function closeDetail() {
 function render() {
   if (!supabase) return renderSetupNeeded();
   if (!state.user) {
-    $logout.hidden = true;
-    $nav.hidden = true;
+    $profile.hidden = $searchBtn.hidden = $nav.hidden = true;
+    $pageTitle.textContent = '나중에 볼 영상';
     return renderLogin();
   }
 
-  $logout.hidden = false;
-  $nav.hidden = false;
+  $profile.hidden = $nav.hidden = false;
+  $profile.innerHTML = profileAvatar().replace(/^<span class="avatar-btn">|<\/span>$/g, '');
+  $searchBtn.hidden = state.page === 'my';
+  $pageTitle.textContent = { add: '나중에 볼 영상', my: '내 영상', insights: '내 관심사' }[state.page];
   $nav.querySelectorAll('a').forEach((a) => a.setAttribute('aria-current', a.dataset.page === state.page ? 'page' : 'false'));
   const todoCount = state.items.filter((i) => !i.watched_at).length;
   $nav.querySelector('[data-count]').textContent = todoCount ? todoCount : '';
@@ -908,7 +988,7 @@ function render() {
     state.page === 'my'
       ? renderMyPage()
       : state.page === 'insights'
-        ? renderInsights(state.items, categoryName) + renderDigestSettings()
+        ? `<div class="insights">${renderInsights(state.items, categoryName)}${renderDigestSettings()}</div>`
         : renderAddPage();
   const newInput = $app.querySelector('input[name="url"]');
   if (newInput && typed) newInput.value = typed;
@@ -919,6 +999,7 @@ function render() {
   }
 
   if (state.detailId) renderDetail();
+  else if (state.accountOpen && $sheet.open) renderAccount();
 }
 
 // ───────────── 이벤트 ─────────────
@@ -1023,6 +1104,18 @@ async function handleAction(el) {
       closeDetail();
       updateItem(id, { watched_at: null }, '볼 영상으로 되돌렸어요');
       break;
+    case 'remind-quick':
+      updateItem(
+        id,
+        { remind_at: el.dataset.at, notified_at: null, notify_status: null },
+        `${formatWhen(el.dataset.at)}에 알려 드릴게요`,
+      );
+      break;
+    case 'logout':
+      closeDetail();
+      await disablePush().catch(() => {});
+      await supabase.auth.signOut();
+      break;
     case 'remind-off':
       updateItem(id, { remind_at: null, notified_at: null, notify_status: null }, '알림을 껐어요');
       break;
@@ -1047,6 +1140,7 @@ async function handleAction(el) {
         const { error } = await supabase.rpc('delete_my_account');
         if (error) return toast('탈퇴하지 못했어요. 잠시 후 다시 해 주세요');
       }
+      closeDetail();
       await supabase.auth.signOut();
       toast('탈퇴했어요. 그동안 고마웠어요');
       break;
@@ -1069,6 +1163,7 @@ $sheet.addEventListener('click', (e) => {
 });
 $sheet.addEventListener('close', () => {
   state.detailId = null;
+  state.accountOpen = false;
   state.cleanup = null;
 });
 
@@ -1126,9 +1221,12 @@ $nav.addEventListener('click', (e) => {
   go(a.dataset.page);
 });
 
-$logout.addEventListener('click', async () => {
-  await disablePush().catch(() => {});
-  await supabase.auth.signOut();
+$profile.addEventListener('click', () => renderAccount());
+
+// 위쪽 돋보기 → 내 영상 화면의 검색칸으로
+$searchBtn.addEventListener('click', () => {
+  go('my');
+  setTimeout(() => $app.querySelector('input[name="search"]')?.focus(), 50);
 });
 
 // 앱으로 돌아왔을 때 목록 새로고침 (알림 상태 반영)

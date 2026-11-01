@@ -164,7 +164,7 @@ export function renderInsights(items, categoryName) {
         ? `<section class="card">
              <h2>자주 나오는 키워드</h2>
              <div class="keywords">
-               ${a.keywords.map(([w, n]) => `<span class="kw">${esc(w)} <span class="muted">${n}</span></span>`).join('')}
+               ${a.keywords.map(([w, n]) => `<span class="kw"># ${esc(w)} <span class="muted">${n}</span></span>`).join('')}
              </div>
            </section>`
         : ''
