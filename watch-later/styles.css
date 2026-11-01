@@ -290,12 +290,7 @@ kbd { padding: 1px 6px; border-radius: 4px; background: var(--chip); font-size: 
 .vsub { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 .kebab { width: 32px; height: 32px; margin-top: -4px; flex-shrink: 0; }
 
-@media (min-width: 640px) {
-  .feed { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding: 0 16px; }
-  .thumb { border-radius: 12px; }
-  .vmeta { padding-left: 0; }
-  .section-block .vcard { max-width: 480px; padding: 0 16px 20px; }
-}
+
 
 /* ── 아래에서 올라오는 창 ── */
 .sheet {
@@ -312,7 +307,6 @@ kbd { padding: 1px 6px; border-radius: 4px; background: var(--chip); font-size: 
 .sheet::backdrop { background: rgba(0, 0, 0, 0.6); }
 .sheet[open] { animation: sheet-up 0.22s ease-out; }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
-@media (min-width: 600px) { .sheet { margin: auto; border-radius: 20px; } }
 
 .sheet-body { display: grid; gap: 16px; padding: 10px 16px calc(24px + env(safe-area-inset-bottom)); }
 .handle { justify-self: center; width: 36px; height: 4px; border-radius: 2px; background: #5a5a5a; }
@@ -486,3 +480,21 @@ body > main:not(#app) { padding: 0 16px 48px; max-width: 760px; }
 .sheet :focus:not(:focus-visible) { outline: none; }
 .rcard .chip.white { background: var(--text); color: var(--inverse); }
 .handle:focus { outline: none; }
+
+/* ── PC·태블릿: 휴대폰 앱처럼 가운데 좁은 화면으로 ── */
+@media (min-width: 600px) {
+  :root { --app-w: 480px; }
+  html { background: #000; }
+  body {
+    max-width: var(--app-w);
+    min-height: 100vh;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px #222, 0 0 60px rgba(0, 0, 0, 0.6);
+  }
+  .bottom-nav { max-width: var(--app-w); margin: 0 auto; }
+  .sheet { max-width: var(--app-w); margin: auto auto 0; border-radius: 20px 20px 0 0; }
+  .thumb { border-radius: 12px; }
+  .feed { padding: 0 16px; }
+  .vmeta { padding-left: 0; }
+  .section-block .vcard { padding: 0 16px 20px; }
+}
