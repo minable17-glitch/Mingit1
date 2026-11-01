@@ -498,3 +498,4 @@ body > main:not(#app) { padding: 0 16px 48px; max-width: 760px; }
   .vmeta { padding-left: 0; }
   .section-block .vcard { padding: 0 16px 20px; }
 }
+.import-card { margin-top: 0; }

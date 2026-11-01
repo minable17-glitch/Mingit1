@@ -25,6 +25,7 @@ const state = {
   settings: null, // user_settings (주간 정리 알림)
   cleanup: null, // 정리 도우미: 남은 영상 id 목록
   accountOpen: false, // 내 계정 창이 열려 있는지
+  importing: null, // 좋아요 가져오는 중 진행 상황
   adding: false,
   lastAddedId: null,
   detailId: null,
@@ -414,6 +415,131 @@ async function saveSettings(patch) {
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
+// ───────────── 유튜브 좋아요 가져오기 ─────────────
+// 구글 로그인을 "유튜브 읽기 권한"과 함께 한 번 더 해서 받은 토큰으로
+// YouTube Data API 의 videos.list?myRating=like 를 불러와 저장 (이미 있는 영상은 건너뜀)
+
+const YT_READONLY = 'https://www.googleapis.com/auth/youtube.readonly';
+const IMPORT_MAX = 500; // 한 번에 가져오는 최대 개수
+
+async function startImportLikes() {
+  sessionStorage.setItem('importLikes', '1');
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: location.origin + location.pathname,
+      scopes: YT_READONLY,
+      queryParams: { prompt: 'consent', include_granted_scopes: 'true' },
+    },
+  });
+}
+
+function isoDurationToSec(iso) {
+  const m = String(iso || '').match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return null;
+  const [, d, h, min, sec] = m.map((x) => Number(x) || 0);
+  return d * 86400 + h * 3600 + min * 60 + sec || null;
+}
+
+async function fetchLikedVideos(token) {
+  const videos = [];
+  let pageToken = '';
+  do {
+    const url =
+      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&myRating=like&maxResults=50' +
+      (pageToken ? `&pageToken=${pageToken}` : '');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw Object.assign(new Error(`YouTube ${res.status}`), { status: res.status });
+    const data = await res.json();
+    for (const v of data.items ?? []) {
+      const s = v.snippet ?? {};
+      videos.push({
+        id: v.id,
+        title: s.title ?? null,
+        author: s.channelTitle ?? null,
+        channel_key: s.channelId ?? null,
+        yt_category_id: s.categoryId ?? null,
+        thumbnail_url: s.thumbnails?.high?.url ?? s.thumbnails?.medium?.url ?? `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+        duration_sec: isoDurationToSec(v.contentDetails?.duration),
+      });
+    }
+    pageToken = data.nextPageToken ?? '';
+    state.importing = { phase: '불러오는 중', count: videos.length };
+    render();
+  } while (pageToken && videos.length < IMPORT_MAX);
+  return videos.slice(0, IMPORT_MAX);
+}
+
+async function runImportLikes(token) {
+  if (!token) return toast('유튜브 권한을 받지 못했어요. 다시 시도해 주세요');
+  state.importing = { phase: '불러오는 중', count: 0 };
+  render();
+  try {
+    const liked = await fetchLikedVideos(token);
+    const have = new Set(state.items.map((i) => i.video_id));
+    const fresh = liked.filter((v) => !have.has(v.id));
+
+    // 카테고리를 미리 정하고, 새 카테고리는 이름별로 한 번만 만듦
+    const suggestions = fresh.map((v) => suggestCategory(v));
+    const resolved = new Map();
+    for (const value of new Set(suggestions)) {
+      try {
+        resolved.set(value, await resolveCategory(value));
+      } catch {
+        resolved.set(value, null);
+      }
+    }
+
+    // 좋아요 누른 순서(최신이 위)를 지키도록 저장 시각을 조금씩 다르게
+    const now = Date.now();
+    const rows = fresh.map((v, i) => ({
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      video_id: v.id,
+      title: v.title,
+      thumbnail_url: v.thumbnail_url,
+      channel_key: v.channel_key,
+      channel_title: v.author,
+      category_id: resolved.get(suggestions[i]) ?? null,
+      duration_sec: v.duration_sec,
+      created_at: new Date(now - i * 1000).toISOString(),
+    }));
+    for (let i = 0; i < rows.length; i += 100) {
+      state.importing = { phase: '저장하는 중', count: Math.min(i + 100, rows.length), total: rows.length };
+      render();
+      const { error } = await supabase.from('watch_items').insert(rows.slice(i, i + 100));
+      if (error) throw error;
+    }
+    state.importing = null;
+    await loadItems();
+    state.tab = 'todo';
+    state.filter = 'all';
+    go('my');
+    render();
+    toast(
+      rows.length
+        ? `좋아요 영상 ${rows.length}개를 가져왔어요${liked.length > rows.length ? ` (이미 있던 ${liked.length - rows.length}개는 건너뜀)` : ''}`
+        : '새로 가져올 좋아요 영상이 없어요',
+    );
+  } catch (e) {
+    console.error(e);
+    state.importing = null;
+    render();
+    toast(e.status === 401 || e.status === 403 ? '유튜브 권한을 허용해야 가져올 수 있어요' : '가져오지 못했어요. 잠시 후 다시 해 주세요');
+  }
+}
+
+function renderImportCard() {
+  if (state.importing) {
+    const { phase, count, total } = state.importing;
+    return `<div class="notice row import-card"><span>👍 좋아요 영상 ${phase}… ${total ? `${count}/${total}` : `${count}개`}</span></div>`;
+  }
+  return `
+    <div class="notice row import-card">
+      <span><b>유튜브 좋아요 영상 가져오기</b><br /><span class="small muted">좋아요 누른 영상을 한 번에 저장해요 (최대 ${IMPORT_MAX}개)</span></span>
+      <button class="chip white" data-action="import-likes">가져오기</button>
+    </div>`;
+}
+
 // ───────────── 푸시 알림 ─────────────
 
 async function checkPush() {
@@ -643,6 +769,7 @@ function renderAddPage() {
            </section>`
         : ''
     }
+    <div class="section-block">${renderImportCard()}</div>
     ${renderBookmarklet()}`;
 }
 
@@ -908,6 +1035,7 @@ function renderAccount() {
       </div>
       <div class="list">
         ${pushRow}
+        <button data-action="import-likes"><span>👍 유튜브 좋아요 가져오기</span><span class="muted">›</span></button>
         <a href="privacy.html"><span>개인정보처리방침</span><span class="muted">›</span></a>
         <button data-action="logout"><span>로그아웃</span></button>
         <button class="danger" data-action="delete-account"><span>회원 탈퇴</span></button>
@@ -1111,6 +1239,10 @@ async function handleAction(el) {
         `${formatWhen(el.dataset.at)}에 알려 드릴게요`,
       );
       break;
+    case 'import-likes':
+      closeDetail();
+      startImportLikes();
+      break;
     case 'logout':
       closeDetail();
       await disablePush().catch(() => {});
@@ -1239,12 +1371,33 @@ document.addEventListener('visibilitychange', async () => {
 
 // ───────────── 시작 ─────────────
 
+let itemsReady;
+const itemsLoaded = new Promise((resolve) => (itemsReady = resolve));
+
 async function start() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
   state.page = pageFromHash();
   if (!supabase) return render();
 
   takeSharedLink();
+
+  // 좋아요 가져오기: 유튜브 권한과 함께 로그인하고 돌아오면 토큰이 담긴 세션이 들어옴
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const token = session?.provider_token;
+    if (!token || !sessionStorage.getItem('importLikes')) return;
+    sessionStorage.removeItem('importLikes');
+    setTimeout(async () => {
+      await itemsLoaded; // 이미 저장한 영상을 건너뛰려면 목록이 먼저 있어야 함
+      runImportLikes(token);
+    }, 0);
+  });
+  if (sessionStorage.getItem('importLikes')) {
+    setTimeout(() => {
+      if (!sessionStorage.getItem('importLikes')) return;
+      sessionStorage.removeItem('importLikes');
+      toast('유튜브 권한을 받지 못했어요. 다시 시도해 주세요');
+    }, 15000);
+  }
 
   supabase.auth.onAuthStateChange((_event, session) => {
     const user = session?.user ?? null;
@@ -1260,6 +1413,7 @@ async function start() {
       render();
       await Promise.all([loadItems(), checkPush()]);
       render();
+      itemsReady();
       const shared = takeSharedLink();
       if (shared) {
         if (state.page !== 'add') go('add');
