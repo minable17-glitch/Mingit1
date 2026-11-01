@@ -503,7 +503,8 @@ function renderLogin() {
       <p class="muted">유튜브 링크를 저장해 두면<br />원하는 시간에 휴대폰으로 알려 드려요.</p>
       <button class="btn primary block" data-action="login">구글 계정으로 시작하기</button>
       ${sessionStorage.getItem('pendingShare') ? '<p class="small muted">로그인하면 공유한 영상이 바로 저장돼요.</p>' : ''}
-    </div>`;
+    </div>
+    <p class="small muted center"><a href="privacy.html">개인정보처리방침</a></p>`;
 }
 
 function renderPushNotice() {
@@ -717,7 +718,8 @@ function renderMyPage() {
     }
     <p class="small muted center account">
       ${esc(state.user.email)} 로 로그인됨 ·
-      <button class="link small" data-action="delete-account">회원 탈퇴</button>
+      <button class="link small" data-action="delete-account">회원 탈퇴</button> ·
+      <a class="small muted" href="privacy.html">개인정보처리방침</a>
     </p>`;
 }
 
