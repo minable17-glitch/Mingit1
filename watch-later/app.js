@@ -832,12 +832,22 @@ function statusText(item) {
 // 썸네일: 길이(오른쪽 아래), 알림 예정(왼쪽 아래), 빨간 줄(알림 예정 · 다 봄)
 function renderThumb(item, { play = false } = {}) {
   const pending = item.remind_at && !item.notified_at && !item.watched_at;
+  const pos = getPosition(item);
+  const pct = pos && item.duration_sec ? Math.min(100, Math.max(3, (pos / item.duration_sec) * 100)) : 0;
+  const bar = item.watched_at
+    ? '<span class="progress done"></span>'
+    : pct
+      ? `<span class="progress partial" style="width:${pct.toFixed(1)}%"></span>`
+      : pending
+        ? '<span class="progress"></span>'
+        : '';
   return `
     <img src="${esc(thumbSrc(item))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
     ${play ? `<span class="play">${ICON.play}</span>` : ''}
-    ${pending ? `<span class="badge status">🔔 ${esc(formatWhen(item.remind_at))}</span>` : ''}
+    ${play && pos ? `<span class="badge resume">▶ ${formatDuration(pos)}부터 이어보기</span>` : ''}
+    ${pending && !(play && pos) ? `<span class="badge status">🔔 ${esc(formatWhen(item.remind_at))}</span>` : ''}
     ${item.duration_sec ? `<span class="badge dur">${formatDuration(item.duration_sec)}</span>` : ''}
-    ${item.watched_at ? '<span class="progress done"></span>' : pending ? '<span class="progress"></span>' : ''}`;
+    ${bar}`;
 }
 
 function renderCard(item) {
@@ -1110,7 +1120,13 @@ function renderDetail() {
         <span class="muted small">· ${savedAgo(item.created_at)}</span>
       </div>
       <div class="pill-row">
-        ${playing ? '' : `<button class="pill white" data-action="play">${ICON.play} 재생</button>`}
+        ${
+          playing
+            ? ''
+            : getPosition(item)
+              ? `<button class="pill white" data-action="play">${ICON.play} 이어보기</button><button class="pill" data-action="restart">처음부터</button>`
+              : `<button class="pill white" data-action="play">${ICON.play} 재생</button>`
+        }
         <a class="pill" href="${esc(item.url)}" target="_blank" rel="noopener">유튜브에서 열기</a>
         ${
           item.watched_at
@@ -1192,19 +1208,66 @@ function loadYouTubeApi() {
   return ytApi;
 }
 
+// ── 이어보기: 마지막으로 본 위치(초)를 서버(position_sec)와 이 기기에 저장 ──
+function getPosition(item) {
+  let local = null;
+  try {
+    local = Number(localStorage.getItem(`pos:${item.id}`)) || null;
+  } catch {
+    // 저장이 막힌 브라우저
+  }
+  return item.position_sec ?? local;
+}
+
+function savePosition(itemId, sec) {
+  const value = sec && sec > 3 ? Math.floor(sec) : null;
+  const item = state.items.find((i) => i.id === itemId);
+  if (item) item.position_sec = value;
+  try {
+    if (value) localStorage.setItem(`pos:${itemId}`, String(value));
+    else localStorage.removeItem(`pos:${itemId}`);
+  } catch {
+    // 저장이 막힌 브라우저
+  }
+  // 서버에도 저장 (position_sec 칼럼이 아직 없으면 조용히 이 기기에만)
+  supabase.from('watch_items').update({ position_sec: value }).eq('id', itemId).then(() => {});
+}
+
+function currentTime() {
+  try {
+    return state.player?.getCurrentTime?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function mountPlayer(item) {
   const YT = await loadYouTubeApi();
   if (state.playingId !== item.id || !document.getElementById('yt-player')) return;
+  const pos = getPosition(item);
+  // 거의 끝까지 봤던 영상은 처음부터
+  const start = pos && (!item.duration_sec || pos < item.duration_sec - 10) ? pos : 0;
   state.player = new YT.Player('yt-player', {
     videoId: item.video_id,
     host: 'https://www.youtube-nocookie.com',
-    playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+    playerVars: { autoplay: 1, playsinline: 1, rel: 0, start },
     events: {
       onStateChange: (e) => {
-        // 끝까지 보면 자동으로 "다 봤어요" → 별점 칸이 나옴
-        if (e.data === YT.PlayerState.ENDED && !state.items.find((i) => i.id === item.id)?.watched_at) {
-          updateItem(item.id, { watched_at: new Date().toISOString() }, '다 봤어요! 별점을 남겨 보세요');
+        if (e.data === YT.PlayerState.PAUSED) savePosition(item.id, currentTime());
+        // 끝까지 보면 자동으로 "다 봤어요" → 별점 칸이 나옴, 이어보기 위치는 지움
+        if (e.data === YT.PlayerState.ENDED) {
+          savePosition(item.id, null);
+          if (!state.items.find((i) => i.id === item.id)?.watched_at) {
+            updateItem(item.id, { watched_at: new Date().toISOString() }, '다 봤어요! 별점을 남겨 보세요');
+          }
         }
+      },
+      onReady: () => {
+        // 보는 동안 5초마다 위치 저장
+        clearInterval(state.posTimer);
+        state.posTimer = setInterval(() => {
+          if (state.player?.getPlayerState?.() === YT.PlayerState.PLAYING) savePosition(item.id, currentTime());
+        }, 5000);
       },
       onError: () => {
         const box = $sheet.querySelector('.player');
@@ -1218,6 +1281,13 @@ async function mountPlayer(item) {
 }
 
 function stopPlayer() {
+  clearInterval(state.posTimer);
+  // 창을 닫는 순간의 위치를 저장 (끝까지 본 경우는 이미 지워짐)
+  const sec = currentTime();
+  if (state.playingId && sec) {
+    const item = state.items.find((i) => i.id === state.playingId);
+    if (!item?.duration_sec || sec < item.duration_sec - 3) savePosition(state.playingId, sec);
+  }
   try {
     state.player?.destroy();
   } catch {
@@ -1476,6 +1546,11 @@ async function handleAction(el) {
       state.playingId = state.detailId;
       renderDetail();
       break;
+    case 'restart':
+      savePosition(state.detailId, null);
+      state.playingId = state.detailId;
+      renderDetail();
+      break;
     case 'view-menu':
       renderViewMenu();
       break;
@@ -1586,7 +1661,9 @@ $sheet.addEventListener('click', (e) => {
   if (e.target === $sheet) closeDetail();
 });
 $sheet.addEventListener('close', () => {
+  const wasPlaying = Boolean(state.playingId);
   stopPlayer();
+  if (wasPlaying) setTimeout(render, 0); // 목록 썸네일에 이어보기 막대 반영
   state.detailId = null;
   state.accountOpen = false;
   state.cleanup = null;

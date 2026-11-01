@@ -128,3 +128,7 @@ create policy "user_settings: 본인 것만" on public.user_settings
   for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- 8) 이어보기: 마지막으로 본 위치(초)
+alter table public.watch_items
+  add column if not exists position_sec integer;
