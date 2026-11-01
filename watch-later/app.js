@@ -1078,10 +1078,8 @@ function renderDetail() {
   if (!item) return closeDetail();
   const pendingRemind = item.remind_at && !item.notified_at;
   const current = pendingRemind ? new Date(item.remind_at).getTime() : null;
-  $sheet.innerHTML = `
-    <div class="sheet-body">
-      <div class="handle" tabindex="-1" autofocus></div>
-      <a class="thumb" href="${esc(item.url)}" target="_blank" rel="noopener" aria-label="영상 보기">${renderThumb(item, { play: true })}</a>
+  const playing = state.playingId === item.id;
+  const rest = `
       <h2 class="sheet-title">${esc(item.title || item.url)}</h2>
       <div class="ch-row">
         ${channelAvatar(item.channel_title || categoryName(item.category_id))}
@@ -1089,7 +1087,8 @@ function renderDetail() {
         <span class="muted small">· ${savedAgo(item.created_at)}</span>
       </div>
       <div class="pill-row">
-        <a class="pill white" href="${esc(item.url)}" target="_blank" rel="noopener">${ICON.play} 영상 보기</a>
+        ${playing ? '' : `<button class="pill white" data-action="play">${ICON.play} 재생</button>`}
+        <a class="pill" href="${esc(item.url)}" target="_blank" rel="noopener">유튜브에서 열기</a>
         ${
           item.watched_at
             ? '<button class="pill" data-action="unwatch">↺ 다시 볼래요</button>'
@@ -1135,9 +1134,74 @@ function renderDetail() {
       <div class="cat-line">
         <span>카테고리</span>
         <select class="chip-select" data-item-category="${item.id}" aria-label="카테고리">${categoryOptions(item.category_id ?? '')}</select>
-      </div>
+      </div>`;
+
+  // 재생 중이면 플레이어는 그대로 두고 아래 내용만 바꿈 (다시 그리면 영상이 끊김)
+  const body = $sheet.querySelector(`.sheet-body[data-detail="${item.id}"]`);
+  if (playing && body?.querySelector('.player')) {
+    body.querySelector('.detail-rest').innerHTML = rest;
+    return;
+  }
+  $sheet.innerHTML = `
+    <div class="sheet-body" data-detail="${item.id}">
+      <div class="handle" tabindex="-1" autofocus></div>
+      ${
+        playing
+          ? '<div class="player"><div id="yt-player"></div></div>'
+          : `<button class="thumb" data-action="play" aria-label="앱에서 재생">${renderThumb(item, { play: true })}</button>`
+      }
+      <div class="detail-rest">${rest}</div>
     </div>`;
   if (!$sheet.open) $sheet.showModal();
+  if (playing) mountPlayer(item);
+}
+
+// ───────────── 앱 안에서 바로 재생 (유튜브 퍼가기 플레이어) ─────────────
+
+let ytApi;
+function loadYouTubeApi() {
+  ytApi ??= new Promise((resolve) => {
+    window.onYouTubeIframeAPIReady = () => resolve(window.YT);
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.append(s);
+  });
+  return ytApi;
+}
+
+async function mountPlayer(item) {
+  const YT = await loadYouTubeApi();
+  if (state.playingId !== item.id || !document.getElementById('yt-player')) return;
+  state.player = new YT.Player('yt-player', {
+    videoId: item.video_id,
+    host: 'https://www.youtube-nocookie.com',
+    playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+    events: {
+      onStateChange: (e) => {
+        // 끝까지 보면 자동으로 "다 봤어요" → 별점 칸이 나옴
+        if (e.data === YT.PlayerState.ENDED && !state.items.find((i) => i.id === item.id)?.watched_at) {
+          updateItem(item.id, { watched_at: new Date().toISOString() }, '다 봤어요! 별점을 남겨 보세요');
+        }
+      },
+      onError: () => {
+        const box = $sheet.querySelector('.player');
+        if (box) {
+          box.innerHTML = `<div class="player-error">이 영상은 앱 안에서 재생할 수 없어요.<br />
+            <a class="pill white" href="${esc(item.url)}" target="_blank" rel="noopener">유튜브에서 열기</a></div>`;
+        }
+      },
+    },
+  });
+}
+
+function stopPlayer() {
+  try {
+    state.player?.destroy();
+  } catch {
+    // 이미 사라진 플레이어
+  }
+  state.player = null;
+  state.playingId = null;
 }
 
 // 프로필 버튼 → 내 계정 (알림 관리, 로그아웃, 탈퇴)
@@ -1210,6 +1274,7 @@ function openDetail(id) {
 }
 
 function closeDetail() {
+  stopPlayer();
   state.detailId = null;
   state.accountOpen = false;
   if ($sheet.open) $sheet.close();
@@ -1364,6 +1429,10 @@ async function handleAction(el) {
         `${formatWhen(el.dataset.at)}에 알려 드릴게요`,
       );
       break;
+    case 'play':
+      state.playingId = state.detailId;
+      renderDetail();
+      break;
     case 'select-mode':
       state.selecting = !state.selecting;
       state.selected = new Set();
@@ -1461,6 +1530,7 @@ $sheet.addEventListener('click', (e) => {
   if (e.target === $sheet) closeDetail();
 });
 $sheet.addEventListener('close', () => {
+  stopPlayer();
   state.detailId = null;
   state.accountOpen = false;
   state.cleanup = null;
