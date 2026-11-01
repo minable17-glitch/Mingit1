@@ -529,3 +529,65 @@ button.thumb { width: 100%; padding: 0; border: 0; cursor: pointer; }
 .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .player-error { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 16px; text-align: center; font-size: 14px; color: var(--muted); }
 .detail-rest { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+
+/* ── 보기 방식 ── */
+.tab-tools { margin-left: auto; display: flex; gap: 14px; }
+.tab-tools .text-btn { font-size: 14px; color: var(--text); }
+.select-toggle { display: none; }
+
+/* 2열 그리드 */
+.feed.view-grid { grid-template-columns: 1fr 1fr; gap: 14px 10px; padding: 0 12px; }
+.view-grid .vcard, .view-frame .vcard { padding-bottom: 4px; }
+.view-grid .thumb { border-radius: 10px; }
+.view-grid .vmeta, .view-frame .vmeta { padding: 8px 2px 0; gap: 4px; }
+.view-grid .ch-avatar, .view-grid .kebab, .view-frame .ch-avatar, .view-frame .kebab { display: none; }
+.view-grid .vtitle, .view-frame .vtitle { font-size: 13.5px; }
+.view-grid .vsub, .view-frame .vsub { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view-grid .badge, .view-frame .badge { font-size: 11px; bottom: 6px; }
+.view-grid .badge.dur, .view-frame .badge.dur { right: 6px; }
+.view-grid .badge.status, .view-frame .badge.status { left: 6px; }
+
+/* 액자 */
+.feed.view-frame { grid-template-columns: 1fr 1fr; gap: 22px 14px; padding: 6px 14px 0; }
+.view-frame .thumb, .feed.view-frame .thumb {
+  padding: 6px;
+  border: 6px solid #5a4632;
+  border-radius: 3px;
+  background: #fffdf8;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1), 0 8px 18px rgba(0, 0, 0, 0.55);
+  transition: transform 0.15s;
+}
+.view-frame .thumb img { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2); }
+.view-frame .vcard:active .thumb { transform: scale(0.98); }
+.view-frame .progress { left: 6px; right: 6px; bottom: 6px; }
+
+/* 목록 */
+.feed.view-list { gap: 0; padding: 0 12px; }
+.view-list .vcard { display: flex; gap: 12px; padding: 8px 0; }
+.view-list .thumb { width: 44%; flex-shrink: 0; border-radius: 8px; }
+.view-list .vmeta { flex: 1; min-width: 0; padding: 0; gap: 4px; }
+.view-list .ch-avatar { display: none; }
+.view-list .vtitle { font-size: 14px; -webkit-line-clamp: 3; }
+.view-list .vsub { font-size: 12px; }
+.view-list .kebab { margin: -6px -8px 0 0; }
+
+/* 보기 방식 고르는 창 */
+.view-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.view-option {
+  display: grid; gap: 4px; justify-items: start; text-align: left;
+  padding: 12px; border: 0; border-radius: var(--radius); background: var(--chip);
+}
+.view-option[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--red); }
+.view-option b { font-size: 15px; }
+.mini { display: grid; gap: 4px; width: 100%; height: 64px; margin-bottom: 6px; }
+.mini i { display: block; border-radius: 3px; background: #4a4a4a; }
+.mini-big { grid-template-rows: 3fr 1fr; }
+.mini-big i:nth-child(n + 3) { display: none; }
+.mini-big i:nth-child(2) { background: #3a3a3a; width: 70%; }
+.mini-grid { grid-template-columns: 1fr 1fr; }
+.mini-frame { grid-template-columns: 1fr 1fr; gap: 8px; }
+.mini-frame i { background: #fffdf8; border: 3px solid #5a4632; border-radius: 2px; }
+.mini-list { grid-template-rows: repeat(4, 1fr); }
+.mini-list i { background: linear-gradient(90deg, #4a4a4a 0 40%, transparent 40% 46%, #3a3a3a 46% 100%); }
+.feed.view-grid, .feed.view-frame { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.feed { grid-template-columns: minmax(0, 1fr); }

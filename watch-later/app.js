@@ -10,6 +10,22 @@ const $pageTitle = document.getElementById('page-title');
 const $toast = document.getElementById('toast');
 const $sheet = document.getElementById('sheet');
 
+// 보기 방식은 기기마다 기억 (저장이 막힌 브라우저면 기본값)
+const VIEWS = [
+  ['big', '큰 카드', '유튜브처럼 썸네일을 크게'],
+  ['grid', '2열 그리드', '한 화면에 더 많이'],
+  ['frame', '액자', '썸네일을 액자처럼 걸어 두기'],
+  ['list', '목록', '작은 썸네일 + 제목, 빠르게 훑어보기'],
+];
+function loadView() {
+  try {
+    const v = localStorage.getItem('view');
+    return VIEWS.some(([k]) => k === v) ? v : 'big';
+  } catch {
+    return 'big';
+  }
+}
+
 const state = {
   user: null,
   items: [],
@@ -27,6 +43,7 @@ const state = {
   accountOpen: false, // 내 계정 창이 열려 있는지
   importing: null, // 좋아요 가져오는 중 진행 상황
   importOpt: { period: 'install', cleanup: false }, // 좋아요 가져올 기간
+  view: loadView(), // 내 영상 보기 방식: big | grid | frame | list
   selecting: false, // 내 영상: 여러 개 선택해서 지우기
   selected: new Set(),
   adding: false,
@@ -947,7 +964,10 @@ function renderMyPage() {
   const uncategorized = count((i) => !i.category_id);
   const chips = [
     chip('all', '전체', tabList.length),
-    ...state.categories.map((c) => chip(c.id, c.name, count((i) => i.category_id === c.id))),
+    ...state.categories
+      .map((c) => [c, count((i) => i.category_id === c.id)])
+      .filter(([c, n]) => n > 0 || state.filter === c.id)
+      .map(([c, n]) => chip(c.id, c.name, n)),
     uncategorized || state.filter === 'none' ? chip('none', '미분류', uncategorized) : '',
   ].join('');
   const minuteChip = (m, label) =>
@@ -961,7 +981,10 @@ function renderMyPage() {
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
       <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
-      <button class="text-btn select-toggle" data-action="select-mode">${state.selecting ? '취소' : '선택'}</button>
+      <span class="tab-tools">
+        <button class="text-btn" data-action="view-menu" aria-label="보기 방식">${{ big: '▣', grid: '▦', frame: '🖼', list: '☰' }[state.view]} 보기</button>
+        <button class="text-btn" data-action="select-mode">${state.selecting ? '취소' : '선택'}</button>
+      </span>
     </div>
     <div class="filters">
       <div class="chip-row">
@@ -994,7 +1017,7 @@ function renderMyPage() {
            </div>`
         : ''
     }
-    ${list.length ? `<div class="feed">${list.map(renderCard).join('')}</div>` : `<div class="empty">${empty}</div>`}`;
+    ${list.length ? `<div class="feed view-${state.view}">${list.map(renderCard).join('')}</div>` : `<div class="empty">${empty}</div>`}`;
 }
 
 function renderCategoryManager() {
@@ -1202,6 +1225,26 @@ function stopPlayer() {
   }
   state.player = null;
   state.playingId = null;
+}
+
+// 보기 방식 고르기
+function renderViewMenu() {
+  $sheet.innerHTML = `
+    <div class="sheet-body">
+      <div class="handle" tabindex="-1" autofocus></div>
+      <h2 class="sheet-title">보기 방식</h2>
+      <div class="view-options">
+        ${VIEWS.map(
+          ([k, name, desc]) => `
+          <button class="view-option" data-action="set-view" data-view="${k}" aria-pressed="${state.view === k}">
+            <span class="mini mini-${k}"><i></i><i></i><i></i><i></i></span>
+            <b>${name}</b><span class="small muted">${desc}</span>
+          </button>`,
+        ).join('')}
+      </div>
+    </div>`;
+  state.accountOpen = false;
+  if (!$sheet.open) $sheet.showModal();
 }
 
 // 프로필 버튼 → 내 계정 (알림 관리, 로그아웃, 탈퇴)
@@ -1432,6 +1475,19 @@ async function handleAction(el) {
     case 'play':
       state.playingId = state.detailId;
       renderDetail();
+      break;
+    case 'view-menu':
+      renderViewMenu();
+      break;
+    case 'set-view':
+      state.view = el.dataset.view;
+      try {
+        localStorage.setItem('view', state.view);
+      } catch {
+        // 저장이 막힌 브라우저: 이번만 적용
+      }
+      closeDetail();
+      render();
       break;
     case 'select-mode':
       state.selecting = !state.selecting;
