@@ -26,6 +26,7 @@ const state = {
   cleanup: null, // 정리 도우미: 남은 영상 id 목록
   accountOpen: false, // 내 계정 창이 열려 있는지
   importing: null, // 좋아요 가져오는 중 진행 상황
+  importOpt: { period: 'install', cleanup: false }, // 좋아요 가져올 기간
   adding: false,
   lastAddedId: null,
   detailId: null,
@@ -422,8 +423,58 @@ const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const YT_READONLY = 'https://www.googleapis.com/auth/youtube.readonly';
 const IMPORT_MAX = 500; // 한 번에 가져오는 최대 개수
 
+// 가져올 기간: 앱 가입 이후(기본) / 최근 N일 / 전체
+const IMPORT_PERIODS = [
+  ['install', '앱 가입 이후'],
+  ['7', '최근 1주'],
+  ['30', '최근 1달'],
+  ['90', '최근 3달'],
+  ['all', '전체'],
+];
+
+function periodSince(period) {
+  if (period === 'all') return null;
+  if (period === 'install') return state.user?.created_at ?? null;
+  return new Date(Date.now() - Number(period) * DAY).toISOString();
+}
+
+// 가져오기 전에 기간을 고르는 창
+function renderImportOptions() {
+  const opt = state.importOpt;
+  $sheet.innerHTML = `
+    <div class="sheet-body">
+      <div class="handle" tabindex="-1" autofocus></div>
+      <h2 class="sheet-title">👍 유튜브 좋아요 영상 가져오기</h2>
+      <p class="muted small" style="margin:0">언제부터 좋아요 누른 영상을 가져올까요?</p>
+      <div class="chip-row wrap">
+        ${IMPORT_PERIODS.map(
+          ([v, label]) => `<button class="chip" data-action="import-period" data-period="${v}" aria-pressed="${opt.period === v}">${label}</button>`,
+        ).join('')}
+      </div>
+      <p class="small muted" style="margin:0">${
+        opt.period === 'install'
+          ? `이 앱에 처음 가입한 ${esc(formatWhen(state.user.created_at))} 이후에 누른 좋아요만 가져와요.`
+          : opt.period === 'all'
+            ? `최근 좋아요부터 최대 ${IMPORT_MAX}개까지 가져와요.`
+            : `${esc(formatWhen(periodSince(opt.period)))} 이후에 누른 좋아요만 가져와요.`
+      }</p>
+      ${
+        opt.period !== 'all'
+          ? `<label class="check-row">
+               <input type="checkbox" name="import-cleanup" ${opt.cleanup ? 'checked' : ''} />
+               <span>이 기간보다 <b>예전에 좋아요 한 영상</b>이 목록에 있으면 지우기<br />
+                 <span class="small muted">알림을 정했거나, 다 봤거나, 메모를 단 영상은 지우지 않아요</span></span>
+             </label>`
+          : ''
+      }
+      <button class="btn-red" data-action="import-go">가져오기</button>
+    </div>`;
+  state.accountOpen = false;
+  if (!$sheet.open) $sheet.showModal();
+}
+
 async function startImportLikes() {
-  sessionStorage.setItem('importLikes', '1');
+  sessionStorage.setItem('importLikes', JSON.stringify(state.importOpt));
   await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -441,19 +492,45 @@ function isoDurationToSec(iso) {
   return d * 86400 + h * 3600 + min * 60 + sec || null;
 }
 
-async function fetchLikedVideos(token) {
-  const videos = [];
+async function ytGet(path, token) {
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw Object.assign(new Error(`YouTube ${res.status}`), { status: res.status });
+  return res.json();
+}
+
+// 좋아요 재생목록을 최신순으로 읽음: [{id, likedAt}]
+// keepGoingPast 가 있으면 기간이 지나도 계속 읽음 (예전 좋아요 정리용), 최대 IMPORT_MAX 개
+async function fetchLikes(token, since, keepGoingPast) {
+  const ch = await ytGet('channels?part=contentDetails&mine=true', token);
+  const playlistId = ch.items?.[0]?.contentDetails?.relatedPlaylists?.likes || 'LL';
+  const likes = [];
   let pageToken = '';
   do {
-    const url =
-      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&myRating=like&maxResults=50' +
-      (pageToken ? `&pageToken=${pageToken}` : '');
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw Object.assign(new Error(`YouTube ${res.status}`), { status: res.status });
-    const data = await res.json();
+    const data = await ytGet(
+      `playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${playlistId}${pageToken ? `&pageToken=${pageToken}` : ''}`,
+      token,
+    );
+    for (const it of data.items ?? []) {
+      const id = it.contentDetails?.videoId;
+      if (id) likes.push({ id, likedAt: it.snippet?.publishedAt ?? null });
+    }
+    pageToken = data.nextPageToken ?? '';
+    state.importing = { phase: '불러오는 중', count: likes.length };
+    render();
+    const oldest = likes[likes.length - 1]?.likedAt;
+    if (since && !keepGoingPast && oldest && oldest < since) break;
+  } while (pageToken && likes.length < IMPORT_MAX);
+  return likes.slice(0, IMPORT_MAX);
+}
+
+// 영상 ID 목록 → 제목·채널·분류·길이 (50개씩)
+async function fetchVideoDetails(ids, token) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const data = await ytGet(`videos?part=snippet,contentDetails&id=${ids.slice(i, i + 50).join(',')}`, token);
     for (const v of data.items ?? []) {
       const s = v.snippet ?? {};
-      videos.push({
+      out.push({
         id: v.id,
         title: s.title ?? null,
         author: s.channelTitle ?? null,
@@ -463,21 +540,28 @@ async function fetchLikedVideos(token) {
         duration_sec: isoDurationToSec(v.contentDetails?.duration),
       });
     }
-    pageToken = data.nextPageToken ?? '';
-    state.importing = { phase: '불러오는 중', count: videos.length };
-    render();
-  } while (pageToken && videos.length < IMPORT_MAX);
-  return videos.slice(0, IMPORT_MAX);
+  }
+  return out;
 }
 
-async function runImportLikes(token) {
+// 알림·시청·별점·메모 등 손댄 적 없는 영상인지
+const untouched = (i) => !i.remind_at && !i.watched_at && !i.rating && !i.memo && !i.kept_at;
+
+async function runImportLikes(token, opt) {
   if (!token) return toast('유튜브 권한을 받지 못했어요. 다시 시도해 주세요');
+  const since = periodSince(opt.period);
+  const cleanup = Boolean(opt.cleanup && since);
   state.importing = { phase: '불러오는 중', count: 0 };
   render();
   try {
-    const liked = await fetchLikedVideos(token);
+    const likes = await fetchLikes(token, since, cleanup);
+    const inPeriod = since ? likes.filter((l) => !l.likedAt || l.likedAt >= since) : likes;
     const have = new Set(state.items.map((i) => i.video_id));
-    const fresh = liked.filter((v) => !have.has(v.id));
+    const freshIds = inPeriod.map((l) => l.id).filter((id) => !have.has(id));
+    const details = await fetchVideoDetails(freshIds, token);
+    const byId = new Map(details.map((d) => [d.id, d]));
+    const likedAt = new Map(likes.map((l) => [l.id, l.likedAt]));
+    const fresh = freshIds.map((id) => byId.get(id)).filter(Boolean); // 지워졌거나 비공개인 영상은 빠짐
 
     // 카테고리를 미리 정하고, 새 카테고리는 이름별로 한 번만 만듦
     const suggestions = fresh.map((v) => suggestCategory(v));
@@ -490,7 +574,7 @@ async function runImportLikes(token) {
       }
     }
 
-    // 좋아요 누른 순서(최신이 위)를 지키도록 저장 시각을 조금씩 다르게
+    // 저장 시각 = 좋아요 누른 시각 (목록이 좋아요 순서대로 보이게)
     const now = Date.now();
     const rows = fresh.map((v, i) => ({
       url: `https://www.youtube.com/watch?v=${v.id}`,
@@ -501,7 +585,7 @@ async function runImportLikes(token) {
       channel_title: v.author,
       category_id: resolved.get(suggestions[i]) ?? null,
       duration_sec: v.duration_sec,
-      created_at: new Date(now - i * 1000).toISOString(),
+      created_at: likedAt.get(v.id) ?? new Date(now - i * 1000).toISOString(),
     }));
     for (let i = 0; i < rows.length; i += 100) {
       state.importing = { phase: '저장하는 중', count: Math.min(i + 100, rows.length), total: rows.length };
@@ -509,17 +593,28 @@ async function runImportLikes(token) {
       const { error } = await supabase.from('watch_items').insert(rows.slice(i, i + 100));
       if (error) throw error;
     }
+
+    // 기간보다 예전에 좋아요 한 영상 정리 (손대지 않은 것만)
+    let removed = 0;
+    if (cleanup) {
+      const oldIds = new Set(likes.filter((l) => l.likedAt && l.likedAt < since).map((l) => l.id));
+      const targets = state.items.filter((i) => oldIds.has(i.video_id) && untouched(i)).map((i) => i.id);
+      for (let i = 0; i < targets.length; i += 100) {
+        const { error } = await supabase.from('watch_items').delete().in('id', targets.slice(i, i + 100));
+        if (error) throw error;
+      }
+      removed = targets.length;
+    }
+
     state.importing = null;
     await loadItems();
     state.tab = 'todo';
     state.filter = 'all';
     go('my');
     render();
-    toast(
-      rows.length
-        ? `좋아요 영상 ${rows.length}개를 가져왔어요${liked.length > rows.length ? ` (이미 있던 ${liked.length - rows.length}개는 건너뜀)` : ''}`
-        : '새로 가져올 좋아요 영상이 없어요',
-    );
+    const parts = [rows.length ? `좋아요 영상 ${rows.length}개를 가져왔어요` : '새로 가져올 좋아요 영상이 없어요'];
+    if (removed) parts.push(`예전 좋아요 ${removed}개는 정리했어요`);
+    toast(parts.join(' · '));
   } catch (e) {
     console.error(e);
     state.importing = null;
@@ -535,7 +630,7 @@ function renderImportCard() {
   }
   return `
     <div class="notice row import-card">
-      <span><b>유튜브 좋아요 영상 가져오기</b><br /><span class="small muted">좋아요 누른 영상을 한 번에 저장해요 (최대 ${IMPORT_MAX}개)</span></span>
+      <span><b>유튜브 좋아요 영상 가져오기</b><br /><span class="small muted">기간을 골라 좋아요 누른 영상을 한 번에 저장해요</span></span>
       <button class="chip white" data-action="import-likes">가져오기</button>
     </div>`;
 }
@@ -1240,6 +1335,13 @@ async function handleAction(el) {
       );
       break;
     case 'import-likes':
+      renderImportOptions();
+      break;
+    case 'import-period':
+      state.importOpt.period = el.dataset.period;
+      renderImportOptions();
+      break;
+    case 'import-go':
       closeDetail();
       startImportLikes();
       break;
@@ -1300,6 +1402,10 @@ $sheet.addEventListener('close', () => {
 });
 
 $sheet.addEventListener('change', (e) => {
+  if (e.target.name === 'import-cleanup') {
+    state.importOpt.cleanup = e.target.checked;
+    return;
+  }
   const select = e.target;
   if (!select.dataset.itemCategory) return;
   const item = state.items.find((i) => i.id === select.dataset.itemCategory);
@@ -1384,11 +1490,19 @@ async function start() {
   // 좋아요 가져오기: 유튜브 권한과 함께 로그인하고 돌아오면 토큰이 담긴 세션이 들어옴
   supabase.auth.onAuthStateChange((_event, session) => {
     const token = session?.provider_token;
-    if (!token || !sessionStorage.getItem('importLikes')) return;
+    const saved = sessionStorage.getItem('importLikes');
+    if (!token || !saved) return;
     sessionStorage.removeItem('importLikes');
+    let opt;
+    try {
+      opt = JSON.parse(saved);
+    } catch {
+      opt = null;
+    }
+    if (!opt?.period) opt = { period: 'all', cleanup: false };
     setTimeout(async () => {
       await itemsLoaded; // 이미 저장한 영상을 건너뛰려면 목록이 먼저 있어야 함
-      runImportLikes(token);
+      runImportLikes(token, opt);
     }, 0);
   });
   if (sessionStorage.getItem('importLikes')) {
