@@ -27,6 +27,8 @@ const state = {
   accountOpen: false, // 내 계정 창이 열려 있는지
   importing: null, // 좋아요 가져오는 중 진행 상황
   importOpt: { period: 'install', cleanup: false }, // 좋아요 가져올 기간
+  selecting: false, // 내 영상: 여러 개 선택해서 지우기
+  selected: new Set(),
   adding: false,
   lastAddedId: null,
   detailId: null,
@@ -61,13 +63,13 @@ function esc(s) {
 }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2600) {
   // 상세 창이 열려 있으면 창 위에 보이도록 창 안으로 옮김
   ($sheet.open ? $sheet : document.body).append($toast);
   $toast.textContent = msg;
   $toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $toast.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), ms);
 }
 
 // 공유된 글/링크에서 유튜브 영상 주소를 찾아냄
@@ -166,6 +168,8 @@ function go(page) {
 
 window.addEventListener('hashchange', () => {
   state.page = pageFromHash();
+  state.selecting = false;
+  state.selected = new Set();
   render();
   scrollTo(0, 0);
 });
@@ -613,8 +617,8 @@ async function runImportLikes(token, opt) {
     go('my');
     render();
     const parts = [rows.length ? `좋아요 영상 ${rows.length}개를 가져왔어요` : '새로 가져올 좋아요 영상이 없어요'];
-    if (removed) parts.push(`예전 좋아요 ${removed}개는 정리했어요`);
-    toast(parts.join(' · '));
+    if (cleanup) parts.push(removed ? `예전 좋아요 ${removed}개는 정리했어요` : `정리할 예전 좋아요가 없었어요 (좋아요 ${likes.length}개 확인)`);
+    toast(parts.join(' · '), 6000);
   } catch (e) {
     console.error(e);
     state.importing = null;
@@ -820,6 +824,7 @@ function renderThumb(item, { play = false } = {}) {
 }
 
 function renderCard(item) {
+  if (state.selecting) return renderSelectCard(item);
   const sub = [item.channel_title && esc(item.channel_title), esc(categoryName(item.category_id)), statusText(item)]
     .filter(Boolean)
     .join(' · ');
@@ -833,6 +838,21 @@ function renderCard(item) {
           <p class="vsub">${sub}</p>
         </div>
         <button class="icon-btn kebab" data-action="open" data-id="${item.id}" aria-label="자세히">${ICON.more}</button>
+      </div>
+    </article>`;
+}
+
+// 선택 모드: 누르면 고르기/빼기, 썸네일 위에 동그란 체크
+function renderSelectCard(item) {
+  const on = state.selected.has(item.id);
+  return `
+    <article class="vcard selectable ${on ? 'on' : ''}" data-action="select" data-id="${item.id}" aria-pressed="${on}">
+      <div class="thumb">${renderThumb(item)}<span class="check">${on ? '✓' : ''}</span></div>
+      <div class="vmeta">
+        <div class="vtexts">
+          <h3 class="vtitle">${esc(item.title || item.url)}</h3>
+          <p class="vsub">${[item.channel_title && esc(item.channel_title), esc(categoryName(item.category_id)), statusText(item)].filter(Boolean).join(' · ')}</p>
+        </div>
       </div>
     </article>`;
 }
@@ -941,6 +961,7 @@ function renderMyPage() {
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
       <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
+      <button class="text-btn select-toggle" data-action="select-mode">${state.selecting ? '취소' : '선택'}</button>
     </div>
     <div class="filters">
       <div class="chip-row">
@@ -961,6 +982,15 @@ function renderMyPage() {
         ? `<div class="notice row cleanup-notice">
              <span>한 달 넘게 안 본 영상 <b>${stale.length}개</b></span>
              <button class="chip white" data-action="cleanup-start">정리하기</button>
+           </div>`
+        : ''
+    }
+    ${
+      state.selecting
+        ? `<div class="select-bar">
+             <span><b>${state.selected.size}</b>개 선택</span>
+             <button class="chip" data-action="select-all" data-ids="${list.map((i) => i.id).join(',')}">${list.length && list.every((i) => state.selected.has(i.id)) ? '모두 해제' : `보이는 ${list.length}개 모두 선택`}</button>
+             <button class="chip white" data-action="select-delete" ${state.selected.size ? '' : 'disabled'}>삭제</button>
            </div>`
         : ''
     }
@@ -1334,6 +1364,41 @@ async function handleAction(el) {
         `${formatWhen(el.dataset.at)}에 알려 드릴게요`,
       );
       break;
+    case 'select-mode':
+      state.selecting = !state.selecting;
+      state.selected = new Set();
+      render();
+      break;
+    case 'select': {
+      if (state.selected.has(id)) state.selected.delete(id);
+      else state.selected.add(id);
+      render();
+      break;
+    }
+    case 'select-all': {
+      const ids = el.dataset.ids ? el.dataset.ids.split(',') : [];
+      const all = ids.length && ids.every((x) => state.selected.has(x));
+      for (const x of ids) {
+        if (all) state.selected.delete(x);
+        else state.selected.add(x);
+      }
+      render();
+      break;
+    }
+    case 'select-delete': {
+      const ids = [...state.selected];
+      if (!ids.length || !confirm(`선택한 영상 ${ids.length}개를 지울까요? 되돌릴 수 없어요.`)) return;
+      for (let i = 0; i < ids.length; i += 100) {
+        const { error } = await supabase.from('watch_items').delete().in('id', ids.slice(i, i + 100));
+        if (error) return toast('지우지 못했어요. 잠시 후 다시 해 주세요');
+      }
+      state.selecting = false;
+      state.selected = new Set();
+      await loadItems();
+      render();
+      toast(`${ids.length}개를 지웠어요`);
+      break;
+    }
     case 'import-likes':
       renderImportOptions();
       break;
@@ -1525,9 +1590,12 @@ async function start() {
     // onAuthStateChange 안에서 바로 await 하면 supabase-js 가 멈출 수 있어 다음 틱에서 실행
     setTimeout(async () => {
       render();
-      await Promise.all([loadItems(), checkPush()]);
-      render();
+      const push = checkPush().catch(() => {});
+      await loadItems();
       itemsReady();
+      render();
+      await push;
+      render();
       const shared = takeSharedLink();
       if (shared) {
         if (state.page !== 'add') go('add');
