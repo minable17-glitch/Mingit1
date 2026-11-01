@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "kr.watchlater.app",
+      "sha256_cert_fingerprints": [
+        "AE:39:A1:E7:84:93:4C:45:51:AF:E7:B5:ED:3E:E7:E8:9A:C2:7A:CF:93:00:F5:50:97:8F:7A:74:16:A8:26:9F"
+      ]
+    }
+  }
+]

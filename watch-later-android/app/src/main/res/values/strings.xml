@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appName">나중에 볼 영상</string>
+    <string name="launchUrl">https://watch-later.pages.dev/</string>
+    <string name="providerAuthority">kr.watchlater.app.fileprovider</string>
+    <string name="assetStatements" translatable="false">
+        [{ \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+           \"target\": {\"namespace\": \"web\", \"site\": \"https://watch-later.pages.dev\"}}]
+    </string>
+    <string name="shareTarget" translatable="false">
+        {\"action\": \"https://watch-later.pages.dev/\", \"method\": \"GET\", \"params\": {\"title\": \"title\", \"text\": \"text\", \"url\": \"url\"}}
+    </string>
+</resources>
