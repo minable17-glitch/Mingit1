@@ -1,8 +1,15 @@
 // 유튜브 영상의 제목·채널·썸네일·유튜브 분류를 가져오는 서버 함수.
 // - YOUTUBE_API_KEY 비밀값이 있으면 YouTube Data API 로 분류(categoryId)·영상 길이까지 가져옴
 // - 없거나 실패하면 oEmbed 로 제목·채널·썸네일만 가져옴 (분류·길이 없음)
-// 로그인한 사용자만 쓸 수 있도록 기본 JWT 확인을 켜 둔 채로 배포합니다.
-// 배포: supabase functions deploy youtube-info
+// 로그인한 사용자만 쓸 수 있도록 함수 안에서 로그인 토큰을 확인합니다.
+// (새 Supabase 프로젝트의 로그인 키 방식과 맞추기 위해 대시보드의 Verify JWT 는 꺼 둡니다)
+// 배포: supabase functions deploy youtube-info --no-verify-jwt
+
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  auth: { persistSession: false },
+});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,6 +75,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: userData } = token ? await supabase.auth.getUser(token) : { data: { user: null } };
+    if (!userData?.user) return json({ error: "로그인이 필요해요" }, 401);
+
     const { id } = await req.json();
     if (typeof id !== "string" || !/^[\w-]{11}$/.test(id)) return json({ error: "영상 ID가 올바르지 않아요" }, 400);
 

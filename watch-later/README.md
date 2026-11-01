@@ -98,13 +98,13 @@ Supabase → **Edge Functions → Secrets** 에 5개 추가:
 | `YOUTUBE_API_KEY` | 3-2번의 API 키 |
 
 함수 배포 — 둘 중 편한 방법:
-- **대시보드에서**: Edge Functions → Deploy a new function → Via Editor → 이름을 정확히 `send-due-reminders` 로 하고 `index.ts` 내용 붙여넣기 → Deploy. 배포 후 함수 설정(Details)에서 **Verify JWT 를 끄기**. `youtube-info` 도 같은 방법으로 올리되 **Verify JWT 는 켜 둔 채로**.
+- **대시보드에서**: Edge Functions → Deploy a new function → Via Editor → 이름을 정확히 `send-due-reminders` 로 하고 `index.ts` 내용 붙여넣기 → Deploy. 배포 후 함수 설정(Details)에서 **Verify JWT 를 끄기**. `youtube-info` 도 같은 방법으로 올리고 **Verify JWT 끄기** (로그인 확인은 함수 안에서 해요).
 - **터미널에서** (이 `watch-later` 폴더에서):
   ```bash
   npx supabase login
   npx supabase link --project-ref <PROJECT_REF>
   npx supabase functions deploy send-due-reminders --no-verify-jwt
-  npx supabase functions deploy youtube-info
+  npx supabase functions deploy youtube-info --no-verify-jwt
   ```
 
 ### 5. 1분마다 알림 확인 켜기
