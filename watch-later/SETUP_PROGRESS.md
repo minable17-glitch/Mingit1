@@ -10,6 +10,8 @@
 | --- | --- | --- |
 | 1. Supabase | 새 계정(**네이버 메일**로 가입) → 조직 `watch-later` → 프로젝트 `watch-later` 생성 | 원래 계정(minable17-glitch)은 무료 프로젝트 2개 한도라 새 계정 사용. 새싹책방 프로젝트는 건드리지 않음 |
 | 1. DB 표 | `supabase/schema.sql` 실행 완료 | |
+| 2-④⑤ | Supabase Google 로그인 켜기, Publishable key → `config.js` 반영 | |
+| 3. VAPID | 알림용 키 생성, Public Key → `config.js` 반영 | Private Key 는 Supabase Edge Function Secrets 에만 |
 | 2-①~③ 구글 | Google Cloud 새 프로젝트 `watch-later` → OAuth 동의 화면(외부) → 웹 클라이언트 `watch-later` 생성 | 리디렉션 URI: `https://tjafwlllrkymffppzyya.supabase.co/auth/v1/callback` |
 
 - Supabase Project URL: `https://tjafwlllrkymffppzyya.supabase.co` (공개돼도 되는 값)
@@ -17,11 +19,6 @@
 
 ## ⏭ 다음에 할 것 (여기서부터)
 
-1. **2-④ Supabase에 구글 연결** — Authentication → Sign In / Providers → Google → Enable → Client ID / Client Secret 붙여넣기 → Save
-   - https://supabase.com/dashboard/project/tjafwlllrkymffppzyya/auth/providers
-2. **2-⑤ Publishable key 전달** — Project Settings → API Keys 의 `sb_publishable_...` 를 Claude 에게 알려 주기 → `config.js` 에 넣기
-   - https://supabase.com/dashboard/project/tjafwlllrkymffppzyya/settings/api-keys
-3. **3. 알림용 키(VAPID) 만들기**
 4. **4. 유튜브 API 키 만들기** (Google Cloud `watch-later` 프로젝트에서 YouTube Data API v3 사용 설정 → API 키)
 5. **5. 서버 함수 2개 올리기** (`send-due-reminders` — Verify JWT 끄기, `youtube-info`) + 비밀값 5개 + `cron.sql` 실행
 6. **6. Cloudflare Pages 에 올리기** (빌드 출력 폴더 `watch-later`, 빌드 명령 비움) → 앱 주소를 Supabase Authentication → URL Configuration 에 등록
