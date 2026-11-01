@@ -26,6 +26,28 @@ function loadView() {
   }
 }
 
+function loadPlatform() {
+  try {
+    return localStorage.getItem('platform') === 'instagram' ? 'instagram' : 'youtube';
+  } catch {
+    return 'youtube';
+  }
+}
+function setPlatform(p) {
+  if (state.platform !== p) {
+    state.filter = 'all';
+    state.minutes = 0;
+    state.selected = new Set();
+  }
+  state.platform = p;
+  try {
+    localStorage.setItem('platform', p);
+  } catch {
+    // 저장이 막힌 브라우저
+  }
+}
+const inPlatform = (i) => platformOf(i) === state.platform;
+
 const state = {
   user: null,
   items: [],
@@ -44,6 +66,7 @@ const state = {
   importing: null, // 좋아요 가져오는 중 진행 상황
   importOpt: { period: 'install', cleanup: false }, // 좋아요 가져올 기간
   view: loadView(), // 내 영상 보기 방식: big | grid | frame | list
+  platform: loadPlatform(), // 내 영상·관심사: youtube | instagram
   selecting: false, // 내 영상: 여러 개 선택해서 지우기
   selected: new Set(),
   adding: false,
@@ -116,6 +139,25 @@ function parseYouTube(input) {
   return { id, url: u.toString(), thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
 }
 
+// 인스타 릴스·게시물 링크 → { platform, id(shortcode), kind, url }
+function parseInstagram(input) {
+  const m = String(input || '').match(/https?:\/\/(?:www\.|m\.)?instagram\.com\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]+)/i);
+  if (!m) return null;
+  const kind = m[1].toLowerCase().startsWith('reel') ? 'reel' : m[1].toLowerCase();
+  return { platform: 'instagram', id: m[2], kind, url: `https://www.instagram.com/${kind}/${m[2]}/`, thumbnail: null };
+}
+
+// 유튜브 또는 인스타 링크
+function parseLink(input) {
+  const yt = parseYouTube(input);
+  return yt ? { ...yt, platform: 'youtube' } : parseInstagram(input);
+}
+
+// platform 칸이 아직 없던 예전 영상은 주소로 판단
+function platformOf(item) {
+  return item.platform || (/instagram\.com/.test(item.url) ? 'instagram' : 'youtube');
+}
+
 function pad(n) {
   return String(n).padStart(2, '0');
 }
@@ -155,6 +197,7 @@ function staleItems() {
   const monthAgo = Date.now() - 30 * DAY;
   return state.items.filter(
     (i) =>
+      inPlatform(i) &&
       !i.watched_at &&
       new Date(i.created_at).getTime() < monthAgo &&
       !(i.kept_at && new Date(i.kept_at).getTime() >= monthAgo) &&
@@ -199,9 +242,9 @@ function takeSharedLink() {
   const params = new URLSearchParams(location.search);
   const shared = ['url', 'text', 'title'].map((k) => params.get(k)).filter(Boolean).join(' ');
   if (shared) {
-    const video = parseYouTube(shared);
+    const video = parseLink(shared);
     if (video) sessionStorage.setItem('pendingShare', video.url);
-    else setTimeout(() => toast('유튜브 영상 페이지에서 눌러 주세요'), 500);
+    else setTimeout(() => toast('유튜브 영상이나 인스타 게시물에서 눌러 주세요'), 500);
     ['url', 'text', 'title'].forEach((k) => params.delete(k));
     const qs = params.toString();
     history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
@@ -296,8 +339,9 @@ async function learnChannel(channelKey, categoryId) {
 
 // 링크 하나로 저장: 제목·채널·카테고리는 알아서 채움. 알림 시간은 나중에 내 영상에서.
 async function addItem(input) {
-  const video = parseYouTube(input);
-  if (!video) return toast('유튜브 영상 링크를 넣어 주세요');
+  const video = parseLink(input);
+  if (!video) return toast('유튜브나 인스타 링크를 넣어 주세요');
+  const ig = video.platform === 'instagram';
 
   const dup = state.items.find((i) => i.video_id === video.id && !i.watched_at);
   if (dup) {
@@ -309,8 +353,12 @@ async function addItem(input) {
   state.adding = true;
   render();
   try {
-    const { data } = await supabase.functions.invoke('youtube-info', { body: { id: video.id } });
+    const { data } = await supabase.functions.invoke('youtube-info', {
+      body: ig ? { instagram: video.url } : { id: video.id },
+    });
     const info = data && !data.error ? data : {};
+    const kindName = video.kind === 'reel' ? '릴스' : '게시물';
+    if (ig && !info.title) info.title = info.author ? `${info.author}의 ${kindName}` : `인스타그램 ${kindName}`;
     let categoryId = null;
     try {
       categoryId = await resolveCategory(suggestCategory(info));
@@ -328,11 +376,20 @@ async function addItem(input) {
         channel_title: info.author || null,
         category_id: categoryId,
         duration_sec: info.duration_sec || null,
+        // 유튜브는 기본값(youtube)을 쓰므로 인스타일 때만 보냄
+        ...(ig ? { platform: 'instagram' } : {}),
       })
       .select('id')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (ig && /platform/.test(error.message || '')) {
+        toast('인스타 저장을 쓰려면 Supabase 에서 SQL 한 줄을 먼저 실행해 주세요', 6000);
+        return;
+      }
+      throw error;
+    }
     state.lastAddedId = row.id;
+    setPlatform(video.platform);
     await loadItems();
     toast(categoryId ? `'${categoryName(categoryId)}'에 저장했어요` : '저장했어요');
   } catch (e) {
@@ -738,13 +795,15 @@ const ICON = {
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 1 1 12 0v6l2 2H4l2-2z"/><path d="M10 21h4"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  yt: '<svg viewBox="0 0 24 24"><rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
+  ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg>',
   google: '<svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>',
 };
 
 // 채널 이름 → 동그란 아바타 (첫 글자 + 이름마다 고정된 색)
 const AVATAR_COLORS = ['#E9A23B', '#5C6BC0', '#26A69A', '#EF5350', '#AB47BC', '#42A5F5', '#8D6E63', '#66BB6A'];
 function channelAvatar(name) {
-  const s = String(name || '?');
+  const s = String(name || '?').replace(/^@/, '') || '?';
   let h = 0;
   for (const ch of s) h = (h * 31 + ch.codePointAt(0)) >>> 0;
   return `<span class="ch-avatar" style="background:${AVATAR_COLORS[h % AVATAR_COLORS.length]}">${esc([...s][0].toUpperCase())}</span>`;
@@ -759,6 +818,7 @@ function savedAgo(iso) {
 }
 
 function thumbSrc(item) {
+  if (platformOf(item) === 'instagram') return item.thumbnail_url || '';
   return item.thumbnail_url || `https://i.ytimg.com/vi/${item.video_id}/hqdefault.jpg`;
 }
 
@@ -841,8 +901,15 @@ function renderThumb(item, { play = false } = {}) {
       : pending
         ? '<span class="progress"></span>'
         : '';
+  const src = thumbSrc(item);
+  // 인스타 썸네일은 없거나 시간이 지나면 막히는 경우가 있어 인스타 색 카드를 밑에 깔아 둠
+  const igBack =
+    platformOf(item) === 'instagram'
+      ? `<span class="ig-fallback">${ICON.ig}<span>${esc(item.title || '인스타그램')}</span></span>`
+      : '';
   return `
-    <img src="${esc(thumbSrc(item))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
+    ${igBack}
+    ${src ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'" />` : ''}
     ${play ? `<span class="play">${ICON.play}</span>` : ''}
     ${play && pos ? `<span class="badge resume">▶ ${formatDuration(pos)}부터 이어보기</span>` : ''}
     ${pending && !(play && pos) ? `<span class="badge status">🔔 ${esc(formatWhen(item.remind_at))}</span>` : ''}
@@ -856,7 +923,7 @@ function renderCard(item) {
     .filter(Boolean)
     .join(' · ');
   return `
-    <article class="vcard" data-action="open" data-id="${item.id}">
+    <article class="vcard ${platformOf(item) === 'instagram' ? 'ig' : ''}" data-action="open" data-id="${item.id}">
       <div class="thumb">${renderThumb(item)}</div>
       <div class="vmeta">
         ${channelAvatar(item.channel_title || categoryName(item.category_id))}
@@ -873,7 +940,7 @@ function renderCard(item) {
 function renderSelectCard(item) {
   const on = state.selected.has(item.id);
   return `
-    <article class="vcard selectable ${on ? 'on' : ''}" data-action="select" data-id="${item.id}" aria-pressed="${on}">
+    <article class="vcard selectable ${on ? 'on' : ''} ${platformOf(item) === 'instagram' ? 'ig' : ''}" data-action="select" data-id="${item.id}" aria-pressed="${on}">
       <div class="thumb">${renderThumb(item)}<span class="check">${on ? '✓' : ''}</span></div>
       <div class="vmeta">
         <div class="vtexts">
@@ -894,20 +961,31 @@ function renderAddPage() {
       <h2>보고 싶은 영상,<br />링크만 넣으면 끝</h2>
       <label class="link-input">
         ${ICON.link}
-        <input type="url" name="url" placeholder="유튜브 링크 붙여넣기" autocomplete="off" inputmode="url" ${state.adding ? 'disabled' : ''} />
+        <input type="url" name="url" placeholder="유튜브·인스타 링크 붙여넣기" autocomplete="off" inputmode="url" ${state.adding ? 'disabled' : ''} />
         ${navigator.clipboard?.readText ? `<button type="button" class="chip" data-action="paste" ${state.adding ? 'disabled' : ''}>붙여넣기</button>` : ''}
       </label>
       <button type="submit" class="btn-red" ${state.adding ? 'disabled' : ''}>${state.adding ? '저장하는 중…' : '저장'}</button>
-      <p class="hint">제목·채널·카테고리는 알아서 정리돼요. 알림 시간은 내 영상에서 정할 수 있어요.</p>
+      <p class="hint">유튜브·인스타 링크 모두 돼요. 제목·카테고리는 알아서 정리되고, 알림 시간은 내 영상에서 정할 수 있어요.</p>
     </form>
     ${
       last
         ? `<section class="section-block">
              <div class="section-head">
-               <h3>방금 저장한 영상</h3>
+               <h3>방금 저장한 ${platformOf(last) === 'instagram' ? '게시물' : '영상'}</h3>
                <button class="text-btn" data-action="open" data-id="${last.id}">🔔 알림 정하기</button>
              </div>
              ${renderCard(last)}
+             ${
+               platformOf(last) === 'instagram' && !last.category_id
+                 ? `<div class="quick-cat">
+                      <span class="small muted">인스타는 분류 정보가 없어요. 카테고리를 골라 주세요 (이 계정은 다음부터 자동)</span>
+                      <div class="chip-row wrap">
+                        ${state.categories.map((c) => `<button class="chip" data-action="quick-cat" data-id="${last.id}" data-cat="${c.id}">${esc(c.name)}</button>`).join('')}
+                        <button class="chip ghost" data-action="quick-cat" data-id="${last.id}" data-cat="__new">+ 새 카테고리</button>
+                      </div>
+                    </div>`
+                 : ''
+             }
            </section>`
         : ''
     }
@@ -938,15 +1016,26 @@ function renderBookmarklet() {
 
 // ───────────── 페이지: 내 영상 (유튜브 피드) ─────────────
 
+function renderPlatformSwitch() {
+  const n = (p) => state.items.filter((i) => platformOf(i) === p && !i.watched_at).length;
+  return `
+    <div class="platform-switch" role="tablist">
+      <button role="tab" data-action="platform" data-platform="youtube" aria-selected="${state.platform === 'youtube'}">${ICON.yt} 유튜브 <b>${n('youtube')}</b></button>
+      <button role="tab" data-action="platform" data-platform="instagram" aria-selected="${state.platform === 'instagram'}">${ICON.ig} 인스타 <b>${n('instagram')}</b></button>
+    </div>`;
+}
+
 function renderMyPage() {
+  const ig = state.platform === 'instagram';
+  const unit = ig ? '게시물' : '영상';
   const todo = state.items
-    .filter((i) => !i.watched_at)
+    .filter((i) => inPlatform(i) && !i.watched_at)
     .sort((a, b) => (a.remind_at || '9999').localeCompare(b.remind_at || '9999') || b.created_at.localeCompare(a.created_at));
-  const done = state.items.filter((i) => i.watched_at).sort((a, b) => b.watched_at.localeCompare(a.watched_at));
+  const done = state.items.filter((i) => inPlatform(i) && i.watched_at).sort((a, b) => b.watched_at.localeCompare(a.watched_at));
   const q = state.search.trim().toLowerCase();
   const matches = (i) =>
     !q || [i.title, i.channel_title, i.memo].some((t) => String(t || '').toLowerCase().includes(q));
-  const fitsTime = (i) => state.tab !== 'todo' || !state.minutes || (i.duration_sec && i.duration_sec <= state.minutes * 60);
+  const fitsTime = (i) => ig || state.tab !== 'todo' || !state.minutes || (i.duration_sec && i.duration_sec <= state.minutes * 60);
   const isGood = (i) => state.tab !== 'done' || !state.goodOnly || i.rating >= 4;
   const tabList = (state.tab === 'todo' ? todo : done).filter((i) => matches(i) && fitsTime(i) && isGood(i));
   const inFilter = (i) =>
@@ -965,8 +1054,10 @@ function renderMyPage() {
           : state.filter !== 'all'
             ? '이 카테고리에는 영상이 없어요.'
             : state.tab === 'todo'
-              ? '아직 저장한 영상이 없어요.<br /><a href="#/">영상 추가하러 가기 →</a>'
-              : '다 본 영상이 여기에 모여요.';
+              ? ig
+                ? '아직 저장한 인스타 게시물이 없어요.<br /><span class="small">인스타 앱에서 공유 → "나중에 볼 영상"을 눌러 보세요</span>'
+                : '아직 저장한 영상이 없어요.<br /><a href="#/">영상 추가하러 가기 →</a>'
+              : `다 본 ${unit}이 여기에 모여요.`;
 
   const count = (pred) => tabList.filter(pred).length;
   const chip = (value, label, n) =>
@@ -984,13 +1075,14 @@ function renderMyPage() {
     `<button class="chip red" data-action="minutes" data-minutes="${m}" aria-pressed="${state.minutes === m}">${label}</button>`;
 
   return `
+    ${renderPlatformSwitch()}
     <label class="search-pill">
       ${ICON.search}
       <input type="search" name="search" placeholder="제목·채널·메모로 찾기" value="${esc(state.search)}" autocomplete="off" />
     </label>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 영상 ${todo.length}</button>
-      <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 영상 ${done.length}</button>
+      <button class="tab" role="tab" data-action="tab" data-tab="todo" aria-selected="${state.tab === 'todo'}">볼 ${unit} ${todo.length}</button>
+      <button class="tab" role="tab" data-action="tab" data-tab="done" aria-selected="${state.tab === 'done'}">다 본 ${unit} ${done.length}</button>
       <span class="tab-tools">
         <button class="text-btn" data-action="view-menu" aria-label="보기 방식">${{ big: '▣', grid: '▦', frame: '🖼', list: '☰' }[state.view]} 보기</button>
         <button class="text-btn" data-action="select-mode">${state.selecting ? '취소' : '선택'}</button>
@@ -1002,7 +1094,9 @@ function renderMyPage() {
         <button class="chip ghost" data-action="manage" aria-pressed="${state.manageOpen}" aria-label="카테고리 관리">⚙ 관리</button>
       </div>
       ${
-        state.tab === 'todo'
+        state.tab === 'todo' && ig
+          ? ''
+          : state.tab === 'todo'
           ? `<div class="chip-row"><span class="label">지금 몇 분?</span>
                ${minuteChip(5, '5분')}${minuteChip(15, '15분')}${minuteChip(30, '30분')}${minuteChip(60, '1시간')}
              </div>`
@@ -1027,7 +1121,7 @@ function renderMyPage() {
            </div>`
         : ''
     }
-    ${list.length ? `<div class="feed view-${state.view}">${list.map(renderCard).join('')}</div>` : `<div class="empty">${empty}</div>`}`;
+    ${list.length ? `<div class="feed view-${state.view} ${ig ? 'is-ig' : ''}">${list.map(renderCard).join('')}</div>` : `<div class="empty">${empty}</div>`}`;
 }
 
 function renderCategoryManager() {
@@ -1112,6 +1206,7 @@ function renderDetail() {
   const pendingRemind = item.remind_at && !item.notified_at;
   const current = pendingRemind ? new Date(item.remind_at).getTime() : null;
   const playing = state.playingId === item.id;
+  const ig = platformOf(item) === 'instagram';
   const rest = `
       <h2 class="sheet-title">${esc(item.title || item.url)}</h2>
       <div class="ch-row">
@@ -1123,11 +1218,13 @@ function renderDetail() {
         ${
           playing
             ? ''
+            : ig
+              ? `<button class="pill white" data-action="play">${ICON.play} 앱에서 보기</button>`
             : getPosition(item)
               ? `<button class="pill white" data-action="play">${ICON.play} 이어보기</button><button class="pill" data-action="restart">처음부터</button>`
               : `<button class="pill white" data-action="play">${ICON.play} 재생</button>`
         }
-        <a class="pill" href="${esc(item.url)}" target="_blank" rel="noopener">유튜브에서 열기</a>
+        <a class="pill" href="${esc(item.url)}" target="_blank" rel="noopener">${ig ? '인스타에서 열기' : '유튜브에서 열기'}</a>
         ${
           item.watched_at
             ? '<button class="pill" data-action="unwatch">↺ 다시 볼래요</button>'
@@ -1186,13 +1283,15 @@ function renderDetail() {
       <div class="handle" tabindex="-1" autofocus></div>
       ${
         playing
-          ? '<div class="player"><div id="yt-player"></div></div>'
+          ? ig
+            ? `<div class="player ig"><iframe src="${esc(item.url)}embed/captioned/" title="인스타그램" loading="lazy" allow="encrypted-media; picture-in-picture"></iframe></div>`
+            : '<div class="player"><div id="yt-player"></div></div>'
           : `<button class="thumb" data-action="play" aria-label="앱에서 재생">${renderThumb(item, { play: true })}</button>`
       }
       <div class="detail-rest">${rest}</div>
     </div>`;
   if (!$sheet.open) $sheet.showModal();
-  if (playing) mountPlayer(item);
+  if (playing && !ig) mountPlayer(item);
 }
 
 // ───────────── 앱 안에서 바로 재생 (유튜브 퍼가기 플레이어) ─────────────
@@ -1419,7 +1518,7 @@ function render() {
     state.page === 'my'
       ? renderMyPage()
       : state.page === 'insights'
-        ? `<div class="insights">${renderInsights(state.items, categoryName)}${renderDigestSettings()}</div>`
+        ? `${renderPlatformSwitch()}<div class="insights">${renderInsights(state.items.filter(inPlatform), categoryName)}${renderDigestSettings()}</div>`
         : renderAddPage();
   const newInput = $app.querySelector('input[name="url"]');
   if (newInput && typed) newInput.value = typed;
@@ -1551,6 +1650,20 @@ async function handleAction(el) {
       state.playingId = state.detailId;
       renderDetail();
       break;
+    case 'platform':
+      setPlatform(el.dataset.platform);
+      render();
+      break;
+    case 'quick-cat': {
+      let value = el.dataset.cat;
+      if (value === '__new') {
+        const name = prompt('새 카테고리 이름')?.trim();
+        if (!name) return;
+        value = state.categories.find((c) => c.name === name)?.id ?? `new:${name}`;
+      }
+      if (item) moveItem(item, value);
+      break;
+    }
     case 'view-menu':
       renderViewMenu();
       break;

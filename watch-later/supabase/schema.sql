@@ -132,3 +132,7 @@ create policy "user_settings: 본인 것만" on public.user_settings
 -- 8) 이어보기: 마지막으로 본 위치(초)
 alter table public.watch_items
   add column if not exists position_sec integer;
+
+-- 9) 유튜브 / 인스타 구분
+alter table public.watch_items
+  add column if not exists platform text not null default 'youtube';

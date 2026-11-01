@@ -1,4 +1,5 @@
-// 유튜브 영상의 제목·채널·썸네일·유튜브 분류를 가져오는 서버 함수.
+// 유튜브 영상(또는 인스타 게시물)의 제목·채널·썸네일·유튜브 분류를 가져오는 서버 함수.
+// - body { id } → 유튜브, body { instagram: url } → 인스타 공식 퍼가기 화면에서 계정·글·이미지를 읽음
 // - YOUTUBE_API_KEY 비밀값이 있으면 YouTube Data API 로 분류(categoryId)·영상 길이까지 가져옴
 // - 없거나 실패하면 oEmbed 로 제목·채널·썸네일만 가져옴 (분류·길이 없음)
 // 로그인한 사용자만 쓸 수 있도록 함수 안에서 로그인 토큰을 확인합니다.
@@ -71,6 +72,40 @@ async function fromOEmbed(id: string) {
   };
 }
 
+// 인스타: 공개 게시물의 퍼가기 화면(embed/captioned)에서 계정 이름·글·이미지를 읽음 (안 되면 빈 값)
+function decodeHtml(s: string) {
+  return s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+}
+
+async function fromInstagram(url: string) {
+  const m = url.match(/^https:\/\/www\.instagram\.com\/(p|reel|tv)\/([\w-]+)\/$/);
+  if (!m) return null;
+  const res = await fetch(`${url}embed/captioned/`, {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36" },
+  });
+  if (!res.ok) return { title: null, author: null, channel_key: null, thumbnail_url: null };
+  const html = await res.text();
+  const username = html.match(/class="UsernameText"[^>]*>([^<]+)</)?.[1]?.trim() ?? null;
+  const img = html.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/)?.[1] ?? null;
+  let caption = html.match(/class="Caption"[^>]*>([\s\S]*?)<div class="CaptionComments/)?.[1] ?? "";
+  caption = decodeHtml(caption).trim();
+  if (username && caption.startsWith(username)) caption = caption.slice(username.length).trim();
+  const firstLine = caption.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  return {
+    title: firstLine ? firstLine.slice(0, 90) : null,
+    author: username ? `@${username}` : null,
+    channel_key: username ? `ig:${username}` : null,
+    yt_category_id: null,
+    thumbnail_url: img ? decodeHtml(img) : null,
+    duration_sec: null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -79,7 +114,9 @@ Deno.serve(async (req) => {
     const { data: userData } = token ? await supabase.auth.getUser(token) : { data: { user: null } };
     if (!userData?.user) return json({ error: "로그인이 필요해요" }, 401);
 
-    const { id } = await req.json();
+    const body = await req.json();
+    if (typeof body.instagram === "string") return json((await fromInstagram(body.instagram)) ?? { error: "인스타 링크가 아니에요" });
+    const { id } = body;
     if (typeof id !== "string" || !/^[\w-]{11}$/.test(id)) return json({ error: "영상 ID가 올바르지 않아요" }, 400);
 
     const info = (YOUTUBE_API_KEY && (await fromDataApi(id))) || (await fromOEmbed(id));

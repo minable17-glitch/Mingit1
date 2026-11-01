@@ -593,3 +593,35 @@ button.thumb { width: 100%; padding: 0; border: 0; cursor: pointer; }
 .feed { grid-template-columns: minmax(0, 1fr); }
 .progress.partial { right: auto; height: 4px; }
 .badge.resume { left: 8px; background: rgba(255, 61, 61, 0.92); }
+
+/* ── 유튜브 / 인스타 전환 ── */
+.platform-switch { display: flex; gap: 8px; margin: 8px 16px 4px; padding: 4px; border-radius: 14px; background: var(--raised); }
+.platform-switch button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 15px; font-weight: 500;
+}
+.platform-switch button svg { width: 20px; height: 20px; }
+.platform-switch button b { font-weight: 500; font-size: 13px; opacity: 0.8; }
+.platform-switch button[aria-selected='true'] { background: var(--chip); color: var(--text); font-weight: 700; }
+.platform-switch button[data-platform='instagram'][aria-selected='true'] svg { color: #ff5c8a; }
+
+/* ── 인스타 카드: 세로 4:5, 인스타 색 ── */
+.vcard.ig .thumb { aspect-ratio: 4 / 5; }
+.ig-fallback {
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 16px;
+  background: linear-gradient(135deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%);
+  color: #fff; text-align: center; font-weight: 700; font-size: 14px; line-height: 1.4;
+}
+.ig-fallback svg { width: 40px; height: 40px; }
+.ig-fallback span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.thumb img { position: relative; }
+.view-list .vcard.ig .thumb { width: 30%; }
+.feed.is-ig.view-big { padding: 0 16px; gap: 12px; }
+.feed.is-ig.view-big .thumb { border-radius: 12px; }
+.feed.is-ig.view-big .vmeta { padding-left: 0; }
+
+.player.ig { aspect-ratio: auto; height: min(70vh, 640px); background: #fff; }
+.player.ig iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.quick-cat { display: grid; gap: 8px; margin: -8px 16px 0; }
+.quick-cat .chip-row { padding: 0; }
