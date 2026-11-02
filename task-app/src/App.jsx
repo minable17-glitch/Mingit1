@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import * as api from './lib/api.js';
 import { loadSince } from './lib/today.js';
+import { applyAppearance } from './lib/appearance.js';
 import { todayKST } from './lib/date.js';
 import Briefing from './screens/Briefing.jsx';
 import TaskDetail from './screens/TaskDetail.jsx';
@@ -118,6 +119,8 @@ function Main({ userId, features }) {
   const setShowClass = (on) => { setShowClassState(on); try { localStorage.setItem('task-keeper.show-class', on ? 'on' : 'off'); } catch { /* 괜찮음 */ } };
   const [inboxCount, setInboxCount] = useState(0);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // 설정에 저장된 화면 꾸미기(강조색·글씨 크기 등)를 적용 — 아직 안 불러왔으면 이 기기 값 그대로
+  useEffect(() => { if (settings.appearance) applyAppearance(settings.appearance); }, [settings.appearance]);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
 

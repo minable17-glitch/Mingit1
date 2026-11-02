@@ -1017,3 +1017,43 @@ button:disabled { opacity: 0.4; }
 @keyframes drop-pop { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .drop-box { animation: none; } }
 .drop-hint { margin: 2px 2px 0; }
+
+/* ── 🎨 화면 꾸미기: 흐린 글씨 진하기 · 바탕색 (강조색·글씨 크기는 html 에 바로 넣음) ── */
+:root[data-contrast='high'] { --muted: #6b7684; --text-2: #333d4b; }
+@media (prefers-color-scheme: dark) { :root[data-contrast='high'] { --muted: #a2abb5; --text-2: #d6dbe0; } }
+@media (prefers-color-scheme: light) {
+  :root[data-bg='warm'] { --bg: #f7f4ee; --fill: #f1ede5; --fill-hover: #e9e4da; --line: #ebe6dc; }
+  :root[data-bg='sky'] { --bg: #eef4fb; --fill: #e9f0f8; --fill-hover: #dfe8f3; --line: #e2e9f2; }
+  :root[data-bg='white'] { --bg: #ffffff; --shadow: none; }
+}
+html { font-size: 16px; }
+.today-group h3, .stat span, .row-cat, .row-steps { font-size: 0.82rem; }
+.spare-plan .spare-empty, .bal-summary { font-size: 0.85rem; }
+
+.look h2 { margin-bottom: 14px; }
+.look-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.look-label { width: 5.5em; flex: none; font-weight: 700; font-size: 0.9rem; color: var(--text-2); }
+.look-row .seg { width: auto; flex: 1; margin: 0; min-width: 220px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.swatch { width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--sw); border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); position: relative; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.swatch:hover:not(:disabled) { background: var(--sw); }
+.swatch.on { box-shadow: 0 0 0 2.5px var(--text); }
+.swatch.on::after { content: '✓'; color: #fff; font-weight: 800; font-size: 0.9rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.swatch.custom { background: conic-gradient(#f04452, #ffb020, #12a150, #3182f6, #8b5cf6, #f04452); overflow: hidden; }
+.swatch.custom.on { background: var(--sw); }
+.swatch.custom span { color: #fff; font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.swatch.custom.on span { display: none; }
+.swatch.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; padding: 0; }
+.swatch.bg { width: auto; height: 34px; border-radius: 10px; padding: 0 12px; box-shadow: 0 0 0 1px var(--line); }
+.swatch.bg .swatch-name { color: #333d4b; font-size: 0.82rem; font-weight: 700; }
+.swatch.bg.on { box-shadow: 0 0 0 2.5px var(--primary); }
+.swatch.bg.on::after { content: none; }
+.look-preview { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--bg); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.look-preview .muted { flex: 1; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* 큰 글씨에서도 잘리지 않게 */
+.look-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.look-label { width: auto; }
+.look-row .seg { min-width: 0; width: 100%; }
+.look-row .seg button { padding: 7px 4px; }
+.stat span { white-space: normal; overflow: visible; line-height: 1.25; word-break: keep-all; }

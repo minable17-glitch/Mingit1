@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
+import { ACCENTS, BACKGROUNDS, CONTRASTS, SIZES, applyAppearance, normalizeAppearance } from '../lib/appearance.js';
 import { AI_MODELS, AI_SITES, askWithOwnKey, loadAiSettings, saveAiSettings } from '../lib/ai.js';
 
 export default function Settings({ settings, userId, features, onSaved, onOpenScreen, showClass, setShowClass }) {
@@ -33,6 +34,8 @@ export default function Settings({ settings, userId, features, onSaved, onOpenSc
   return (
     <section>
       <header className="page-head"><h1>설정</h1></header>
+
+      <Appearance settings={settings} userId={userId} onSaved={onSaved} />
 
       <div className="block menu">
         <button onClick={() => onOpenScreen({ type: 'categories' })}>🏷️ 분류 관리</button>
@@ -437,6 +440,80 @@ function Account() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// 🎨 화면 꾸미기: 누르는 즉시 바뀌고, 계정에 저장돼 다른 기기에서도 같게 보임
+function Appearance({ settings, userId, onSaved }) {
+  const [look, setLook] = useState(() => normalizeAppearance(settings.appearance));
+  const [msg, setMsg] = useState('');
+  async function change(patch) {
+    const next = normalizeAppearance({ ...look, ...patch });
+    setLook(next);
+    applyAppearance(next);
+    try {
+      await api.updateSettings(userId, { appearance: next });
+      onSaved({ ...settings, appearance: next });
+      setMsg('');
+    } catch {
+      setMsg('이 기기에는 적용했어요. 계정 저장은 잠시 뒤 다시 눌러 주세요.');
+    }
+  }
+  const custom = !ACCENTS.some((a) => a.color === look.accent);
+  return (
+    <div className="block look">
+      <h2>🎨 화면 꾸미기</h2>
+
+      <div className="look-row">
+        <span className="look-label">강조색</span>
+        <div className="swatches" role="radiogroup" aria-label="강조색">
+          {ACCENTS.map((a) => (
+            <button key={a.key} type="button" role="radio" aria-checked={look.accent === a.color} title={a.name}
+              className={`swatch${look.accent === a.color ? ' on' : ''}`} style={{ '--sw': a.color }} onClick={() => change({ accent: a.color })}>
+              <span className="sr-only">{a.name}</span>
+            </button>
+          ))}
+          <label className={`swatch custom${custom ? ' on' : ''}`} title="직접 고르기" style={{ '--sw': look.accent }}>
+            <input type="color" value={look.accent} onChange={(e) => change({ accent: e.target.value })} aria-label="강조색 직접 고르기" />
+            <span aria-hidden="true">+</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="look-row">
+        <span className="look-label">글씨 크기</span>
+        <div className="seg">
+          {SIZES.map((z) => <button key={z.key} type="button" className={look.size === z.key ? 'on' : ''} onClick={() => change({ size: z.key })}>{z.name}</button>)}
+        </div>
+      </div>
+
+      <div className="look-row">
+        <span className="look-label">흐린 글씨</span>
+        <div className="seg">
+          {CONTRASTS.map((c) => <button key={c.key} type="button" className={look.contrast === c.key ? 'on' : ''} onClick={() => change({ contrast: c.key })}>{c.name}</button>)}
+        </div>
+      </div>
+
+      <div className="look-row">
+        <span className="look-label">바탕색</span>
+        <div className="swatches" role="radiogroup" aria-label="바탕색">
+          {BACKGROUNDS.map((b) => (
+            <button key={b.key} type="button" role="radio" aria-checked={look.bg === b.key} title={b.name}
+              className={`swatch bg${look.bg === b.key ? ' on' : ''}`} style={{ '--sw': b.color }} onClick={() => change({ bg: b.key })}>
+              <span className="swatch-name">{b.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="look-preview">
+        <span className="badge danger">2일 지남</span>
+        <span className="muted small">미리 보기: 흐린 글씨는 이렇게 보여요</span>
+        <button type="button" className="primary">주요 버튼</button>
+      </div>
+      <p className="small muted">바탕색은 밝은 화면에서만 바뀌어요. 폰이 어두운 모드면 어두운 바탕이 그대로예요.</p>
+      {msg && <p className="small warn">{msg}</p>}
     </div>
   );
 }

@@ -1,4 +1,4 @@
--- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + schema_planner.sql + schema_files.sql + 관리자 이메일 등록)
+-- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + schema_planner.sql + schema_files.sql + schema_look.sql + 관리자 이메일 등록)
 -- 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에 전체를 붙여넣고 Run 한 번. 여러 번 실행해도 안전합니다.
 -- (GitHub 배포 작업이 배포할 때마다 이 파일을 자동으로 실행합니다.)
 -- ※ schema*.sql 을 고치면 이 파일도 같이 고쳐야 합니다.
@@ -830,6 +830,9 @@ begin
 exception when others then
   raise warning '첨부 저장소 준비 실패: %', sqlerrm;
 end $$;
+
+-- 업무 챙김 — 화면 꾸미기(강조색·글씨 크기·글씨 진하기·바탕) 설정 칸. 여러 번 실행해도 안전합니다.
+alter table public.settings add column if not exists appearance jsonb not null default '{}'::jsonb;
 
 -- 관리자 이메일 등록 (관리자는 가입 열기/닫기와 사용자별 고급 구글 연동을 관리)
 insert into public.allowed_emails (email) values ('minable7@gmail.com'), ('minable17@gmail.com') on conflict do nothing;
