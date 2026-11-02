@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
 import { assess, sortForBriefing } from '../lib/briefing.js';
-import { dueLabel, formatShort, todayKST } from '../lib/date.js';
+import { dueLabel, todayKST } from '../lib/date.js';
 import { freeSlotNow, kstClock } from '../lib/timetable.js';
 import { pickDeadline } from '../lib/rules.js';
 import { blockerDelayed, blockersOf } from '../lib/links.js';
@@ -38,25 +38,18 @@ export default function Briefing({
   // 지금 공강에 하기로 계획해 둔 오늘 할 일
   const plannedNow = slot ? (todayItems ?? []).filter((i) => i.day === today && isDayItem(i) && Number(i.period) === Number(slot.period)) : [];
 
+  const principle = principleOfDay(thoughts ?? [], today);
+  const warnTotal = counts.due + counts.noReply + counts.neglected;
+
   return (
-    <section>
-      <header className="page-head">
+    <section className="briefing">
+      <header className="hero">
+        <span className="hero-date">{longDate(today)}</span>
         <h1>오늘의 브리핑</h1>
-        <span className="muted">{formatShort(today)}</span>
+        {principle && <p className="hero-principle"><span aria-hidden="true">📌</span> {principle.body}</p>}
       </header>
 
       <PrivacyNotice />
-      {(() => {
-        const p = principleOfDay(thoughts ?? [], today);
-        return p && (
-          <div className="today-principle">
-            <span aria-hidden="true">📌</span>
-            <div><b>오늘의 원칙</b>{p.body}</div>
-          </div>
-        );
-      })()}
-
-      <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} settings={settings} reload={reload} onOpen={onOpen} onOpenTimetable={() => onOpenScreen({ type: 'timetable' })} />
 
       <div className="stat-row">
         <div className="stat"><span>진행 중</span><b>{tasks.length}</b></div>
@@ -64,22 +57,6 @@ export default function Briefing({
         <div className={`stat${counts.noReply ? ' warm' : ''}`}><span>무응답</span><b>{counts.noReply}</b></div>
         <div className={`stat${counts.neglected ? ' warm' : ''}`}><span>방치</span><b>{counts.neglected}</b></div>
       </div>
-
-      {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
-
-      {inboxCount > 0 && (
-        <button className="banner" onClick={() => onOpenScreen({ type: 'inbox' })}>
-          📬 메일에서 온 업무 제안 <b>{inboxCount}</b>건 확인하기
-        </button>
-      )}
-      {isFriday && (
-        <button className="banner" onClick={() => onOpenScreen({ type: 'review' })}>
-          🗓️ 금요일이에요. 5분 주간 회고 하기
-        </button>
-      )}
-      {slot && (tasks.length > 0 || plannedNow.length > 0) && (
-        <SpareTime slot={slot} tasks={tasks} settings={settings} onOpen={onOpen} planned={plannedNow} reload={reload} />
-      )}
 
       <InputArea
         tasks={tasks}
@@ -91,9 +68,33 @@ export default function Briefing({
         onOpenScreen={onOpenScreen}
       />
 
+      {inboxCount > 0 && (
+        <button className="banner" onClick={() => onOpenScreen({ type: 'inbox' })}>
+          <span aria-hidden="true">📬</span><span className="grow">메일에서 온 업무 제안 <b>{inboxCount}</b>건</span><span aria-hidden="true">›</span>
+        </button>
+      )}
+      {isFriday && (
+        <button className="banner" onClick={() => onOpenScreen({ type: 'review' })}>
+          <span aria-hidden="true">🗓️</span><span className="grow">금요일이에요. 5분 주간 회고 하기</span><span aria-hidden="true">›</span>
+        </button>
+      )}
+      {slot && (tasks.length > 0 || plannedNow.length > 0) && (
+        <SpareTime slot={slot} tasks={tasks} settings={settings} onOpen={onOpen} planned={plannedNow} reload={reload} />
+      )}
+
+      <TodayCard tasks={tasks} reminders={reminders} items={todayItems} today={today} settings={settings} reload={reload} onOpen={onOpen} onOpenTimetable={() => onOpenScreen({ type: 'timetable' })} />
+
       <ThrowBox items={throwItems} tasks={tasks} categories={categories} todayItems={todayItems} showClass={showClass} reload={reload} onOpenScreen={onOpenScreen} />
 
-      <div className="chips">
+      <div className="section-head">
+        <h2>진행 중인 업무 <span className="count">{rows.length}</span></h2>
+        {warnTotal > 0 && <span className="small muted">챙길 것 {warnTotal}</span>}
+        <label className="toggle">
+          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+          분류별
+        </label>
+      </div>
+      <div className="chips scroll-x">
         <button className={!filter ? 'chip on' : 'chip'} onClick={() => setFilter(null)}>전체</button>
         {categories.map((c) => (
           <button
@@ -102,13 +103,9 @@ export default function Briefing({
             style={{ '--c': c.color }}
             onClick={() => setFilter(filter === c.id ? null : c.id)}
           >
-            {c.name}
+            <span className="dot" style={{ background: c.color }} aria-hidden="true" />{c.name}
           </button>
         ))}
-        <label className="toggle">
-          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
-          분류별로 묶기
-        </label>
       </div>
 
       {rows.length === 0 && <p className="empty">진행 중인 업무가 없습니다. 위에서 한 줄로 등록해 보세요.</p>}
@@ -124,6 +121,8 @@ export default function Briefing({
               </div>
             ))
         : <TaskList rows={rows} categoryById={categoryById} today={today} onOpen={onOpen} links={links} tasks={tasks} settings={settings} reload={reload} reminders={reminders} todayItems={todayItems} />}
+
+      {tasks.length > 0 && <BalancePanel tasks={tasks} categories={categories} settings={settings} links={links} today={today} />}
     </section>
   );
 }
@@ -205,6 +204,13 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
             <button type="button" className="row-button" aria-expanded={isOpen} onClick={() => toggle(task.id)}>
               <div className="row-top">
                 <span className="title">{task.title}</span>
+                <span className="chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
+              </div>
+              {task.waiting_on
+                ? <div className="next waiting">⏳ {task.waiting_on} 기다리는 중</div>
+                : <div className="next">→ {task.next_action}</div>}
+              <div className="row-meta">
+                {cat && <span className="row-cat"><span className="dot" style={{ background: cat.color }} aria-hidden="true" />{cat.name}</span>}
                 {info.due && (
                   <span className={info.overdue ? 'badge danger' : info.dueSoon ? 'badge warn' : 'badge'}>
                     {dueLabel(info.due, today)}
@@ -218,11 +224,8 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
                   </span>
                 )}
                 {reminder && <span className="badge remind">🔔 {remindLabel(reminder.remind_at)}</span>}
-                <span className="chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
+                {total > 0 && <span className="row-steps">단계 {done}/{total}</span>}
               </div>
-              {task.waiting_on
-                ? <div className="next waiting">⏳ {task.waiting_on} 기다리는 중</div>
-                : <div className="next">→ {task.next_action}</div>}
               {task.latest_note && <div className="note">📝 {task.latest_note}</div>}
               {total > 0 && (
                 <div className="progress" aria-label={`단계 ${done}/${total}`}><span style={{ width: `${(done / total) * 100}%` }} /></div>
@@ -260,21 +263,28 @@ function TaskList({ rows, categoryById, today, onOpen, links, tasks, settings, r
   );
 }
 
+// "11월 2일 월요일"
+function longDate(d) {
+  const [y, m, day] = d.split('-').map(Number);
+  const wd = '일월화수목금토'[new Date(Date.UTC(y, m - 1, day)).getUTCDay()];
+  return `${m}월 ${day}일 ${wd}요일`;
+}
+
 // ── 입력: 새 업무 / 던져넣기 / 공문 붙여넣기 ─────────────
 
 const MODES = [
   { key: 'new', label: '새 업무' },
   { key: 'throw', label: '던져넣기' },
-  { key: 'doc', label: '공문·대화 붙여넣기' },
+  { key: 'doc', label: '공문 붙여넣기' },
 ];
 
 function InputArea(props) {
   const [mode, setMode] = useState('new');
   return (
-    <div className="input-area">
-      <div className="seg">
+    <div className="input-area composer">
+      <div className="seg" role="tablist">
         {MODES.map((m) => (
-          <button key={m.key} className={mode === m.key ? 'on' : ''} onClick={() => setMode(m.key)}>{m.label}</button>
+          <button key={m.key} role="tab" aria-selected={mode === m.key} className={mode === m.key ? 'on' : ''} onClick={() => setMode(m.key)}>{m.label}</button>
         ))}
       </div>
       {mode === 'new' && <QuickAdd {...props} />}
@@ -489,7 +499,7 @@ function BalancePanel({ tasks, categories, settings, links, today }) {
       : '업무가 고르게 나뉘어 있고, 급한 업무는 없어요.';
 
   return (
-    <details className="balance block" open>
+    <details className="balance block">
       <summary>
         <span className="bal-title">업무 밸런스</span>
         <span className="bal-summary">{summary}</span>

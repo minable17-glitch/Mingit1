@@ -71,7 +71,7 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
   return (
     <section className="detail">
       <header className="page-head">
-        <button className="link" onClick={onClose}>← 브리핑</button>
+        <button className="link back" onClick={onClose}>‹ 뒤로</button>
         <span className="cat-tag" style={{ '--c': category?.color }}>{category?.name}</span>
       </header>
 
@@ -176,8 +176,8 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
         alert('구글 캘린더에 작업 시간을 넣었어요.');
       })} />}
 
-      <div className="block">
-        <h2>활동 기록</h2>
+      <details className="block activity-box">
+        <summary><h2>활동 기록 <span className="muted small">{activity.length}</span></h2></summary>
         <ul className="activity">
           {activity.map((a) => (
             <li key={a.id}>
@@ -186,11 +186,11 @@ export default function TaskDetail({ taskId, categories, categoryById, templates
             </li>
           ))}
         </ul>
-      </div>
+      </details>
 
       <div className="actions">
         {active ? (
-          <button disabled={busy} onClick={() => run(() => api.completeTask(task))}>완료로 보관</button>
+          <button className="primary success" disabled={busy} onClick={() => run(() => api.completeTask(task))}>✓ 완료로 보관</button>
         ) : (
           <button disabled={busy} onClick={() => run(() => api.reopenTask(task))}>다시 진행</button>
         )}
