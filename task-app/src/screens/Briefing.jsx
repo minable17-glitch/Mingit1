@@ -270,12 +270,11 @@ function longDate(d) {
   return `${m}월 ${day}일 ${wd}요일`;
 }
 
-// ── 입력: 새 업무 / 던져넣기 / 공문 붙여넣기 ─────────────
+// ── 입력: 새 업무 / 던져넣기 (긴 공문을 새 업무 칸에 붙여넣으면 초안 화면으로) ─────────────
 
 const MODES = [
   { key: 'new', label: '새 업무' },
   { key: 'throw', label: '던져넣기' },
-  { key: 'doc', label: '공문 붙여넣기' },
 ];
 
 function InputArea(props) {
@@ -289,7 +288,6 @@ function InputArea(props) {
       </div>
       {mode === 'new' && <QuickAdd {...props} />}
       {mode === 'throw' && <ThrowIn settings={props.settings} onAdded={props.onAdded} />}
-      {mode === 'doc' && <PasteDocument {...props} />}
     </div>
   );
 }
@@ -370,30 +368,6 @@ function openLongText(text, categories, onOpenScreen, options, categoryId) {
   const { draft, source } = extractFromLongText(text, categories, todayKST(), options);
   if (categoryId) draft.category_id = categoryId;
   onOpenScreen({ type: 'draft', draft, source, sourceText: text });
-}
-
-// 붙여넣기: 공문이면 제목·기한·붙임을, AI와 나눈 대화면 할 일 목록을 이야기한 순서대로 뽑아 초안
-// → 초안 화면에서 AI 도움받기로 다듬거나 직접 고쳐서 확정
-function PasteDocument({ categories, onOpenScreen }) {
-  const [text, setText] = useState('');
-
-  function analyze() {
-    openLongText(text, categories, onOpenScreen, { preferChat: true });
-    setText('');
-  }
-
-  return (
-    <div className="stack">
-      <textarea
-        rows={5}
-        placeholder={'공문 본문이나, ChatGPT·Claude 등과 나눈 대화를 통째로 붙여넣으세요.\n공문이면 제목·기한·붙임을, 대화면 할 일 목록을 이야기한 순서대로 뽑아 업무 초안을 만들어요.'}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <p className="muted small">⚠️ 학생 이름 등 개인정보가 들어 있으면 지우고 붙여넣어 주세요.</p>
-      <button className="primary" disabled={text.trim().length < 10} onClick={analyze}>업무로 만들기</button>
-    </div>
-  );
 }
 
 // ── 짜투리 모드 ─────────────────────────────
