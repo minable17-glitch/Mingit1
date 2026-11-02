@@ -1153,6 +1153,7 @@ export function buildWorld(scene, { menu = [] } = {}) {
     mb.position.set(25, 2.65, C.minZ + T + 0.02);
     scene.add(mb);
     menuSign.tex = mt;
+    menuSign.mesh = mb;
     // 긴 식탁 + 붙박이 둥근 의자
     for (const tz of [-35.5, -31.5, -27.5]) {
       for (const tx of [18, 32]) {
@@ -1283,8 +1284,20 @@ export function buildWorld(scene, { menu = [] } = {}) {
     b.texture.needsUpdate = true;
   }
 
+  // 급식 메뉴판 다시 쓰기 (게임 속 하루가 바뀔 때)
+  let menuKey = (menu || []).join();
+  function setMenu(next) {
+    const k = (next || []).join();
+    if (!menuSign.mesh || k === menuKey) return;
+    menuKey = k;
+    menuSign.mesh.material.map.dispose();
+    menuSign.mesh.material.map = textTex(512, 360, '#24402f', '#f4f1e6', ['오늘의 급식', ...(next.length ? next : ['오늘은 급식이 없어요'])], 40, '#8a5a36');
+    menuSign.mesh.material.needsUpdate = true;
+  }
+
   return {
     writeBoard,
+    setMenu,
     walkables,
     occluders: [...built.wall, ...built.floor, ...built.glass],
     tapBlockers: built.wall,

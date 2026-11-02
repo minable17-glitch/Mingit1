@@ -20,7 +20,7 @@ const params = new URLSearchParams(location.search);
 const room = (params.get('room') || '우리학교').slice(0, 30);
 const isTeacher = params.get('teacher') === '1';
 const startClass = CLASSROOMS.find((c) => c.id === params.get('class'));
-if (params.get('debug') === '1') setTestTime(params.get('time'));
+if (params.get('debug') === '1' && params.get('time') != null) setTestTime(params.get('time'));
 
 // ── 내 정보 (이 기기에 기억) ──
 const ADJ = ['씩씩한', '반짝이는', '포근한', '즐거운', '용감한', '느긋한', '다정한', '호기심 많은', '상냥한', '튼튼한'];
@@ -63,8 +63,7 @@ renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 260);
-const MENU = todayMenu();
-const world = buildWorld(scene, { menu: MENU });
+const world = buildWorld(scene, { menu: todayMenu() });
 const inRect = (r, x, z) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
 const nav = createNavigator(world.blocks);
 
@@ -746,7 +745,7 @@ mealBtn.addEventListener('click', () => {
   me.showEmoji('🍱', 30);
   me.say('잘 먹겠습니다!');
   cook.say(['맛있게 먹어라~', '남기지 말고~', '많이 먹어!'][Math.floor(Math.random() * 3)]);
-  hint(MENU.length ? `오늘의 급식: ${MENU.join(' · ')}` : '오늘은 급식이 없어요 (주말)', 4000);
+  hint(`오늘의 급식: ${todayMenu().join(' · ')}`, 4000);
   net.send('act', { type: 'meal' });
 });
 let inCafeNow = false;
@@ -757,7 +756,7 @@ function updateAnnex() {
   const nearHoop = g && nearestHoop(me.pos).dist < 10;
   shootBtn.classList.toggle('hidden', !nearHoop);
   mealBtn.classList.toggle('hidden', !c);
-  if (c && !inCafeNow) cook.say(MENU.length ? `오늘은 ${MENU[2]}다~ 줄 서라~` : '오늘은 급식 없어~');
+  if (c && !inCafeNow) cook.say(`오늘은 ${todayMenu()[2]}다~ 줄 서라~`);
   inCafeNow = c;
 }
 
@@ -778,7 +777,8 @@ let periodKey = null;
 function updatePeriod(first) {
   const p = schoolNow();
   periodPill.innerHTML = `${p.icon} <b>${p.text}</b> · ${p.sub}`;
-  if (periodKey && p.key !== periodKey && !first && p.key !== 'weekend') {
+  if (periodKey && p.key !== periodKey && !first) {
+    world.setMenu(todayMenu());
     hint(`🔔 ${p.text}${p.kind === 'class' ? ' 시작!' : ''}`, 3000);
     if (!muted && !stopBell) playSchoolBell(false);
   }
@@ -914,7 +914,7 @@ function start() {
   ambience.start();
   // 시간표에 맞춰 수업 시작·끝날 때 종이 울림
   updatePeriod(true);
-  setInterval(() => updatePeriod(false), 5000);
+  setInterval(() => updatePeriod(false), 1000);
 
   // 주기적으로 내 위치 알림 + 오래 소식 없는 친구 정리
   setInterval(() => {
