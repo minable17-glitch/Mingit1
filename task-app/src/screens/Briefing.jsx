@@ -12,6 +12,8 @@ import { principleOfDay } from '../lib/thoughts.js';
 import TodayCard from './TodayCard.jsx';
 import { isDayItem } from '../lib/today.js';
 import { ThrowBox, ThrowIn } from './ThrowBox.jsx';
+import DropOverlay from './DropOverlay.jsx';
+import { nameCapture } from '../lib/files.js';
 
 export default function Briefing({
   tasks, categories, categoryById, settings, templates, inboxCount, reload, onOpen, onOpenScreen, links = [], reminders = [], thoughts = [], todayItems = [], throwItems = [], showClass = true,
@@ -279,15 +281,19 @@ const MODES = [
 
 function InputArea(props) {
   const [mode, setMode] = useState('new');
+  const [files, setFiles] = useState([]); // 던져넣기에 같이 담을 파일
+  // 화면 어디에든 파일을 끌어다 놓으면 던져넣기로 바꾸고 파일을 담아 둠
+  const dropIn = (list) => { setMode('throw'); setFiles((f) => [...f, ...list.map((x) => nameCapture(x))]); };
   return (
     <div className="input-area composer">
+      <DropOverlay label="놓으면 📥 던져넣기에 담겨요" hint="글을 덧붙인 뒤 ‘던지기’를 누르세요" onFiles={dropIn} />
       <div className="seg" role="tablist">
         {MODES.map((m) => (
           <button key={m.key} role="tab" aria-selected={mode === m.key} className={mode === m.key ? 'on' : ''} onClick={() => setMode(m.key)}>{m.label}</button>
         ))}
       </div>
       {mode === 'new' && <QuickAdd {...props} />}
-      {mode === 'throw' && <ThrowIn settings={props.settings} onAdded={props.onAdded} />}
+      {mode === 'throw' && <ThrowIn settings={props.settings} onAdded={props.onAdded} files={files} setFiles={setFiles} />}
     </div>
   );
 }

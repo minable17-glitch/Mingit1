@@ -11,9 +11,9 @@ import { isDayItem } from '../lib/today.js';
 import Attachments from './Attachments.jsx';
 import { filesFrom, nameCapture } from '../lib/files.js';
 
-export function ThrowIn({ settings, onAdded }) {
+// files·setFiles 는 바깥(입력 상자)에서 받음 — 화면에 파일을 끌어다 놓으면 여기로 들어옴
+export function ThrowIn({ settings, onAdded, files, setFiles }) {
   const [text, setText] = useState('');
-  const [files, setFiles] = useState([]); // 같이 던질 캡처·파일
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const pick = useRef(null);
@@ -59,6 +59,7 @@ export function ThrowIn({ settings, onAdded }) {
         <input ref={pick} type="file" multiple hidden onChange={(e) => { addFiles([...e.target.files]); e.target.value = ''; }} />
         <button className="primary" disabled={busy || (!text.trim() && !files.length)}>던지기</button>
       </form>
+      {!files.length && <p className="small muted drop-hint">사진·파일은 📎를 누르거나 화면에 <b>끌어다 놓으세요</b>. 캡처는 Ctrl+V.</p>}
       {files.length > 0 && (
         <ul className="throw-files">
           {files.map((f, i) => (

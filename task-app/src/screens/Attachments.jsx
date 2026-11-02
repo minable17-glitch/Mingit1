@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
 import { filesFrom, isImage, nameCapture, sizeLabel } from '../lib/files.js';
+import DropOverlay from './DropOverlay.jsx';
 
 export default function Attachments({ taskId, throwId, editable = true, title = '📎 첨부', pasteAnywhere = false }) {
   const [list, setList] = useState(null);
@@ -62,10 +63,11 @@ export default function Attachments({ taskId, throwId, editable = true, title = 
   return (
     <div
       className={`block att${over ? ' over' : ''}`}
-      onDragOver={editable ? (e) => { e.preventDefault(); setOver(true); } : undefined}
+      onDragOver={editable && !pasteAnywhere ? (e) => { e.preventDefault(); setOver(true); } : undefined}
       onDragLeave={() => setOver(false)}
-      onDrop={editable ? (e) => { e.preventDefault(); setOver(false); add(filesFrom(e.dataTransfer)); } : undefined}
+      onDrop={editable && !pasteAnywhere ? (e) => { e.preventDefault(); setOver(false); add(filesFrom(e.dataTransfer)); } : undefined}
     >
+      {editable && pasteAnywhere && <DropOverlay label="놓으면 이 업무에 첨부돼요" onFiles={add} />}
       <div className="block-head">
         <h2>{title} {list.length > 0 && <span className="muted small">{list.length}</span>}</h2>
         {editable && (
@@ -100,7 +102,7 @@ export default function Attachments({ taskId, throwId, editable = true, title = 
         </ul>
       )}
       {editable && !list.length && (
-        <p className="small muted att-hint">캡처한 화면을 <b>Ctrl+V</b>로 붙여넣거나, 파일을 여기로 끌어다 놓으세요. 폰에서는 <b>사진·파일 넣기</b>를 누르세요. (한 파일 {api.MAX_FILE_MB}MB까지, 나만 볼 수 있어요)</p>
+        <p className="small muted att-hint">캡처한 화면을 <b>Ctrl+V</b>로 붙여넣거나, 파일을 화면 아무 데나 끌어다 놓으세요. 폰에서는 <b>사진·파일 넣기</b>를 누르세요. (한 파일 {api.MAX_FILE_MB}MB까지, 나만 볼 수 있어요)</p>
       )}
       {msg && <p className="small muted">{msg}</p>}
     </div>
