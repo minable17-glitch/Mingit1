@@ -5,15 +5,6 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.GH_PAGES ? '/Mingit1/' : '/',
-  build: {
-    rollupOptions: {
-      input: {
-        main: 'index.html',
-        // 3D 온라인 학교 (별도 페이지: school.html)
-        school: 'school.html',
-      },
-    },
-  },
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
@@ -25,8 +16,6 @@ export default defineConfig({
       includeAssets: ['favicon.svg'],
       workbox: {
         cleanupOutdatedCaches: true,
-        // 온라인 학교(3D) 파일은 새싹책방 오프라인 캐시에 넣지 않음 (학생 기기 용량 절약)
-        globIgnores: ['**/school*', '**/three*'],
         // 기본 네비게이션 폴백(캐시 우선)을 끄고, 아래 NetworkFirst 규칙이
         // 모든 화면 이동 요청을 대신 처리하게 함
         navigateFallback: null,
