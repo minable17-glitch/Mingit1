@@ -8,7 +8,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 export const LEVEL_H = 3.6; // 층 높이
 export const LEVELS = 3;
 export const levelY = (k) => 0.15 + k * LEVEL_H; // k층 바닥 높이 (0 = 1층)
-export const levelOfY = (y) => Math.max(0, Math.min(LEVELS - 1, Math.round((y - 0.15) / LEVEL_H)));
+export const ROOF = LEVELS; // 옥상 = 4번째 층
+export const levelOfY = (y) => Math.max(0, Math.min(ROOF, Math.round((y - 0.15) / LEVEL_H)));
 
 const SLOT = 9; // 교실 가로
 const STAIR_W = 7; // 계단실 가로
@@ -70,6 +71,7 @@ export const NAV_BOUNDS = [
   { minX: -68.5, maxX: 68.5, minZ: -15.5, maxZ: 72.5 }, // 1층 + 바깥(담장 안)
   { minX: -BX, maxX: BX, minZ: Z_BACK, maxZ: Z_FRONT },
   { minX: -BX, maxX: BX, minZ: Z_BACK, maxZ: Z_FRONT },
+  { minX: -BX, maxX: BX, minZ: Z_BACK, maxZ: Z_FRONT }, // 옥상
 ];
 
 // ── 캔버스 무늬 ───────────────────────────────────────────
@@ -208,7 +210,7 @@ function createBatcher() {
 // ── 공간 만들기 ───────────────────────────────────────────
 export function buildWorld(scene) {
   const B = createBatcher();
-  const blocks = [[], [], []]; // 층별 막힌 영역
+  const blocks = [[], [], [], []]; // 층별 막힌 영역 (1~3층 + 옥상)
   const block = (k, x1, x2, z1, z2) =>
     blocks[k].push({ minX: Math.min(x1, x2), maxX: Math.max(x1, x2), minZ: Math.min(z1, z2), maxZ: Math.max(z1, z2) });
   const chairs = [];
@@ -254,7 +256,8 @@ export function buildWorld(scene) {
     band: std('#b8745d'),
     green: std('#86a58d'),
     white: std('#f2f2ee'),
-    roof: std('#a19f96'),
+    roof: std('#5f8f62', { roughness: 0.6 }), // 초록 방수 페인트 옥상
+    tank: std('#4a86c5', { roughness: 0.4 }),
     concrete: std('#ffffff', { map: tex.concrete }, 0.3),
     glass: (() => {
       const m = new THREE.MeshStandardMaterial({ color: '#9cc3d8', transparent: true, opacity: 0.32, roughness: 0.1, metalness: 0.2, depthWrite: false });
@@ -351,7 +354,8 @@ export function buildWorld(scene) {
     const yb = k === 0 ? 0 : L - 0.2;
     for (const s of SLOTS) {
       if (k === LEVELS) {
-        B.box('roof', 'floor', s.xs, s.xe, yb, L, Z_BACK, Z_FRONT); // 옥상
+        // 옥상 바닥 (계단 자리는 뚫림)
+        B.box('roof', 'floor', s.xs, s.xe, yb, L, Z_BACK, s.type === 'stair' ? Z_CORR : Z_FRONT);
         continue;
       }
       if (s.type === 'class') B.box('floorWood', 'floor', s.xs, s.xe, yb, L, Z_CORR, Z_FRONT);
@@ -366,6 +370,13 @@ export function buildWorld(scene) {
   B.box('cream', 'wall', -BX, BX, roofY, roofY + 1, Z_BACK, Z_BACK + 0.25);
   B.box('cream', 'wall', -BX, -BX + 0.25, roofY, roofY + 1, Z_BACK, Z_FRONT);
   B.box('cream', 'wall', BX - 0.25, BX, roofY, roofY + 1, Z_BACK, Z_FRONT);
+  // 난간 위 초록 철망 + 막힌 영역
+  B.box('fence', 'deco', -BX, BX, roofY + 1, roofY + 1.8, Z_FRONT - 0.14, Z_FRONT - 0.11);
+  B.box('fence', 'deco', -BX, BX, roofY + 1, roofY + 1.8, Z_BACK + 0.11, Z_BACK + 0.14);
+  block(ROOF, -BX, BX, Z_FRONT - 0.25, Z_FRONT);
+  block(ROOF, -BX, BX, Z_BACK, Z_BACK + 0.25);
+  block(ROOF, -BX, -BX + 0.25, Z_BACK, Z_FRONT);
+  block(ROOF, BX - 0.25, BX, Z_BACK, Z_FRONT);
 
   // 창문 벽 (아래 벽돌색 띠 + 유리 + 위 크림색)
   function windowWall(k, x1, x2, z1, z2) {
@@ -446,9 +457,34 @@ export function buildWorld(scene) {
   const STEPS = 12;
   const run = (FLIGHT_END - Z_CORR) / STEPS;
   for (const st of STAIRS) {
-    B.box('cream', 'wall', st.mid - 0.1, st.mid + 0.1, 0, levelY(LEVELS) - 0.2, Z_CORR, FLIGHT_END);
-    for (let k = 0; k < LEVELS; k++) block(k, st.xs, st.xe, Z_CORR, Z_FRONT); // 계단 구역은 평면 길찾기에서 제외
-    for (let k = 0; k < LEVELS - 1; k++) {
+    B.box('cream', 'wall', st.mid - 0.1, st.mid + 0.1, 0, levelY(LEVELS) + 3, Z_CORR, FLIGHT_END);
+    for (let k = 0; k <= ROOF; k++) block(k, st.xs, st.xe, Z_CORR, Z_FRONT); // 계단 구역은 평면 길찾기에서 제외
+    // 옥상 계단실 (옥탑): 안쪽 벽에 옥상으로 나가는 문
+    {
+      const y0 = levelY(ROOF);
+      const y1 = y0 + 3.2;
+      const outer = st.xs < 0 ? st.xs : st.xe - WALL_T;
+      const inner = st.xs < 0 ? st.xe - WALL_T : st.xs;
+      B.box('cream', 'wall', outer, outer + WALL_T, y0, y1, Z_BACK, Z_FRONT);
+      B.box('cream', 'wall', st.xs, st.xe, y0, y1, Z_FRONT - WALL_T, Z_FRONT);
+      B.box('cream', 'wall', st.xs, st.xe, y0, y1, Z_BACK, Z_BACK + WALL_T);
+      B.box('cream', 'wall', inner, inner + WALL_T, y0, y1, -9.6, Z_FRONT);
+      B.box('cream', 'wall', inner, inner + WALL_T, y0, y1, Z_BACK, -11.4);
+      B.box('cream', 'wall', inner, inner + WALL_T, y0 + 2.25, y1, -11.4, -9.6);
+      B.box('door', 'deco', inner - 0.02, inner + WALL_T + 0.02, y0, y0 + 2.2, -9.6, -9.0); // 열린 철문
+      B.box('roof', 'wall', st.xs - 0.2, st.xe + 0.2, y1, y1 + 0.2, Z_BACK - 0.2, Z_FRONT + 0.2);
+      block(ROOF, outer, outer + WALL_T, Z_BACK, Z_FRONT);
+      block(ROOF, inner, inner + WALL_T, -9.6, Z_FRONT);
+      block(ROOF, inner, inner + WALL_T, Z_BACK, -11.4);
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.9, 0.3),
+        new THREE.MeshBasicMaterial({ map: textTex(256, 86, '#2f7a52', '#ffffff', ['옥상'], 52), side: THREE.DoubleSide }),
+      );
+      sign.rotation.y = Math.PI / 2;
+      sign.position.set(inner + WALL_T / 2 + (st.xs < 0 ? 0.13 : -0.13), y0 + 2.6, -10.5);
+      scene.add(sign);
+    }
+    for (let k = 0; k < LEVELS; k++) {
       const L = levelY(k);
       for (let i = 0; i < STEPS; i++) {
         const topA = L + 0.15 * (i + 1);
@@ -464,6 +500,34 @@ export function buildWorld(scene) {
         g.rotateX(Math.atan2(1.8, len) * (up ? -1 : 1));
         B.geo('metal', 'deco', g, x, L + (up ? 0 : 1.8) + 0.9 + 0.9, (Z_CORR + FLIGHT_END) / 2);
       }
+    }
+  }
+
+  // ── 옥상 소품: 물탱크, 실외기, 벤치, 화분 ──
+  {
+    const y = levelY(ROOF);
+    for (const [tx, tz] of [[-20, -6], [24, -6]]) {
+      B.box('metal', 'deco', tx - 1.4, tx + 1.4, y, y + 0.6, tz - 1.4, tz + 1.4);
+      B.geo('tank', 'deco', new THREE.CylinderGeometry(1.2, 1.2, 2.2, 20), tx, y + 1.7, tz);
+      B.geo('tank', 'deco', new THREE.SphereGeometry(1.2, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2), tx, y + 2.8, tz);
+      block(ROOF, tx - 1.5, tx + 1.5, tz - 1.5, tz + 1.5);
+    }
+    for (let x = -42; x <= 42; x += 12) {
+      if (Math.abs(x) < 6) continue;
+      B.box('white', 'deco', x - 0.5, x + 0.5, y, y + 0.7, -11.6, -11.0);
+      B.geo('metal', 'deco', new THREE.CylinderGeometry(0.22, 0.22, 0.04, 16), x, y + 0.45, -10.99);
+      block(ROOF, x - 0.5, x + 0.5, -11.6, -11.0);
+    }
+    for (const bx of [-8, 8]) {
+      B.box('chair', 'deco', bx - 1.1, bx + 1.1, y + 0.45, y + 0.5, -2.2, -1.6);
+      B.box('metal', 'deco', bx - 1, bx - 0.9, y, y + 0.45, -2.15, -1.65);
+      B.box('metal', 'deco', bx + 0.9, bx + 1, y, y + 0.45, -2.15, -1.65);
+      block(ROOF, bx - 1.1, bx + 1.1, -2.2, -1.6);
+    }
+    for (let x = -36; x <= 36; x += 9) {
+      B.box('band', 'deco', x - 0.4, x + 0.4, y, y + 0.5, -0.9, -0.35);
+      B.geo('shrub', 'deco', new THREE.IcosahedronGeometry(0.4, 1), x, y + 0.8, -0.62);
+      block(ROOF, x - 0.4, x + 0.4, -0.9, -0.35);
     }
   }
 
@@ -892,14 +956,14 @@ export function buildWorld(scene) {
     const st = STAIRS.find((s) => x >= s.xs && x <= s.xe);
     const cands = [];
     if (st && z > Z_CORR) {
-      for (let k = 0; k < LEVELS - 1; k++) {
+      for (let k = 0; k < LEVELS; k++) {
         const L = levelY(k);
         if (z >= FLIGHT_END) cands.push(L + 1.8);
         else if (x < st.mid) cands.push(L + (1.8 * (z - Z_CORR)) / (FLIGHT_END - Z_CORR));
         else cands.push(L + 1.8 + (1.8 * (FLIGHT_END - z)) / (FLIGHT_END - Z_CORR));
       }
     } else {
-      for (let k = 0; k < LEVELS; k++) cands.push(levelY(k));
+      for (let k = 0; k <= ROOF; k++) cands.push(levelY(k));
     }
     let best = cands[0];
     for (const c of cands) if (Math.abs(c - curY) < Math.abs(best - curY)) best = c;

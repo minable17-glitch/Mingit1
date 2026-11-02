@@ -1,8 +1,58 @@
 // 귀여운 학생 아바타 (큰 머리 + 교복) 와 이름표·말풍선
 import * as THREE from 'three';
 
-export const UNIFORM_COLORS = ['#2f4a7a', '#7a2f3f', '#2f6a55', '#5a4a7a', '#7a5a2f', '#3f5f8a'];
-const HAIR_COLORS = ['#2a211c', '#3b2a20', '#4a3426', '#1f1f24'];
+// ── 꾸미기 선택지 ──
+export const OUTFITS = [
+  { id: 'navy', name: '남색 교복', top: '#2f4a7a', pants: '#3b3f4a', tie: '#c0453f' },
+  { id: 'wine', name: '자주 교복', top: '#7a2f3f', pants: '#3b3f4a', tie: '#2f4a7a' },
+  { id: 'green', name: '초록 교복', top: '#2f6a55', pants: '#3b3f4a', tie: '#c0453f' },
+  { id: 'beige', name: '베이지 조끼', top: '#b89a6a', pants: '#4a4440', tie: '#7a2f3f' },
+  { id: 'gym', name: '초록 체육복', top: '#2f7a52', pants: '#2f7a52', gym: true },
+  { id: 'gymblue', name: '파란 체육복', top: '#2f58a8', pants: '#2f58a8', gym: true },
+  { id: 'suit', name: '선생님 정장', top: '#6b5444', pants: '#3d3a37', tie: '#2f4a7a' },
+];
+export const HAIRS = [
+  { id: 'short', name: '짧은 머리' },
+  { id: 'buzz', name: '까까머리' },
+  { id: 'bob', name: '단발' },
+  { id: 'long', name: '긴 머리' },
+  { id: 'pigtail', name: '양갈래' },
+  { id: 'bun', name: '똥머리' },
+];
+export const HAIR_COLORS = [
+  { id: 'black', name: '검정', color: '#1f1f24' },
+  { id: 'dark', name: '흑갈색', color: '#3b2a20' },
+  { id: 'brown', name: '갈색', color: '#6b4a32' },
+  { id: 'gold', name: '노랑', color: '#c9a04a' },
+];
+export const ACCS = [
+  { id: 'none', name: '없음' },
+  { id: 'glasses', name: '안경' },
+  { id: 'cap', name: '야구모자' },
+  { id: 'ribbon', name: '리본' },
+];
+
+export function defaultLook(id, isTeacher) {
+  const h = hashCode(id);
+  return {
+    outfit: isTeacher ? 'suit' : OUTFITS[h % 4].id,
+    hair: HAIRS[h % 3].id,
+    hairColor: HAIR_COLORS[h % 2].id,
+    acc: 'none',
+  };
+}
+
+// 친구에게서 받은 값도 안전하게 정리
+export function cleanLook(look, fallback) {
+  const pick = (list, v, d) => (list.some((o) => o.id === v) ? v : d);
+  const l = look && typeof look === 'object' ? look : {};
+  return {
+    outfit: pick(OUTFITS, l.outfit, fallback.outfit),
+    hair: pick(HAIRS, l.hair, fallback.hair),
+    hairColor: pick(HAIR_COLORS, l.hairColor, fallback.hairColor),
+    acc: pick(ACCS, l.acc, fallback.acc),
+  };
+}
 const FONT = "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif";
 
 function roundRect(g, x, y, w, h, r) {
@@ -111,18 +161,19 @@ function hashCode(str) {
 }
 
 export class Avatar {
-  constructor({ id, name, color, isMe = false, isTeacher = false }) {
+  constructor({ id, name, color, look, isMe = false, isTeacher = false }) {
     this.id = id;
     this.isMe = isMe;
     this.isTeacher = isTeacher;
-    const h = hashCode(id);
-    const uniform = color || UNIFORM_COLORS[h % UNIFORM_COLORS.length];
     const mat = (c, extra) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, ...extra });
+    this.mat = mat;
     const skin = mat('#f1c79a');
-    const cloth = mat(isTeacher ? '#6b5444' : uniform);
+    const cloth = mat(color || '#2f4a7a');
     const shirt = mat('#f6f4ee');
-    const pants = mat(isTeacher ? '#3d3a37' : '#3b3f4a');
-    const hair = mat(HAIR_COLORS[h % HAIR_COLORS.length]);
+    const pants = mat('#3b3f4a');
+    const hair = mat('#1f1f24');
+    this.mats = { cloth, pants, hair, tie: mat('#c0453f') };
+    this.fixedColor = color;
 
     const root = new THREE.Group();
     this.root = root;
@@ -141,10 +192,17 @@ export class Avatar {
     collar.rotation.x = Math.PI;
     collar.position.set(0, 0.46, 0.2);
     body.add(collar);
-    const tie = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.22, 0.03), mat(isTeacher ? '#2f4a7a' : '#c0453f'));
+    const tie = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.22, 0.03), this.mats.tie);
     tie.position.set(0, 0.32, 0.29);
     tie.rotation.x = -0.12;
     body.add(tie);
+    this.collar = collar;
+    this.tie = tie;
+    // 체육복 흰 줄
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.305, 0.06, 16, 1, true), shirt);
+    stripe.position.y = 0.3;
+    body.add(stripe);
+    this.stripe = stripe;
 
     // 머리
     const head = new THREE.Group();
@@ -152,10 +210,9 @@ export class Avatar {
     body.add(head);
     this.head = head;
     head.add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 18), skin));
-    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), hair);
-    hairCap.rotation.x = -0.35;
-    hairCap.position.set(0, 0.02, -0.03);
-    head.add(hairCap);
+    this.hairGroup = new THREE.Group();
+    this.accGroup = new THREE.Group();
+    head.add(this.hairGroup, this.accGroup);
     const eyeMat = mat('#2a2522');
     for (const ex of [-0.13, 0.13]) {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), eyeMat);
@@ -199,9 +256,7 @@ export class Avatar {
     this.legL = makeLeg(-1);
     this.legR = makeLeg(1);
 
-    root.traverse((o) => {
-      if (o.isMesh) o.castShadow = true;
-    });
+    this.setLook(look || defaultLook(id, isTeacher));
 
     // 이름표
     this.tagHolder = new THREE.Group();
@@ -221,6 +276,83 @@ export class Avatar {
     this.bubbleT = 0;
     this.emoji = null;
     this.emojiT = 0;
+  }
+
+  // 옷·머리·장식 바꾸기
+  setLook(look) {
+    const l = cleanLook(look, defaultLook(this.id, this.isTeacher));
+    this.look = l;
+    const o = OUTFITS.find((x) => x.id === l.outfit);
+    this.mats.cloth.color.set(this.fixedColor || o.top);
+    this.mats.pants.color.set(o.pants);
+    if (o.tie) this.mats.tie.color.set(o.tie);
+    this.tie.visible = !o.gym;
+    this.collar.visible = !o.gym;
+    this.stripe.visible = !!o.gym;
+    this.mats.hair.color.set(HAIR_COLORS.find((x) => x.id === l.hairColor).color);
+
+    const clear = (g) => {
+      for (const c of [...g.children]) {
+        g.remove(c);
+        c.traverse((m) => m.isMesh && m.geometry.dispose());
+      }
+    };
+    clear(this.hairGroup);
+    clear(this.accGroup);
+    const hm = this.mats.hair;
+    const add = (g, geo, mat, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.scale.set(sx, sy, sz);
+      m.rotation.x = rx;
+      g.add(m);
+      return m;
+    };
+    const cap = (theta) => add(this.hairGroup, new THREE.SphereGeometry(0.42, 24, 12, 0, Math.PI * 2, 0, Math.PI * theta), hm, 0, 0.02, -0.03, 1, 1, 1, -0.35);
+    switch (l.hair) {
+      case 'buzz':
+        add(this.hairGroup, new THREE.SphereGeometry(0.405, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.4), hm, 0, 0.01, -0.02, 1, 1, 1, -0.4);
+        break;
+      case 'bob':
+        cap(0.42);
+        add(this.hairGroup, new THREE.SphereGeometry(0.44, 24, 12, Math.PI * 0.6, Math.PI * 0.8, Math.PI * 0.25, Math.PI * 0.45), hm, 0, 0, 0);
+        break;
+      case 'long':
+        cap(0.42);
+        add(this.hairGroup, new THREE.SphereGeometry(0.44, 24, 12, Math.PI * 0.6, Math.PI * 0.8, Math.PI * 0.25, Math.PI * 0.45), hm, 0, 0, 0);
+        add(this.hairGroup, new THREE.CapsuleGeometry(0.3, 0.35, 4, 12), hm, 0, -0.35, -0.2, 1.1, 1, 0.45);
+        break;
+      case 'pigtail':
+        cap(0.42);
+        for (const sx of [-1, 1]) add(this.hairGroup, new THREE.SphereGeometry(0.13, 12, 10), hm, 0.42 * sx, -0.05, -0.12, 0.9, 1.5, 0.9);
+        break;
+      case 'bun':
+        cap(0.45);
+        add(this.hairGroup, new THREE.SphereGeometry(0.16, 14, 12), hm, 0, 0.42, -0.12);
+        break;
+      default:
+        cap(0.42);
+    }
+    const accMat = (c) => this.mat(c);
+    if (l.acc === 'glasses') {
+      const frame = accMat('#2a2a2e');
+      for (const ex of [-0.13, 0.13]) add(this.accGroup, new THREE.TorusGeometry(0.075, 0.012, 6, 18), frame, ex, -0.02, 0.385);
+      add(this.accGroup, new THREE.BoxGeometry(0.1, 0.015, 0.015), frame, 0, -0.01, 0.39);
+    } else if (l.acc === 'cap') {
+      const red = accMat('#c8473d');
+      add(this.accGroup, new THREE.SphereGeometry(0.435, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.36), red, 0, 0.04, -0.02, 1, 1, 1, -0.2);
+      add(this.accGroup, new THREE.CylinderGeometry(0.26, 0.26, 0.025, 20, 1, false, -Math.PI / 2, Math.PI), red, 0, 0.17, 0.3, 1, 1, 1.1, 0.12);
+    } else if (l.acc === 'ribbon') {
+      const pink = accMat('#ee7fa6');
+      for (const sx of [-1, 1]) {
+        const m = add(this.accGroup, new THREE.ConeGeometry(0.09, 0.16, 12), pink, 0.2 + sx * 0.09, 0.36, 0.05);
+        m.rotation.z = (sx * Math.PI) / 2;
+      }
+      add(this.accGroup, new THREE.SphereGeometry(0.045, 10, 8), pink, 0.2, 0.36, 0.05);
+    }
+    this.root.traverse((m) => {
+      if (m.isMesh) m.castShadow = true;
+    });
   }
 
   setName(name) {

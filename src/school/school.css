@@ -237,3 +237,35 @@ button { font: inherit; cursor: pointer; }
   background: #e9e1cf;
   font-size: 15px;
 }
+
+.period { font-size: 13.5px; padding: 8px 14px; }
+.period b { font-size: 15px; }
+.look-card { max-height: 46vh; overflow-y: auto; text-align: left; padding-top: 16px; }
+#lookSheet { background: transparent; }
+.look-card h2, .look-card > p { text-align: center; }
+.look-label, .look-sec { display: block; font-size: 13px; color: #666; margin: 12px 0 6px; }
+.look-name {
+  width: 100%;
+  border: 1px solid #d8d2c2;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid #e0d6c0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #333;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.15); }
+.chip.on { background: #3f7e4e; border-color: #3f7e4e; color: #fff; }
+.sheet-card .done { background: #3f7e4e; color: #fff; font-weight: 600; }

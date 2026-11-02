@@ -6,9 +6,10 @@
 //            school.html?room=우리학교&teacher=1  → 선생님 이름표로 입장
 import * as THREE from 'three';
 import './school.css';
-import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE } from './world.js';
+import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE, ROOF } from './world.js';
 import { createSoccer } from './soccer.js';
-import { Avatar } from './avatar.js';
+import { Avatar, OUTFITS, HAIRS, HAIR_COLORS, ACCS, cleanLook, defaultLook } from './avatar.js';
+import { schoolNow } from './schedule.js';
 import { createNavigator } from './pathfind.js';
 import { connectRoom } from './net.js';
 import { playSchoolBell, playClap, playPop, unlockAudio } from './audio.js';
@@ -75,7 +76,14 @@ window.addEventListener('resize', resize);
 resize();
 
 // ── 아바타들 ──
-const me = new Avatar({ id: myId, name: myName, isMe: true, isTeacher });
+let myLook = (() => {
+  try {
+    return cleanLook(JSON.parse(store.get('school.look') || 'null'), defaultLook(myId, isTeacher));
+  } catch {
+    return defaultLook(myId, isTeacher);
+  }
+})();
+const me = new Avatar({ id: myId, name: myName, look: myLook, isMe: true, isTeacher });
 if (startClass) {
   // 교실 앞쪽 통로에서 칠판을 보며 시작
   const L = levelY(startClass.level);
@@ -215,6 +223,7 @@ function myState() {
   const fin = me.finalDest || t;
   return {
     name: myName,
+    look: myLook,
     teacher: isTeacher,
     x: +me.pos.x.toFixed(2),
     y: +me.pos.y.toFixed(2),
@@ -231,10 +240,10 @@ const announce = () => {
   if (soccer.iKickedLast) net.send('ball', soccer.snapshot());
 };
 
-function getOther(id, name, teacher) {
+function getOther(id, name, teacher, look) {
   let o = others.get(id);
   if (!o) {
-    const avatar = new Avatar({ id, name: name || '친구', isTeacher: !!teacher });
+    const avatar = new Avatar({ id, name: name || '친구', isTeacher: !!teacher, look });
     scene.add(avatar.root);
     o = { avatar, lastSeen: performance.now() };
     others.set(id, o);
@@ -247,7 +256,8 @@ function getOther(id, name, teacher) {
 function onState(s) {
   if (!s?.id || s.id === myId) return;
   const isNew = !others.has(s.id);
-  const { avatar } = getOther(s.id, s.name, s.teacher);
+  const { avatar } = getOther(s.id, s.name, s.teacher, s.look);
+  if (s.look && JSON.stringify(cleanLook(s.look, avatar.look)) !== JSON.stringify(avatar.look)) avatar.setLook(s.look);
   const sy = Number.isFinite(s.y) ? s.y : 0;
   // 많이 어긋나 있거나 다른 층이면 순간이동, 아니면 자연스럽게 걸어감
   if (isNew || Math.hypot(avatar.pos.x - s.x, avatar.pos.z - s.z) > 4 || Math.abs(avatar.pos.y - sy) > 1.5) {
@@ -521,8 +531,8 @@ soundBtn.addEventListener('click', () => {
 const FIELD = { minX: -46, maxX: 46, minZ: 16, maxZ: 66 };
 function soundMix() {
   const { x, y, z } = me.pos;
-  const inBuilding = Math.abs(x) < 56.5 && z < 0 && z > -12;
   const k = levelOfY(y);
+  const inBuilding = Math.abs(x) < 56.5 && z < 0 && z > -12 && k < ROOF; // 옥상은 바깥처럼
   const room = roomAt(x, z, y);
   const inHallRoom = inBuilding && Math.abs(x) < 4.5 && z > -9;
   const dx = Math.max(FIELD.minX - x, 0, x - FIELD.maxX);
@@ -609,6 +619,85 @@ function updateStore() {
   }
 }
 
+// ── 시간표: 지금 몇 교시인지 표시 + 바뀔 때 종 ──
+const periodPill = document.getElementById('periodPill');
+let periodKey = null;
+function updatePeriod(first) {
+  const p = schoolNow();
+  periodPill.innerHTML = `${p.icon} <b>${p.text}</b> · ${p.sub}`;
+  if (periodKey && p.key !== periodKey && !first && p.key !== 'weekend') {
+    hint(`🔔 ${p.text}${p.kind === 'class' ? ' 시작!' : ''}`, 3000);
+    if (!muted && !stopBell) playSchoolBell(false);
+  }
+  periodKey = p.key;
+}
+updatePeriod(true);
+
+// ── 아바타 꾸미기 ──
+const lookSheet = document.getElementById('lookSheet');
+const lookOptions = document.getElementById('lookOptions');
+const lookName = document.getElementById('lookName');
+const LOOK_SECTIONS = [
+  { key: 'outfit', title: '옷', list: OUTFITS, swatch: (o) => o.top },
+  { key: 'hair', title: '머리 모양', list: HAIRS },
+  { key: 'hairColor', title: '머리 색', list: HAIR_COLORS, swatch: (o) => o.color },
+  { key: 'acc', title: '꾸미기', list: ACCS },
+];
+function renderLookOptions() {
+  lookOptions.innerHTML = '';
+  for (const sec of LOOK_SECTIONS) {
+    const t = document.createElement('span');
+    t.className = 'look-sec';
+    t.textContent = sec.title;
+    const wrap = document.createElement('div');
+    wrap.className = 'chips';
+    for (const o of sec.list) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `chip${myLook[sec.key] === o.id ? ' on' : ''}`;
+      if (sec.swatch) {
+        const sw = document.createElement('i');
+        sw.className = 'sw';
+        sw.style.background = sec.swatch(o);
+        b.appendChild(sw);
+      }
+      b.appendChild(document.createTextNode(o.name));
+      b.addEventListener('click', () => {
+        myLook = { ...myLook, [sec.key]: o.id };
+        me.setLook(myLook);
+        renderLookOptions();
+      });
+      wrap.appendChild(b);
+    }
+    lookOptions.append(t, wrap);
+  }
+}
+function openLook() {
+  lookName.value = myName;
+  renderLookOptions();
+  lookSheet.classList.remove('hidden');
+  // 내 모습이 잘 보이게 카메라를 앞쪽으로
+  cam.yaw = me.root.rotation.y;
+  cam.dist = Math.min(cam.dist, 4.5);
+}
+function closeLook() {
+  lookSheet.classList.add('hidden');
+  const v = lookName.value.trim().slice(0, 12);
+  if (v && v !== myName) {
+    myName = v;
+    store.set('school.name', myName);
+    me.setName(myName);
+    net.updateMe();
+  }
+  store.set('school.look', JSON.stringify(myLook));
+  announce();
+}
+document.getElementById('lookBtn').addEventListener('click', openLook);
+document.getElementById('lookDone').addEventListener('click', closeLook);
+lookSheet.addEventListener('click', (e) => {
+  if (e.target === lookSheet) closeLook();
+});
+
 // 이름 바꾸기 (왼쪽 위 방 이름 누르기)
 document.getElementById('roomBadge').addEventListener('click', () => {
   const v = window.prompt('내 이름을 바꿀까요? (12자까지)', myName);
@@ -670,10 +759,9 @@ function start() {
   ambience.setMuted(muted);
   ambience.setMix(soundMix());
   ambience.start();
-  // 5분마다 학교 종이 울림 (주변 소리를 켰을 때만)
-  setInterval(() => {
-    if (!muted && !stopBell) playSchoolBell(false);
-  }, 5 * 60 * 1000);
+  // 시간표에 맞춰 수업 시작·끝날 때 종이 울림
+  updatePeriod(true);
+  setInterval(() => updatePeriod(false), 5000);
 
   // 주기적으로 내 위치 알림 + 오래 소식 없는 친구 정리
   setInterval(() => {
@@ -691,7 +779,8 @@ function updateWhere() {
   const r = roomAt(me.pos.x, me.pos.z, me.pos.y);
   const inBuilding = Math.abs(me.pos.x) < 56.5 && me.pos.z < 0 && me.pos.z > -12;
   const shop = me.pos.x > STORE.minX && me.pos.x < STORE.maxX && me.pos.z > STORE.minZ && me.pos.z < STORE.maxZ;
-  const w = r ? r.name : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : '운동장';
+  const onRoof = inBuilding && levelOfY(me.pos.y) === ROOF;
+  const w = r ? r.name : onRoof ? '옥상' : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : '운동장';
   if (w !== lastWhere) {
     if (r && lastWhere) hint(r.name, 1500);
     lastWhere = w;
