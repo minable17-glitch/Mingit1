@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#2F4A3A" />
+    <meta name="description" content="친구들과 함께 걸어 다니는 3D 온라인 학교" />
+    <title>온라인 학교</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- 위쪽: 방 정보 + 오른쪽 버튼 -->
+    <div class="top">
+      <button class="pill room" id="roomBadge" type="button">
+        <span class="dot" id="netDot"></span>
+        <span id="roomLabel">온라인 학교</span>
+      </button>
+      <div class="top-right">
+        <button class="pill" id="bellBtn" type="button">종소리 듣기</button>
+        <button class="pill" id="soundBtn" type="button">🔊 주변 소리</button>
+        <button class="pill hidden" id="boardBtn" type="button">칠판 쓰기</button>
+      </div>
+    </div>
+
+    <div class="hint" id="hint"></div>
+
+    <!-- 말하기 입력창 -->
+    <form class="chat hidden" id="chatForm">
+      <input id="chatInput" maxlength="60" placeholder="친구들에게 할 말 (60자)" autocomplete="off" enterkeyhint="send" />
+      <button type="submit">보내기</button>
+    </form>
+
+    <!-- 아래쪽 동작 버튼 -->
+    <nav class="actions">
+      <button type="button" data-act="hand"><span class="ico">✋</span>손들기</button>
+      <button type="button" data-act="bow"><span class="ico">🙇</span>인사하기</button>
+      <button type="button" data-act="clap"><span class="ico">👏</span>박수</button>
+      <button type="button" data-act="talk"><span class="ico">💬</span>말하기</button>
+    </nav>
+
+    <!-- 입장 화면 -->
+    <div class="intro" id="intro">
+      <form class="card" id="introForm">
+        <div class="logo">🏫</div>
+        <h1>온라인 학교</h1>
+        <p class="sub" id="introRoom"></p>
+        <label for="nameInput">이름</label>
+        <input id="nameInput" maxlength="12" autocomplete="off" />
+        <button type="submit" class="primary">입장하기</button>
+        <p class="tip">바닥을 누르면 걸어가고, 빈 의자를 누르면 앉아요.<br />다른 층 바닥을 누르면 계단으로 알아서 가요.<br />화면을 끌면 주변을 둘러볼 수 있어요.</p>
+      </form>
+    </div>
+
+    <script type="module" src="/src/school/main.js"></script>
+  </body>
+</html>
