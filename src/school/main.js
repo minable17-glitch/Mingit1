@@ -3,10 +3,11 @@
 //
 // 주소 예시:  school.html?room=우리학교            → "우리학교" 방에 입장 (운동장에서 시작)
 //            school.html?room=우리학교&class=2-3  → 2학년 3반 교실에서 시작
-//            school.html?room=우리학교&teacher=1  → 선생님으로 입장 (칠판 쓰기 가능)
+//            school.html?room=우리학교&teacher=1  → 선생님 이름표로 입장
 import * as THREE from 'three';
 import './school.css';
-import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY } from './world.js';
+import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE } from './world.js';
+import { createSoccer } from './soccer.js';
 import { Avatar } from './avatar.js';
 import { createNavigator } from './pathfind.js';
 import { connectRoom } from './net.js';
@@ -62,14 +63,6 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 260);
 const world = buildWorld(scene);
 const nav = createNavigator(world.blocks);
 
-// 칠판 내용 (반 id → 글). 선생님이 쓰면 모두에게 전달됨
-const boards = {};
-function setBoard(id, text) {
-  if (!CLASSROOMS.some((c) => c.id === id)) return;
-  boards[id] = String(text).slice(0, 120);
-  world.writeBoard(id, boards[id]);
-}
-
 function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -95,6 +88,38 @@ if (startClass) {
 scene.add(me.root);
 
 const others = new Map(); // id → { avatar, lastSeen }
+
+// ── 축구공 ──
+const scorePill = document.getElementById('scorePill');
+function drawScore(blue, white) {
+  world.drawScore(blue, white);
+  document.getElementById('scoreBlue').textContent = blue;
+  document.getElementById('scoreWhite').textContent = white;
+}
+const soccer = createSoccer({
+  scene,
+  myId,
+  send: (snap) => net.send('ball', snap),
+  drawScore,
+  onGoal(side, b) {
+    const v = Math.max(0.15, 1 - Math.hypot(b.x - me.pos.x, b.z - me.pos.z) / 80);
+    hint(`⚽ 골~~! ${side === 'blue' ? '청팀' : '백팀'} 득점!`, 2400);
+    ambience?.cheer(v);
+  },
+  onKickSound(b, mine) {
+    const v = mine ? 1 : Math.max(0, 1 - Math.hypot(b.x - me.pos.x, b.z - me.pos.z) / 30);
+    ambience?.kick(v);
+  },
+});
+function onBall(s) {
+  soccer.apply(s);
+}
+
+// ── 매점 아주머니 ──
+const npc = new Avatar({ id: 'store-npc', name: '매점 아주머니', color: '#c0603f' });
+npc.pos.set((STORE.minX + STORE.maxX) / 2, 0, 5.0);
+npc.root.rotation.y = 0;
+scene.add(npc.root);
 
 function chairTakenBy(index) {
   if (me.sitChairIndex === index) return me;
@@ -132,6 +157,8 @@ function walkTo(avatar, dest, chairIndex = null) {
   return true;
 }
 
+let inStore = false;
+
 // ── 카메라 (내 아바타 뒤를 따라감, 끌어서 회전) ──
 const cam = { yaw: 0, pitch: 0.42, dist: 7.5, cur: 7.5, focus: new THREE.Vector3() };
 if (startClass) cam.yaw = Math.PI / 2;
@@ -139,16 +166,19 @@ const camRay = new THREE.Raycaster();
 function updateCamera(dt) {
   const target = new THREE.Vector3(me.pos.x, me.pos.y + 1.3, me.pos.z);
   cam.focus.lerp(target, Math.min(1, dt * 8));
+  // 매점 안은 좁아서 카메라를 가까이, 조금 위에서 내려다보게
+  const pitch = inStore ? Math.max(cam.pitch, 0.55) : cam.pitch;
+  const maxDist = inStore ? Math.min(cam.dist, 3.2) : cam.dist;
   const dir = new THREE.Vector3(
-    Math.sin(cam.yaw) * Math.cos(cam.pitch),
-    Math.sin(cam.pitch),
-    Math.cos(cam.yaw) * Math.cos(cam.pitch),
+    Math.sin(cam.yaw) * Math.cos(pitch),
+    Math.sin(pitch),
+    Math.cos(cam.yaw) * Math.cos(pitch),
   );
   // 벽·천장·기둥이 가리면 카메라를 그 앞으로 당김
   camRay.set(cam.focus, dir);
-  camRay.far = cam.dist;
+  camRay.far = maxDist;
   const hit = camRay.intersectObjects(world.occluders, false)[0];
-  const d = hit ? Math.max(0.6, hit.distance - 0.35) : cam.dist;
+  const d = hit ? Math.max(0.6, hit.distance - 0.35) : maxDist;
   cam.cur += (d - cam.cur) * Math.min(1, dt * (d < cam.cur ? 25 : 4));
   camera.position.copy(cam.focus).addScaledVector(dir, cam.cur);
   camera.lookAt(cam.focus);
@@ -193,10 +223,13 @@ function myState() {
     ty: fin && (me.target || me.reroute) ? +(fin.y ?? me.pos.y).toFixed(2) : null,
     tz: fin && (me.target || me.reroute) ? +fin.z.toFixed(2) : null,
     sit: me.sitChairIndex ?? (me.onArrive ? pendingChair : null),
-    boards: isTeacher ? boards : undefined,
   };
 }
-const announce = () => net.send('state', myState());
+const announce = () => {
+  net.send('state', myState());
+  // 마지막으로 공을 찬 사람이 새로 온 친구에게 공 위치·점수를 알려줌
+  if (soccer.iKickedLast) net.send('ball', soccer.snapshot());
+};
 
 function getOther(id, name, teacher) {
   let o = others.get(id);
@@ -231,9 +264,6 @@ function onState(s) {
     standUp(avatar);
     if (Math.hypot(avatar.pos.x - s.x, avatar.pos.z - s.z) > 0.3) walkTo(avatar, { x: s.x, y: sy, z: s.z });
   }
-  if (s.teacher && s.boards && typeof s.boards === 'object') {
-    for (const [id, text] of Object.entries(s.boards)) if (typeof text === 'string' && boards[id] !== text) setBoard(id, text);
-  }
 }
 
 function distVolume(avatar) {
@@ -249,14 +279,16 @@ function onAction(a) {
   if (a.type === 'talk') {
     o.avatar.say(String(a.text || '').slice(0, 60));
     playPop(distVolume(o.avatar));
+  } else if (a.type === 'eat') {
+    const item = SNACKS[a.item | 0];
+    if (item) {
+      o.avatar.showEmoji(item[0], 15);
+      o.avatar.say(`${item[1]} 냠냠!`);
+    }
   } else if (['hand', 'bow', 'clap'].includes(a.type)) {
     o.avatar.play(a.type);
     if (a.type === 'clap') playClap(distVolume(o.avatar));
   }
-}
-
-function onBoard(b) {
-  if (typeof b?.text === 'string' && typeof b?.room === 'string') setBoard(b.room, b.text);
 }
 
 function onLeave(id) {
@@ -322,7 +354,7 @@ canvas.addEventListener(
   { passive: false },
 );
 
-const tapTargets = [...world.walkables, ...world.tapBlockers, ...world.chairMeshes];
+const tapTargets = [soccer.mesh, ...world.walkables, ...world.tapBlockers, ...world.chairMeshes];
 const tmpN = new THREE.Vector3();
 
 function handleTap(cx, cy) {
@@ -330,6 +362,27 @@ function handleTap(cx, cy) {
   raycaster.setFromCamera(ndc, camera);
   const hit = raycaster.intersectObjects(tapTargets, false)[0];
   if (!hit) return hint('가까운 빈 바닥을 눌러주세요');
+
+  // 공을 눌렀나? → 공 너머로 달려가서 차기
+  if (hit.object === soccer.mesh) {
+    const bx = soccer.ball.x;
+    const bz = soccer.ball.z;
+    let dx = bx - me.pos.x;
+    let dz = bz - me.pos.z;
+    const d = Math.hypot(dx, dz) || 1;
+    dx /= d;
+    dz /= d;
+    let dest = { x: bx + dx * 1.2, y: 0, z: bz + dz * 1.2 };
+    if (nav.blockedAt(dest.x, dest.z, 0)) dest = { x: bx, y: 0, z: bz };
+    pendingChair = null;
+    me.finalDest = dest;
+    if (!walkTo(me, dest)) return hint('공에 갈 수 없어요');
+    me.onArrive = () => {
+      me.finalDest = null;
+    };
+    announce();
+    return;
+  }
 
   // 의자를 눌렀나?
   if (hit.object.userData.role === 'chair') {
@@ -478,7 +531,11 @@ function soundMix() {
   const open = 16000;
   const muffled = 650;
   const mix = {};
-  if (!inBuilding) {
+  const inShop = x > STORE.minX && x < STORE.maxX && z > STORE.minZ && z < STORE.maxZ;
+  if (inShop) {
+    mix.field = [0.4, 1000];
+    mix.outdoor = [0.3, 1000];
+  } else if (!inBuilding) {
     mix.field = [0.25 + 0.75 * near, open];
     mix.outdoor = [1, open];
     mix.corridor = [0.12, muffled];
@@ -505,20 +562,51 @@ function soundMix() {
   return mix;
 }
 
-// 칠판 쓰기 (선생님만, 지금 있는 교실의 칠판)
-const boardBtn = document.getElementById('boardBtn');
-if (isTeacher) {
-  boardBtn.classList.remove('hidden');
-  boardBtn.addEventListener('click', () => {
-    const r = roomAt(me.pos.x, me.pos.z, me.pos.y);
-    if (!r) return hint('교실 안에서 칠판을 쓸 수 있어요');
-    const cur = boards[r.id] ?? world.boardDefault(r.id);
-    const v = window.prompt(`${r.name} 칠판에 쓸 내용 (줄바꿈은 / 로 구분, 최대 5줄)`, cur.replace(/\n/g, ' / '));
-    if (v == null) return;
-    const text = v.split('/').map((s) => s.trim()).filter(Boolean).slice(0, 5).join('\n').slice(0, 120) || world.boardDefault(r.id);
-    setBoard(r.id, text);
-    net.send('board', { room: r.id, text });
+// ── 매점 ──
+const SNACKS = [
+  ['🥞', '꿀호떡'],
+  ['🍢', '컵떡볶이'],
+  ['🧊', '슬러시'],
+  ['🍌', '바나나우유'],
+  ['🌭', '핫바'],
+  ['🍜', '컵라면'],
+  ['🍦', '아이스크림'],
+  ['🥐', '소시지빵'],
+];
+const shopBtn = document.getElementById('shopBtn');
+const shopSheet = document.getElementById('shopSheet');
+const shopMenu = document.getElementById('shopMenu');
+SNACKS.forEach(([emoji, name], i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = `<span>${emoji}</span>${name}`;
+  btn.addEventListener('click', () => {
+    shopSheet.classList.add('hidden');
+    ambience?.ding();
+    me.showEmoji(emoji, 15);
+    me.say(`${name} 냠냠!`);
+    npc.say(['고마워~ 또 와!', '맛있게 먹어~', '흘리지 말고~'][i % 3]);
+    net.send('act', { type: 'eat', item: i });
   });
+  shopMenu.appendChild(btn);
+});
+shopBtn.addEventListener('click', () => {
+  unlockAudio();
+  shopSheet.classList.remove('hidden');
+});
+document.getElementById('shopClose').addEventListener('click', () => shopSheet.classList.add('hidden'));
+shopSheet.addEventListener('click', (e) => {
+  if (e.target === shopSheet) shopSheet.classList.add('hidden');
+});
+function updateStore() {
+  const { x, z } = me.pos;
+  const now = x > STORE.minX && x < STORE.maxX && z > STORE.minZ && z < STORE.maxZ;
+  if (now !== inStore) {
+    inStore = now;
+    shopBtn.classList.toggle('hidden', !now);
+    if (now) npc.say('어서 와~ 뭐 줄까?');
+    else shopSheet.classList.add('hidden');
+  }
 }
 
 // 이름 바꾸기 (왼쪽 위 방 이름 누르기)
@@ -564,7 +652,7 @@ function start() {
     me: meRef,
     onState,
     onAction,
-    onBoard,
+    onBall,
     onLeave,
     onCount(n) {
       peopleCount = Math.max(1, n);
@@ -602,7 +690,8 @@ let lastWhere = '';
 function updateWhere() {
   const r = roomAt(me.pos.x, me.pos.z, me.pos.y);
   const inBuilding = Math.abs(me.pos.x) < 56.5 && me.pos.z < 0 && me.pos.z > -12;
-  const w = r ? r.name : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : '운동장';
+  const shop = me.pos.x > STORE.minX && me.pos.x < STORE.maxX && me.pos.z > STORE.minZ && me.pos.z < STORE.maxZ;
+  const w = r ? r.name : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : '운동장';
   if (w !== lastWhere) {
     if (r && lastWhere) hint(r.name, 1500);
     lastWhere = w;
@@ -618,6 +707,8 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   me.update(dt, world.heightAt);
   for (const { avatar } of others.values()) avatar.update(dt, world.heightAt);
+  npc.update(dt, () => 0);
+  soccer.update(dt, me, !!me.target);
   world.update(clock.elapsedTime);
   if (marker.visible) {
     markerT += dt;
@@ -628,6 +719,8 @@ function frame() {
   if ((whereT += dt) > 0.3) {
     whereT = 0;
     updateWhere();
+    updateStore();
+    scorePill.classList.toggle('hidden', lastWhere !== '운동장');
     ambience?.setMix(soundMix());
   }
   // 그림자 영역이 내 주변을 따라오도록
@@ -641,4 +734,4 @@ cam.focus.set(me.pos.x, me.pos.y + 1.3, me.pos.z);
 frame();
 
 // 자동 점검용 (주소에 debug=1 이 있을 때만)
-if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others };
+if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others, soccer, npc };

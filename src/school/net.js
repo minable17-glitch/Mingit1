@@ -6,8 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export function connectRoom({ room, me, onState, onAction, onBoard, onLeave, onCount, onStatus }) {
-  if (!URL || !KEY) return connectLocal({ room, me, onState, onAction, onBoard, onLeave, onCount, onStatus });
+export function connectRoom({ room, me, onState, onAction, onBall, onLeave, onCount, onStatus }) {
+  if (!URL || !KEY) return connectLocal({ room, me, onState, onAction, onBall, onLeave, onCount, onStatus });
 
   const supabase = createClient(URL, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const channel = supabase.channel(`school-${room}`, {
@@ -28,7 +28,7 @@ export function connectRoom({ room, me, onState, onAction, onBoard, onLeave, onC
   channel
     .on('broadcast', { event: 'state' }, ({ payload }) => onState(payload))
     .on('broadcast', { event: 'act' }, ({ payload }) => onAction(payload))
-    .on('broadcast', { event: 'board' }, ({ payload }) => onBoard(payload))
+    .on('broadcast', { event: 'ball' }, ({ payload }) => onBall(payload))
     .on('presence', { event: 'sync' }, () => {
       onCount(Object.keys(channel.presenceState()).length);
     })
@@ -65,7 +65,7 @@ export function connectRoom({ room, me, onState, onAction, onBoard, onLeave, onC
 }
 
 // Supabase 설정이 없을 때(개발용): 같은 브라우저의 다른 탭끼리만 연결
-function connectLocal({ room, me, onState, onAction, onBoard, onLeave, onCount, onStatus }) {
+function connectLocal({ room, me, onState, onAction, onBall, onLeave, onCount, onStatus }) {
   if (typeof BroadcastChannel === 'undefined') {
     onStatus?.('solo');
     return { send() {}, updateMe() {}, close() {} };
@@ -84,7 +84,7 @@ function connectLocal({ room, me, onState, onAction, onBoard, onLeave, onCount, 
       seen.set(payload.id, Date.now());
       if (event === 'state') onState(payload);
       else if (event === 'act') onAction(payload);
-      else if (event === 'board') onBoard(payload);
+      else if (event === 'ball') onBall(payload);
     }
     onCount(seen.size + 1);
   };

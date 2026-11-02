@@ -60,6 +60,11 @@ export function roomAt(x, z, y) {
   return CLASSROOMS.find((c) => c.level === k && x > c.xs && x < c.xe) || null;
 }
 
+// 매점 위치 (운동장 옆)
+export const STORE = { minX: 36, maxX: 46, minZ: 4, maxZ: 12.5, doorX1: 40, doorX2: 42 };
+// 축구장 (공이 굴러다니는 범위)과 골대
+export const PITCH = { minX: -46.8, maxX: 46.8, minZ: 15.3, maxZ: 66.7, goalX: 43, goalZ1: 37.6, goalZ2: 44.4, goalDepth: 44.3 };
+
 // 층별 길찾기 범위
 export const NAV_BOUNDS = [
   { minX: -68.5, maxX: 68.5, minZ: -15.5, maxZ: 72.5 }, // 1층 + 바깥(담장 안)
@@ -278,6 +283,7 @@ export function buildWorld(scene) {
     yellow: std('#e1b43a', { metalness: 0.2 }),
     blue: std('#3b6fb0', { metalness: 0.2 }),
     fence: std('#5b7d5a', { metalness: 0.3 }),
+    blueRoof: std('#3d6fa8', { roughness: 0.6 }),
   };
 
   // 하늘/조명
@@ -749,6 +755,98 @@ export function buildWorld(scene) {
     B.box('metal', 'deco', bx + 0.9, bx + 1, 0, 0.45, bz - 0.25, bz + 0.25);
     block(0, bx - 1.1, bx + 1.1, bz - 0.3, bz + 0.3);
   }
+  // ── 매점 (운동장 옆 작은 가건물, 파란 지붕) ──
+  {
+    const S = STORE;
+    const H = 3.6;
+    B.box('cream', 'wall', S.minX, S.maxX, 0, H, S.minZ, S.minZ + 0.2);
+    B.box('cream', 'wall', S.minX, S.minX + 0.2, 0, H, S.minZ, S.maxZ);
+    B.box('cream', 'wall', S.maxX - 0.2, S.maxX, 0, H, S.minZ, S.maxZ);
+    block(0, S.minX, S.maxX, S.minZ, S.minZ + 0.2);
+    block(0, S.minX, S.minX + 0.2, S.minZ, S.maxZ);
+    block(0, S.maxX - 0.2, S.maxX, S.minZ, S.maxZ);
+    // 앞벽 (가운데 문, 양옆 큰 유리창)
+    const z1 = S.maxZ - 0.2;
+    for (const [x1, x2] of [[S.minX, S.doorX1], [S.doorX2, S.maxX]]) {
+      B.box('band', 'wall', x1, x2, 0, 0.9, z1, S.maxZ);
+      B.box('glass', 'glass', x1, x2, 0.9, 2.3, z1 + 0.05, S.maxZ - 0.05);
+      B.box('frame', 'deco', x1, x2, 2.3, 2.36, z1 - 0.02, S.maxZ + 0.02);
+      B.box('cream', 'wall', x1, x2, 2.3, H, z1, S.maxZ);
+      block(0, x1, x2, z1, S.maxZ);
+    }
+    B.box('cream', 'wall', S.doorX1, S.doorX2, 2.3, H, z1, S.maxZ);
+    // 파란 지붕 (처마)
+    B.box('blueRoof', 'wall', S.minX - 0.5, S.maxX + 0.5, H, H + 0.2, S.minZ - 0.4, S.maxZ + 1.2);
+    // 바닥
+    B.box('terrazzo', 'deco', S.minX + 0.2, S.maxX - 0.2, 0, 0.03, S.minZ + 0.2, z1);
+    // 계산대 + 금전등록기
+    B.box('lectern', 'deco', S.minX + 1.5, S.maxX - 1.5, 0, 1.0, 5.6, 6.2);
+    B.box('white', 'deco', S.minX + 1.4, S.maxX - 1.4, 1.0, 1.05, 5.5, 6.3);
+    B.box('tv', 'deco', 40.3, 40.9, 1.05, 1.35, 5.6, 6.0);
+    block(0, S.minX, S.maxX, S.minZ, 6.2);
+    // 뒤쪽 진열장 (계산대 너머)
+    B.box('shelf', 'deco', S.minX + 0.5, S.maxX - 0.5, 0, 2.2, S.minZ + 0.2, S.minZ + 0.6);
+    // 왼쪽 과자 진열대
+    B.box('shelf', 'deco', S.minX + 0.2, S.minX + 0.7, 0, 2.0, 6.7, 11.5);
+    block(0, S.minX + 0.2, S.minX + 0.7, 6.7, 11.5);
+    const snackCols = ['red', 'yellow', 'blue', 'leaf2', 'ginkgo', 'books'];
+    let ci = 0;
+    for (let row = 0; row < 4; row++) {
+      for (let z = 6.85; z < 11.2; z += 0.42) {
+        const h = 0.22 + ((ci * 7) % 5) * 0.03;
+        const y = 0.15 + row * 0.48;
+        B.box(snackCols[ci++ % snackCols.length], 'deco', S.minX + 0.25, S.minX + 0.62, y, y + h, z, z + 0.32);
+        // 뒤쪽 진열장에도
+        const bx = S.minX + 0.8 + ((z - 6.85) / 0.42) * 0.85;
+        B.box(snackCols[(ci + 2) % snackCols.length], 'deco', bx, bx + 0.9, y, y + h, S.minZ + 0.25, S.minZ + 0.55);
+      }
+    }
+    // 아이스크림 냉동고
+    B.box('white', 'deco', S.maxX - 1.6, S.maxX - 0.25, 0, 0.9, 7, 9.6);
+    B.box('glass', 'glass', S.maxX - 1.55, S.maxX - 0.3, 0.9, 0.95, 7.05, 9.55);
+    block(0, S.maxX - 1.6, S.maxX - 0.25, 7, 9.6);
+    const storeSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 0.6),
+      new THREE.MeshBasicMaterial({ map: textTex(400, 100, '#2f5aa8', '#ffffff', ['매  점'], 64) }),
+    );
+    storeSign.position.set((S.doorX1 + S.doorX2) / 2, 2.95, S.maxZ + 0.03);
+    scene.add(storeSign);
+  }
+
+  // 점수판 (운동장 동쪽 끝, 축구 점수 표시)
+  const scoreC = document.createElement('canvas');
+  scoreC.width = 512;
+  scoreC.height = 200;
+  const scoreT = new THREE.CanvasTexture(scoreC);
+  scoreT.colorSpace = THREE.SRGBColorSpace;
+  const drawScore = (blue, white) => {
+    const g = scoreC.getContext('2d');
+    g.fillStyle = '#1f2a24';
+    g.fillRect(0, 0, 512, 200);
+    g.font = `700 44px ${FONT}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#7fb4ff';
+    g.fillText('청팀', 128, 50);
+    g.fillStyle = '#ffffff';
+    g.fillText('백팀', 384, 50);
+    g.font = `700 100px ${FONT}`;
+    g.fillStyle = '#ffd34d';
+    g.fillText(String(blue), 128, 135);
+    g.fillText(String(white), 384, 135);
+    g.fillText(':', 256, 130);
+    scoreT.needsUpdate = true;
+  };
+  drawScore(0, 0);
+  const scoreBoard = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.56), new THREE.MeshBasicMaterial({ map: scoreT }));
+  scoreBoard.position.set(0, 3.2, 67.6);
+  scoreBoard.rotation.y = Math.PI;
+  scene.add(scoreBoard);
+  for (const px of [-1.8, 1.8]) {
+    B.geo('metal', 'deco', new THREE.CylinderGeometry(0.08, 0.08, 2.5, 8), px, 1.25, 67.7);
+    block(0, px - 0.2, px + 0.2, 67.5, 67.9);
+  }
+
   // 나무 (플라타너스 + 노란 은행나무)
   const tree = (x, z, i) => {
     const s = 0.9 + ((i * 37) % 10) / 18;
@@ -808,13 +906,6 @@ export function buildWorld(scene) {
     return best;
   }
 
-  function writeBoard(id, text) {
-    const b = boards.get(id);
-    if (!b) return;
-    drawBoardCanvas(b.canvas, text);
-    b.texture.needsUpdate = true;
-  }
-
   return {
     walkables,
     occluders: [...built.wall, ...built.floor, ...built.glass],
@@ -823,9 +914,8 @@ export function buildWorld(scene) {
     chairs,
     blocks,
     heightAt,
-    writeBoard,
-    boardDefault: (id) => `${boards.get(id)?.name || ''}\n오늘도 즐겁게!`,
     sun,
+    drawScore,
     update(t) {
       animated.forEach((f) => f(t));
     },

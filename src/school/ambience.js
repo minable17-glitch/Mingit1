@@ -383,6 +383,38 @@ export function createAmbience() {
         bus.lp.frequency.setTargetAtTime(cutoff, t, 0.4);
       }
     },
+    // 공 차는 소리 (가까울수록 크게)
+    kick(vol = 1) {
+      if (vol < 0.03) return;
+      const g = c.createGain();
+      g.gain.value = vol;
+      g.connect(master);
+      ballKick(g, now());
+    },
+    // 골! 함성 + 박수 + 호루라기
+    cheer(vol = 1) {
+      if (vol < 0.03) return;
+      const g = c.createGain();
+      g.gain.value = vol * 1.3;
+      g.connect(master);
+      const t = now();
+      for (let i = 0; i < 9; i++) shout(g, t + R(0, 0.6), Math.random() < 0.4);
+      for (let i = 0; i < 24; i++) noiseHit(g, t + 0.3 + R(0, 1.8), { freq: R(1200, 2000), q: 0.8, peak: 0.12, d: 0.05 });
+      whistle(g, t + 0.1);
+    },
+    // 매점 계산 '띵동'
+    ding() {
+      const t = now();
+      [1318.5, 1046.5].forEach((f, i) => {
+        const o = c.createOscillator();
+        o.frequency.value = f;
+        const g = c.createGain();
+        env(g, t + i * 0.18, 0.12, 0.01, 0.5);
+        o.connect(g).connect(master);
+        o.start(t + i * 0.18);
+        o.stop(t + i * 0.18 + 0.6);
+      });
+    },
     setMuted(m) {
       master.gain.setTargetAtTime(m ? 0 : 0.9, now(), 0.2);
     },
