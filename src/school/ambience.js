@@ -35,7 +35,7 @@ export function createAmbience() {
 
   // 장소별 소리 통로: 소리 → 크기 → 먹먹함(저역통과) → 스피커 (+ 실내는 울림)
   const buses = {};
-  for (const [name, wet] of Object.entries({ field: 0, outdoor: 0, classroom: 0.25, corridor: 0.6, office: 0.25, library: 0.3 })) {
+  for (const [name, wet] of Object.entries({ field: 0, outdoor: 0, classroom: 0.25, corridor: 0.6, office: 0.25, library: 0.3, gym: 0.9, cafe: 0.3 })) {
     const input = c.createGain();
     const gain = c.createGain();
     gain.gain.value = 0;
@@ -326,11 +326,67 @@ export function createAmbience() {
     noiseHit(dest, t, { type: 'bandpass', freq: R(3000, 5000), q: 0.6, peak: 0.05, a: 0.05, d: 0.25 });
   }
 
+  // 체육관: 농구공 튀기는 소리 (통 통 통)
+  function dribble(dest, t) {
+    const n = Math.floor(R(4, 10));
+    const gap = R(0.45, 0.6);
+    for (let i = 0; i < n; i++) {
+      const tt = t + i * gap;
+      const o = c.createOscillator();
+      o.frequency.setValueAtTime(120, tt);
+      o.frequency.exponentialRampToValueAtTime(60, tt + 0.08);
+      const g = c.createGain();
+      env(g, tt, 0.22, 0.003, 0.12);
+      o.connect(g).connect(dest);
+      o.start(tt);
+      o.stop(tt + 0.16);
+    }
+  }
+  // 체육관: 운동화 끽끽
+  function squeak(dest, t) {
+    const n = Math.floor(R(1, 3));
+    for (let i = 0; i < n; i++) {
+      const tt = t + i * R(0.15, 0.4);
+      const o = c.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(R(1800, 2600), tt);
+      o.frequency.linearRampToValueAtTime(R(2600, 3400), tt + 0.07);
+      const g = c.createGain();
+      env(g, tt, 0.035, 0.01, 0.07);
+      o.connect(g).connect(dest);
+      o.start(tt);
+      o.stop(tt + 0.1);
+    }
+  }
+  // 급식실: 숟가락·식판 부딪히는 소리 (챙그랑)
+  function clink(dest, t) {
+    const n = Math.floor(R(1, 4));
+    for (let i = 0; i < n; i++) {
+      const tt = t + i * R(0.05, 0.3);
+      const f = R(2200, 4200);
+      for (const mul of [1, 2.76]) {
+        const o = c.createOscillator();
+        o.frequency.value = f * mul;
+        const g = c.createGain();
+        env(g, tt, 0.03 / mul, 0.002, R(0.15, 0.35));
+        o.connect(g).connect(dest);
+        o.start(tt);
+        o.stop(tt + 0.4);
+      }
+    }
+  }
+  function trayClatter(dest, t) {
+    noiseHit(dest, t, { type: 'bandpass', freq: R(1500, 3000), q: 2, peak: 0.08, d: 0.12 });
+    clink(dest, t + 0.03);
+  }
+
   // ── 장소별로 어떤 소리를 얼마나 자주 낼지 ──
   const fieldVoices = Array.from({ length: 6 }, () => makeVoice(buses.field.input, { f0lo: 280, f0hi: 470, level: 0.035, pause: 0.2 }));
   const teacher = makeVoice(buses.classroom.input, { f0lo: 140, f0hi: 230, level: 0.05, pause: 0.15, syl: [0.13, 0.24] });
   const whisper = Array.from({ length: 2 }, () => makeVoice(buses.classroom.input, { f0lo: 260, f0hi: 400, level: 0.008, pause: 0.6 }));
   const corridorVoice = makeVoice(buses.corridor.input, { f0lo: 250, f0hi: 420, level: 0.012, pause: 0.5 });
+  const gymVoices = Array.from({ length: 3 }, () => makeVoice(buses.gym.input, { f0lo: 280, f0hi: 460, level: 0.02, pause: 0.35 }));
+  const cafeVoices = Array.from({ length: 6 }, () => makeVoice(buses.cafe.input, { f0lo: 260, f0hi: 450, level: 0.022, pause: 0.25 }));
   const officeVoice = makeVoice(buses.office.input, { f0lo: 130, f0hi: 240, level: 0.02, pause: 0.5 });
 
   const events = [
@@ -347,6 +403,13 @@ export function createAmbience() {
     { bus: 'office', every: [18, 35], fn: phone },
     { bus: 'office', every: [4, 9], fn: typing },
     { bus: 'library', every: [3, 8], fn: page },
+    { bus: 'gym', every: [1.5, 4], fn: dribble },
+    { bus: 'gym', every: [1.5, 5], fn: squeak },
+    { bus: 'gym', every: [3, 7], fn: (d, t) => shout(d, t, Math.random() < 0.4) },
+    { bus: 'gym', every: [18, 35], fn: whistle },
+    { bus: 'cafe', every: [0.4, 1.5], fn: clink },
+    { bus: 'cafe', every: [3, 7], fn: trayClatter },
+    { bus: 'cafe', every: [4, 9], fn: (d, t) => shout(d, t, true) },
   ].map((e) => ({ ...e, next: 0 }));
 
   let started = false;
@@ -360,6 +423,8 @@ export function createAmbience() {
     }
     if (buses.corridor.level > 0.01) corridorVoice.tick(t);
     if (buses.office.level > 0.01) officeVoice.tick(t);
+    if (buses.gym.level > 0.01) gymVoices.forEach((v) => v.tick(t));
+    if (buses.cafe.level > 0.01) cafeVoices.forEach((v) => v.tick(t));
     for (const e of events) {
       if (t < e.next) continue;
       e.next = t + R(e.every[0], e.every[1]);
@@ -401,6 +466,24 @@ export function createAmbience() {
       for (let i = 0; i < 9; i++) shout(g, t + R(0, 0.6), Math.random() < 0.4);
       for (let i = 0; i < 24; i++) noiseHit(g, t + 0.3 + R(0, 1.8), { freq: R(1200, 2000), q: 0.8, peak: 0.12, d: 0.05 });
       whistle(g, t + 0.1);
+    },
+    // 농구: 골인(촥) / 림 맞고 튕김(텅)
+    swish(vol = 1) {
+      if (vol < 0.03) return;
+      noiseHit(master, now(), { type: 'highpass', freq: 2500, peak: 0.12 * vol, a: 0.02, d: 0.25 });
+    },
+    rimHit(vol = 1) {
+      if (vol < 0.03) return;
+      const t = now();
+      for (const f of [420, 1130]) {
+        const o = c.createOscillator();
+        o.frequency.value = f;
+        const g = c.createGain();
+        env(g, t, 0.08 * vol, 0.003, 0.3);
+        o.connect(g).connect(master);
+        o.start(t);
+        o.stop(t + 0.35);
+      }
     },
     // 매점 계산 '띵동'
     ding() {

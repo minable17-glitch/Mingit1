@@ -6,10 +6,10 @@
 //            school.html?room=우리학교&teacher=1  → 선생님 이름표로 입장
 import * as THREE from 'three';
 import './school.css';
-import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE, ROOF } from './world.js';
+import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE, ROOF, GYM, CAFE, HOOPS } from './world.js';
 import { createSoccer } from './soccer.js';
 import { Avatar, OUTFITS, HAIRS, HAIR_COLORS, ACCS, cleanLook, defaultLook } from './avatar.js';
-import { schoolNow } from './schedule.js';
+import { schoolNow, todayMenu } from './schedule.js';
 import { createNavigator } from './pathfind.js';
 import { connectRoom } from './net.js';
 import { playSchoolBell, playClap, playPop, unlockAudio } from './audio.js';
@@ -61,7 +61,9 @@ renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 260);
-const world = buildWorld(scene);
+const MENU = todayMenu();
+const world = buildWorld(scene, { menu: MENU });
+const inRect = (r, x, z) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
 const nav = createNavigator(world.blocks);
 
 function resize() {
@@ -128,6 +130,83 @@ const npc = new Avatar({ id: 'store-npc', name: '매점 아주머니', color: '#
 npc.pos.set((STORE.minX + STORE.maxX) / 2, 0, 5.0);
 npc.root.rotation.y = 0;
 scene.add(npc.root);
+
+// ── 급식실 조리사님 ──
+const cook = new Avatar({ id: 'cafe-cook', name: '조리사님', color: '#f2f2ee', look: { outfit: 'navy', hair: 'bun', hairColor: 'dark', acc: 'none' } });
+cook.pos.set(25, 0, -41.2);
+cook.root.rotation.y = 0;
+scene.add(cook.root);
+
+// ── 농구 슛 (체육관) ──
+const shots = []; // 날아가는 공들
+const ballGeo = new THREE.SphereGeometry(0.12, 16, 12);
+const ballMat = new THREE.MeshStandardMaterial({ color: '#d9692b', roughness: 0.7 });
+function nearestHoop(p) {
+  let best = null;
+  let bd = Infinity;
+  HOOPS.forEach((h, i) => {
+    const d = Math.hypot(h.x - p.x, h.z - p.z);
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  });
+  return { index: best, dist: bd };
+}
+// from 아바타에서 hoop 으로 공 던지기 (ok: 골인 여부)
+function launchShot(avatar, hoopIndex, ok) {
+  const h = HOOPS[hoopIndex];
+  const start = new THREE.Vector3(avatar.pos.x, avatar.pos.y + 1.9, avatar.pos.z);
+  const d = Math.hypot(h.x - start.x, h.z - start.z);
+  const end = ok ? new THREE.Vector3(h.x, h.y, h.z) : new THREE.Vector3(h.x + (Math.random() - 0.5) * 0.5, h.y + 0.05, h.z + (Math.random() < 0.5 ? -0.3 : 0.3));
+  const mesh = new THREE.Mesh(ballGeo, ballMat);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  avatar.faceAngle(Math.atan2(h.x - avatar.pos.x, h.z - avatar.pos.z), 1);
+  avatar.play('hand');
+  shots.push({ mesh, start, end, ok, t: 0, dur: 0.7 + d * 0.06, peak: 1.4 + d * 0.12, phase: 'fly', vel: null, avatar, life: 3 });
+}
+function updateShots(dt) {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const s = shots[i];
+    s.life -= dt;
+    if (s.phase === 'fly') {
+      s.t += dt;
+      const k = Math.min(1, s.t / s.dur);
+      s.mesh.position.lerpVectors(s.start, s.end, k);
+      s.mesh.position.y += Math.sin(k * Math.PI) * s.peak;
+      if (k >= 1) {
+        s.phase = 'fall';
+        const v = distVolumeXZ(s.end);
+        if (s.ok) {
+          s.vel = new THREE.Vector3(0, -1, 0);
+          ambience?.swish(v);
+        } else {
+          s.vel = new THREE.Vector3((s.start.x - s.end.x) * 0.25, 2.5, (Math.random() - 0.5) * 3);
+          ambience?.rimHit(v);
+        }
+      }
+    } else {
+      s.vel.y -= 9.8 * dt;
+      s.mesh.position.addScaledVector(s.vel, dt);
+      if (s.mesh.position.y < 0.12) {
+        s.mesh.position.y = 0.12;
+        s.vel.y = Math.abs(s.vel.y) * 0.6;
+        s.vel.x *= 0.7;
+        s.vel.z *= 0.7;
+      }
+    }
+    s.mesh.rotation.x += dt * 8;
+    if (s.life <= 0) {
+      scene.remove(s.mesh);
+      shots.splice(i, 1);
+    }
+  }
+}
+function distVolumeXZ(p) {
+  return Math.max(0, 1 - Math.hypot(p.x - me.pos.x, p.z - me.pos.z) / 30);
+}
+let myBaskets = 0;
 
 function chairTakenBy(index) {
   if (me.sitChairIndex === index) return me;
@@ -289,6 +368,12 @@ function onAction(a) {
   if (a.type === 'talk') {
     o.avatar.say(String(a.text || '').slice(0, 60));
     playPop(distVolume(o.avatar));
+  } else if (a.type === 'shoot') {
+    const hi = a.hoop | 0;
+    if (HOOPS[hi]) launchShot(o.avatar, hi, !!a.ok);
+  } else if (a.type === 'meal') {
+    o.avatar.showEmoji('🍱', 30);
+    o.avatar.say('잘 먹겠습니다!');
   } else if (a.type === 'eat') {
     const item = SNACKS[a.item | 0];
     if (item) {
@@ -542,7 +627,16 @@ function soundMix() {
   const muffled = 650;
   const mix = {};
   const inShop = x > STORE.minX && x < STORE.maxX && z > STORE.minZ && z < STORE.maxZ;
-  if (inShop) {
+  // 점심시간엔 급식실이 시끌벅적
+  const lunch = schoolNow().kind === 'lunch';
+  const cafeLevel = lunch ? 1 : 0.35;
+  if (inRect(GYM, x, z)) {
+    mix.gym = [1, open];
+    mix.field = [0.15, muffled];
+  } else if (inRect(CAFE, x, z)) {
+    mix.cafe = [cafeLevel, open];
+    mix.field = [0.15, muffled];
+  } else if (inShop) {
     mix.field = [0.4, 1000];
     mix.outdoor = [0.3, 1000];
   } else if (!inBuilding) {
@@ -550,6 +644,9 @@ function soundMix() {
     mix.outdoor = [1, open];
     mix.corridor = [0.12, muffled];
     mix.classroom = [0.1, muffled];
+    // 별관 근처에서는 체육관·급식실 소리가 벽 너머로
+    mix.gym = [Math.max(0, 1 - Math.hypot(x + 25, z + 32) / 30) * 0.5, muffled];
+    mix.cafe = [Math.max(0, 1 - Math.hypot(x - 25, z + 33) / 30) * 0.5 * cafeLevel, muffled];
   } else {
     // 건물 안: 운동장 소리는 창문 너머로 작고 먹먹하게
     mix.field = [room ? 0.35 : 0.22, room ? 1200 : muffled];
@@ -608,6 +705,51 @@ document.getElementById('shopClose').addEventListener('click', () => shopSheet.c
 shopSheet.addEventListener('click', (e) => {
   if (e.target === shopSheet) shopSheet.classList.add('hidden');
 });
+// ── 체육관 슛 / 급식 받기 버튼 ──
+const shootBtn = document.getElementById('shootBtn');
+const mealBtn = document.getElementById('mealBtn');
+let lastShot = 0;
+shootBtn.addEventListener('click', () => {
+  unlockAudio();
+  if (performance.now() - lastShot < 1200) return;
+  lastShot = performance.now();
+  const { index, dist } = nearestHoop(me.pos);
+  // 가까울수록 잘 들어감
+  const chance = Math.max(0.15, Math.min(0.9, 0.95 - (dist - 1.5) * 0.09));
+  const ok = Math.random() < chance;
+  standUp(me);
+  me.target = null;
+  me.path = [];
+  launchShot(me, index, ok);
+  net.send('act', { type: 'shoot', hoop: index, ok });
+  setTimeout(() => {
+    if (ok) {
+      myBaskets++;
+      hint(`🏀 골인! (오늘 ${myBaskets}골)`, 1800);
+    } else hint('아깝다! 다시 던져봐요', 1400);
+  }, 900);
+});
+mealBtn.addEventListener('click', () => {
+  unlockAudio();
+  ambience?.ding();
+  me.showEmoji('🍱', 30);
+  me.say('잘 먹겠습니다!');
+  cook.say(['맛있게 먹어라~', '남기지 말고~', '많이 먹어!'][Math.floor(Math.random() * 3)]);
+  hint(MENU.length ? `오늘의 급식: ${MENU.join(' · ')}` : '오늘은 급식이 없어요 (주말)', 4000);
+  net.send('act', { type: 'meal' });
+});
+let inCafeNow = false;
+function updateAnnex() {
+  const { x, z } = me.pos;
+  const g = inRect(GYM, x, z) && me.pos.y < 0.5;
+  const c = inRect(CAFE, x, z) && me.pos.y < 0.5;
+  const nearHoop = g && nearestHoop(me.pos).dist < 10;
+  shootBtn.classList.toggle('hidden', !nearHoop);
+  mealBtn.classList.toggle('hidden', !c);
+  if (c && !inCafeNow) cook.say(MENU.length ? `오늘은 ${MENU[2]}다~ 줄 서라~` : '오늘은 급식 없어~');
+  inCafeNow = c;
+}
+
 function updateStore() {
   const { x, z } = me.pos;
   const now = x > STORE.minX && x < STORE.maxX && z > STORE.minZ && z < STORE.maxZ;
@@ -780,9 +922,10 @@ function updateWhere() {
   const inBuilding = Math.abs(me.pos.x) < 56.5 && me.pos.z < 0 && me.pos.z > -12;
   const shop = me.pos.x > STORE.minX && me.pos.x < STORE.maxX && me.pos.z > STORE.minZ && me.pos.z < STORE.maxZ;
   const onRoof = inBuilding && levelOfY(me.pos.y) === ROOF;
-  const w = r ? r.name : onRoof ? '옥상' : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : '운동장';
+  const annex = inRect(GYM, me.pos.x, me.pos.z) ? '체육관' : inRect(CAFE, me.pos.x, me.pos.z) ? '급식실' : null;
+  const w = r ? r.name : onRoof ? '옥상' : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : annex || (me.pos.z < -12 ? '뒷마당' : '운동장');
   if (w !== lastWhere) {
-    if (r && lastWhere) hint(r.name, 1500);
+    if ((r || annex) && lastWhere) hint(w, 1500);
     lastWhere = w;
     whereText = w;
     renderRoomLabel();
@@ -797,6 +940,8 @@ function frame() {
   me.update(dt, world.heightAt);
   for (const { avatar } of others.values()) avatar.update(dt, world.heightAt);
   npc.update(dt, () => 0);
+  cook.update(dt, () => 0);
+  updateShots(dt);
   soccer.update(dt, me, !!me.target);
   world.update(clock.elapsedTime);
   if (marker.visible) {
@@ -809,6 +954,7 @@ function frame() {
     whereT = 0;
     updateWhere();
     updateStore();
+    updateAnnex();
     scorePill.classList.toggle('hidden', lastWhere !== '운동장');
     ambience?.setMix(soundMix());
   }
@@ -823,4 +969,4 @@ cam.focus.set(me.pos.x, me.pos.y + 1.3, me.pos.z);
 frame();
 
 // 자동 점검용 (주소에 debug=1 이 있을 때만)
-if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others, soccer, npc };
+if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others, soccer, npc, cam };

@@ -40,3 +40,15 @@ export function schoolNow(ms) {
   if (min < TIMETABLE[0].s) return { key: 'before', icon: '🌅', text: '등교 시간', sub: `${next.name} ${next.start} 시작` };
   return { key: `break-${next.name}`, icon: '☕', text: '쉬는 시간', sub: `${next.name} ${next.start} 시작`, kind: 'break' };
 }
+
+// 요일별 급식 메뉴 (그 시절 급식 느낌, 수요일은 특식!)
+const MENUS = {
+  1: ['백미밥', '쇠고기미역국', '돈까스', '배추김치', '요구르트'],
+  2: ['카레라이스', '계란국', '군만두', '깍두기', '바나나'],
+  3: ['짜장밥', '짬뽕국', '탕수육', '단무지', '오렌지주스'],
+  4: ['잡곡밥', '된장찌개', '제육볶음', '콩나물무침', '배추김치'],
+  5: ['비빔밥', '북엇국', '떡볶이', '총각김치', '요구르트'],
+};
+export function todayMenu(ms) {
+  return MENUS[kstNow(ms).day] || [];
+}
