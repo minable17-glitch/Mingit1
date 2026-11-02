@@ -19,8 +19,18 @@ export const TIMETABLE = [
   { name: '종례', start: '16:05', end: '16:20', kind: 'homeroom' },
 ].map((p) => ({ ...p, s: T(p.start), e: T(p.end) }));
 
+// 점검용: 주소에 ?debug=1&time=10:00 처럼 주면 그 시각인 것처럼 동작
+let offsetMs = 0;
+export function setTestTime(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+  if (!m) return;
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  const cur = d.getUTCHours() * 60 + d.getUTCMinutes();
+  offsetMs = (Number(m[1]) * 60 + Number(m[2]) - cur) * 60000;
+}
+
 // 한국 시간 (기기 시간대와 관계없이)
-function kstNow(ms = Date.now()) {
+function kstNow(ms = Date.now() + offsetMs) {
   const d = new Date(ms + 9 * 3600 * 1000);
   return { day: d.getUTCDay(), min: d.getUTCHours() * 60 + d.getUTCMinutes() };
 }

@@ -8,8 +8,9 @@ import * as THREE from 'three';
 import './school.css';
 import { buildWorld, roomAt, CLASSROOMS, levelY, levelOfY, STORE, ROOF, GYM, CAFE, HOOPS } from './world.js';
 import { createSoccer } from './soccer.js';
+import { createTeachers, SUBJECTS } from './teachers.js';
 import { Avatar, OUTFITS, HAIRS, HAIR_COLORS, ACCS, cleanLook, defaultLook } from './avatar.js';
-import { schoolNow, todayMenu } from './schedule.js';
+import { schoolNow, todayMenu, setTestTime } from './schedule.js';
 import { createNavigator } from './pathfind.js';
 import { connectRoom } from './net.js';
 import { playSchoolBell, playClap, playPop, unlockAudio } from './audio.js';
@@ -19,6 +20,7 @@ const params = new URLSearchParams(location.search);
 const room = (params.get('room') || '우리학교').slice(0, 30);
 const isTeacher = params.get('teacher') === '1';
 const startClass = CLASSROOMS.find((c) => c.id === params.get('class'));
+if (params.get('debug') === '1') setTestTime(params.get('time'));
 
 // ── 내 정보 (이 기기에 기억) ──
 const ADJ = ['씩씩한', '반짝이는', '포근한', '즐거운', '용감한', '느긋한', '다정한', '호기심 많은', '상냥한', '튼튼한'];
@@ -125,14 +127,17 @@ function onBall(s) {
   soccer.apply(s);
 }
 
+// ── NPC 선생님들 ──
+const teachers = createTeachers({ scene, world });
+
 // ── 매점 아주머니 ──
-const npc = new Avatar({ id: 'store-npc', name: '매점 아주머니', color: '#c0603f' });
+const npc = new Avatar({ id: 'store-npc', name: '매점 아주머니', color: '#c0603f', occlude: true });
 npc.pos.set((STORE.minX + STORE.maxX) / 2, 0, 5.0);
 npc.root.rotation.y = 0;
 scene.add(npc.root);
 
 // ── 급식실 조리사님 ──
-const cook = new Avatar({ id: 'cafe-cook', name: '조리사님', color: '#f2f2ee', look: { outfit: 'navy', hair: 'bun', hairColor: 'dark', acc: 'none' } });
+const cook = new Avatar({ id: 'cafe-cook', name: '조리사님', color: '#f2f2ee', occlude: true, look: { outfit: 'navy', hair: 'bun', hairColor: 'dark', acc: 'none' } });
 cook.pos.set(25, 0, -41.2);
 cook.root.rotation.y = 0;
 scene.add(cook.root);
@@ -652,7 +657,10 @@ function soundMix() {
     mix.field = [room ? 0.35 : 0.22, room ? 1200 : muffled];
     mix.outdoor = [0.12, muffled];
     if (room) {
+      const sub = teachers.subjectOf(room);
       mix.classroom = [1, open];
+      mix.teacher = [sub && sub !== '음악' ? 1 : 0, open];
+      mix.music = [sub === '음악' ? 1 : 0, open];
       mix.corridor = [0.25, 900];
     } else if (inHallRoom && k === 1) {
       mix.office = [1, open];
@@ -663,6 +671,9 @@ function soundMix() {
     } else {
       mix.corridor = [1, open];
       mix.classroom = [0.3, 900]; // 복도에서 들리는 옆 교실 소리
+      mix.teacher = [0.25, 900];
+      const musicRoom = CLASSROOMS.find((c) => c.type === 'music');
+      if (k === musicRoom.level && teachers.subjectOf(musicRoom)) mix.music = [Math.max(0, 1 - Math.abs((musicRoom.xs + musicRoom.xe) / 2 - x) / 25) * 0.6, 1200];
       if (k === 1 && Math.abs(x) < 14) mix.office = [0.3, 900];
     }
   }
@@ -925,7 +936,11 @@ function updateWhere() {
   const annex = inRect(GYM, me.pos.x, me.pos.z) ? '체육관' : inRect(CAFE, me.pos.x, me.pos.z) ? '급식실' : null;
   const w = r ? r.name : onRoof ? '옥상' : inBuilding ? `${levelOfY(me.pos.y) + 1}층` : shop ? '매점' : annex || (me.pos.z < -12 ? '뒷마당' : '운동장');
   if (w !== lastWhere) {
-    if ((r || annex) && lastWhere) hint(w, 1500);
+    if (r && lastWhere) {
+      const sub = teachers.subjectOf(r);
+      const cls = schoolNow().kind === 'class';
+      hint(`${r.name} · ${sub ? `${sub} 시간 (${SUBJECTS[sub].name})` : cls ? '자습 시간 · 선생님 없음' : '쉬는 시간'}`, 2200);
+    } else if (annex && lastWhere) hint(w, 1500);
     lastWhere = w;
     whereText = w;
     renderRoomLabel();
@@ -942,6 +957,7 @@ function frame() {
   npc.update(dt, () => 0);
   cook.update(dt, () => 0);
   updateShots(dt);
+  teachers.update(dt, me, roomAt(me.pos.x, me.pos.z, me.pos.y)?.id, camera.position);
   soccer.update(dt, me, !!me.target);
   world.update(clock.elapsedTime);
   if (marker.visible) {
@@ -955,6 +971,7 @@ function frame() {
     updateWhere();
     updateStore();
     updateAnnex();
+    teachers.sync(me);
     scorePill.classList.toggle('hidden', lastWhere !== '운동장');
     ambience?.setMix(soundMix());
   }
@@ -969,4 +986,4 @@ cam.focus.set(me.pos.x, me.pos.y + 1.3, me.pos.z);
 frame();
 
 // 자동 점검용 (주소에 debug=1 이 있을 때만)
-if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others, soccer, npc, cam };
+if (params.get('debug') === '1') window.__school = { me, walkTo, world, nav, others, soccer, npc, cam, teachers };

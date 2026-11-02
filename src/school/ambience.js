@@ -35,7 +35,7 @@ export function createAmbience() {
 
   // 장소별 소리 통로: 소리 → 크기 → 먹먹함(저역통과) → 스피커 (+ 실내는 울림)
   const buses = {};
-  for (const [name, wet] of Object.entries({ field: 0, outdoor: 0, classroom: 0.25, corridor: 0.6, office: 0.25, library: 0.3, gym: 0.9, cafe: 0.3 })) {
+  for (const [name, wet] of Object.entries({ field: 0, outdoor: 0, classroom: 0.25, corridor: 0.6, office: 0.25, library: 0.3, gym: 0.9, cafe: 0.3, teacher: 0.25, music: 0.35 })) {
     const input = c.createGain();
     const gain = c.createGain();
     gain.gain.value = 0;
@@ -380,9 +380,40 @@ export function createAmbience() {
     clink(dest, t + 0.03);
   }
 
+  // 음악실 피아노 ('학교 종이 땡땡땡')
+  function pianoNote(dest, t, f, dur) {
+    for (const [mul, amp, type] of [[1, 0.12, 'triangle'], [2, 0.04, 'sine'], [3, 0.015, 'sine']]) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.value = f * mul;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.6, dur * 1.6));
+      o.connect(g).connect(dest);
+      o.start(t);
+      o.stop(t + dur * 1.7 + 0.1);
+    }
+  }
+  const N = { C: 261.63, D: 293.66, E: 329.63, G: 392, A: 440 };
+  const TUNE = 'G1 G1 A1 A1 G1 G1 E2 G1 G1 E1 E1 D3 G1 G1 A1 A1 G1 G1 E2 G1 E1 D1 E1 C3'.split(' ');
+  let tuneBusy = 0;
+  function pianoTune(dest, t) {
+    if (now() < tuneBusy) return;
+    let tt = t;
+    for (const n of TUNE) {
+      const beats = Number(n[1]);
+      pianoNote(dest, tt, N[n[0]], beats * 0.42);
+      // 왼손 반주 (낮은 도/솔)
+      if (beats >= 2) pianoNote(dest, tt, N[n[0]] / 2, beats * 0.42);
+      tt += beats * 0.42;
+    }
+    tuneBusy = tt + 1;
+  }
+
   // ── 장소별로 어떤 소리를 얼마나 자주 낼지 ──
   const fieldVoices = Array.from({ length: 6 }, () => makeVoice(buses.field.input, { f0lo: 280, f0hi: 470, level: 0.035, pause: 0.2 }));
-  const teacher = makeVoice(buses.classroom.input, { f0lo: 140, f0hi: 230, level: 0.05, pause: 0.15, syl: [0.13, 0.24] });
+  const teacher = makeVoice(buses.teacher.input, { f0lo: 140, f0hi: 230, level: 0.05, pause: 0.15, syl: [0.13, 0.24] });
   const whisper = Array.from({ length: 2 }, () => makeVoice(buses.classroom.input, { f0lo: 260, f0hi: 400, level: 0.008, pause: 0.6 }));
   const corridorVoice = makeVoice(buses.corridor.input, { f0lo: 250, f0hi: 420, level: 0.012, pause: 0.5 });
   const gymVoices = Array.from({ length: 3 }, () => makeVoice(buses.gym.input, { f0lo: 280, f0hi: 460, level: 0.02, pause: 0.35 }));
@@ -395,7 +426,7 @@ export function createAmbience() {
     { bus: 'field', every: [14, 28], fn: whistle },
     { bus: 'outdoor', every: [3, 8], fn: bird },
     { bus: 'outdoor', every: [5, 10], fn: wind },
-    { bus: 'classroom', every: [9, 18], fn: chalk },
+    { bus: 'teacher', every: [9, 18], fn: chalk },
     { bus: 'classroom', every: [8, 20], fn: chairScrape },
     { bus: 'classroom', every: [4, 9], fn: pencil },
     { bus: 'corridor', every: [5, 12], fn: footsteps },
@@ -403,6 +434,7 @@ export function createAmbience() {
     { bus: 'office', every: [18, 35], fn: phone },
     { bus: 'office', every: [4, 9], fn: typing },
     { bus: 'library', every: [3, 8], fn: page },
+    { bus: 'music', every: [3, 6], fn: pianoTune },
     { bus: 'gym', every: [1.5, 4], fn: dribble },
     { bus: 'gym', every: [1.5, 5], fn: squeak },
     { bus: 'gym', every: [3, 7], fn: (d, t) => shout(d, t, Math.random() < 0.4) },
@@ -417,10 +449,8 @@ export function createAmbience() {
   function loop() {
     const t = now() + 0.05;
     if (buses.field.level > 0.01) fieldVoices.forEach((v) => v.tick(t));
-    if (buses.classroom.level > 0.01) {
-      teacher.tick(t);
-      whisper.forEach((v) => v.tick(t));
-    }
+    if (buses.teacher.level > 0.01) teacher.tick(t);
+    if (buses.classroom.level > 0.01) whisper.forEach((v) => v.tick(t));
     if (buses.corridor.level > 0.01) corridorVoice.tick(t);
     if (buses.office.level > 0.01) officeVoice.tick(t);
     if (buses.gym.level > 0.01) gymVoices.forEach((v) => v.tick(t));

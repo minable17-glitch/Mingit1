@@ -51,7 +51,10 @@ export const CLASSROOMS = [];
 for (let k = 0; k < LEVELS; k++) {
   for (const s of SLOTS) {
     if (s.type !== 'class') continue;
-    CLASSROOMS.push({ id: `${k + 1}-${s.n}`, name: `${k + 1}학년 ${s.n}반`, level: k, xs: s.xs, xe: s.xe });
+    // 3층 끝 두 칸은 음악실·미술실
+    if (k === 2 && s.n === 9) CLASSROOMS.push({ id: 'music', name: '음악실', type: 'music', level: k, xs: s.xs, xe: s.xe });
+    else if (k === 2 && s.n === 10) CLASSROOMS.push({ id: 'art', name: '미술실', type: 'art', level: k, xs: s.xs, xe: s.xe });
+    else CLASSROOMS.push({ id: `${k + 1}-${s.n}`, name: `${k + 1}학년 ${s.n}반`, type: 'class', level: k, xs: s.xs, xe: s.xe });
   }
 }
 
@@ -156,6 +159,37 @@ export function drawBoardCanvas(c, text) {
   g.textBaseline = 'middle';
   const top = c.height / 2 - ((lines.length - 1) * size * 1.25) / 2;
   lines.forEach((ln, i) => g.fillText(ln, c.width / 2, top + i * size * 1.25, c.width - 30));
+}
+
+// 음악가 초상화 (간단한 그림 + 이름)
+function portraitTex(name) {
+  return canvasTex(
+    150,
+    190,
+    (g) => {
+      g.fillStyle = '#6b4a2c';
+      g.fillRect(0, 0, 150, 190);
+      g.fillStyle = '#efe6d0';
+      g.fillRect(10, 10, 130, 170);
+      g.fillStyle = '#f0c8a0';
+      g.beginPath();
+      g.ellipse(75, 75, 30, 36, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = name === '베토벤' ? '#3a3a3a' : '#e9e9e9';
+      g.beginPath();
+      g.ellipse(75, 55, 42, 30, 0, Math.PI, 0);
+      g.fill();
+      g.fillRect(33, 55, 14, 45);
+      g.fillRect(103, 55, 14, 45);
+      g.fillStyle = '#2b2b2b';
+      g.fillRect(40, 118, 70, 40);
+      g.fillStyle = '#2b2b2b';
+      g.font = `700 22px ${FONT}`;
+      g.textAlign = 'center';
+      g.fillText(name, 75, 176);
+    },
+    { repeat: false },
+  );
 }
 
 // ── 같은 재질끼리 합치는 도우미 (그리기 횟수를 줄여 휴대폰에서도 빠르게) ──
@@ -587,14 +621,15 @@ export function buildWorld(scene, { menu = [] } = {}) {
     const bc = document.createElement('canvas');
     bc.width = 640;
     bc.height = 256;
-    drawBoardCanvas(bc, `${room.name}\n오늘도 즐겁게!`);
+    const defaultText = room.type === 'music' ? '♪ 음악실 ♪\n도 레 미 파 솔 라 시 도' : room.type === 'art' ? '미술실\n오늘은 수채화 그리기' : `${room.name}\n오늘도 즐겁게!`;
+    drawBoardCanvas(bc, defaultText);
     const bt = new THREE.CanvasTexture(bc);
     bt.colorSpace = THREE.SRGBColorSpace;
     const board = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.4), new THREE.MeshStandardMaterial({ map: bt, roughness: 0.95 }));
     board.rotation.y = Math.PI / 2;
     board.position.set(xs + 0.17, L + 1.7, -4.5);
     scene.add(board);
-    boards.set(room.id, { canvas: bc, texture: bt, name: room.name });
+    boards.set(room.id, { canvas: bc, texture: bt, name: room.name, defaultText, text: defaultText });
     // 태극기
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), taegukMat);
     flag.rotation.y = Math.PI / 2;
@@ -603,10 +638,19 @@ export function buildWorld(scene, { menu = [] } = {}) {
     // 교탁 + 선생님 책상
     B.box('lectern', 'deco', xs + 1.3, xs + 1.9, L, L + 1.05, -5, -4);
     block(k, xs + 1.3, xs + 1.9, -5, -4);
-    B.box('lectern', 'deco', xs + 0.6, xs + 1.4, L + 0.72, L + 0.76, -1.9, -0.4);
-    B.box('metal', 'deco', xs + 0.65, xs + 1.35, L, L + 0.72, -1.85, -1.75);
-    B.box('metal', 'deco', xs + 0.65, xs + 1.35, L, L + 0.72, -0.55, -0.45);
-    block(k, xs + 0.6, xs + 1.4, -1.9, -0.4);
+    if (room.type === 'music') {
+      // 업라이트 피아노 + 의자
+      B.box('tv', 'deco', xs + 0.35, xs + 0.85, L, L + 1.3, -2.4, -0.6);
+      B.box('white', 'deco', xs + 0.85, xs + 1.1, L + 0.72, L + 0.78, -2.3, -0.7);
+      for (let i = 0; i < 10; i++) B.box('tv', 'deco', xs + 0.95, xs + 1.08, L + 0.78, L + 0.8, -2.2 + i * 0.15, -2.14 + i * 0.15);
+      B.box('chair', 'deco', xs + 1.3, xs + 1.7, L + 0.45, L + 0.5, -1.9, -1.1);
+      block(k, xs + 0.35, xs + 1.1, -2.4, -0.6);
+    } else {
+      B.box('lectern', 'deco', xs + 0.6, xs + 1.4, L + 0.72, L + 0.76, -1.9, -0.4);
+      B.box('metal', 'deco', xs + 0.65, xs + 1.35, L, L + 0.72, -1.85, -1.75);
+      B.box('metal', 'deco', xs + 0.65, xs + 1.35, L, L + 0.72, -0.55, -0.45);
+      block(k, xs + 0.6, xs + 1.4, -1.9, -0.4);
+    }
     // 뚱뚱한 브라운관 TV
     B.box('tv', 'deco', xs + 0.35, xs + 0.95, L + 2.45, L + 3.0, -8.75, -8.05);
     B.box('metal', 'deco', xs + 0.6, xs + 0.7, L + 3.0, L + 3.4, -8.45, -8.35);
@@ -616,28 +660,95 @@ export function buildWorld(scene, { menu = [] } = {}) {
     B.box('cork', 'deco', xe - 0.13, xe - 0.1, L + 1.5, L + 2.6, -7.5, -1.5);
     // 형광등
     for (const lx of [xs + 2.5, xs + 6.5]) for (const lz of [-7, -4.5, -2]) B.box('lamp', 'deco', lx - 0.6, lx + 0.6, L + 3.32, L + 3.38, lz - 0.08, lz + 0.08);
-    // 짝꿍 책상 5줄 × 3쌍 + 의자 30개
-    for (let r = 0; r < 5; r++) {
-      const dx = xs + 2.9 + r * 1.15;
-      for (const cz of [-7.2, -4.5, -1.8]) {
-        B.box('deskTop', 'deco', dx - 0.25, dx + 0.25, L + 0.72, L + 0.76, cz - 0.65, cz + 0.65);
-        B.box('metal', 'deco', dx - 0.22, dx + 0.22, L + 0.55, L + 0.58, cz - 0.6, cz + 0.6);
-        for (const lz of [cz - 0.6, cz, cz + 0.6]) B.box('metal', 'deco', dx - 0.2, dx + 0.2, L, L + 0.72, lz - 0.02, lz + 0.02);
-        block(k, dx - 0.25, dx + 0.25, cz - 0.65, cz + 0.65);
-        for (const sz of [cz - 0.33, cz + 0.33]) {
-          const chx = dx + 0.55;
-          B.box('chair', 'chair', chx - 0.2, chx + 0.2, L + 0.42, L + 0.46, sz - 0.19, sz + 0.19);
-          B.box('chair', 'chair', chx + 0.17, chx + 0.21, L + 0.46, L + 0.86, sz - 0.19, sz + 0.19);
-          B.box('metal', 'deco', chx - 0.17, chx + 0.17, L, L + 0.42, sz - 0.17, sz - 0.15);
-          B.box('metal', 'deco', chx - 0.17, chx + 0.17, L, L + 0.42, sz + 0.15, sz + 0.17);
-          chairs.push({ x: chx, z: sz, seatY: L + 0.45, ry: -Math.PI / 2, level: k, room: room.id });
+    // 학생 의자 하나 (칠판 쪽을 바라봄)
+    const studentChair = (chx, sz, ry = -Math.PI / 2) => {
+      B.box('chair', 'chair', chx - 0.2, chx + 0.2, L + 0.42, L + 0.46, sz - 0.19, sz + 0.19);
+      if (ry === -Math.PI / 2) B.box('chair', 'chair', chx + 0.17, chx + 0.21, L + 0.46, L + 0.86, sz - 0.19, sz + 0.19);
+      B.box('metal', 'deco', chx - 0.17, chx + 0.17, L, L + 0.42, sz - 0.17, sz - 0.15);
+      B.box('metal', 'deco', chx - 0.17, chx + 0.17, L, L + 0.42, sz + 0.15, sz + 0.17);
+      chairs.push({ x: chx, z: sz, seatY: L + 0.45, ry, level: k, room: room.id });
+    };
+    if (room.type === 'music') {
+      // 음악실: 책상 없이 의자만 4줄, 보면대, 음악가 초상화
+      for (let r = 0; r < 4; r++) for (let i = 0; i < 6; i++) studentChair(xs + 3.2 + r * 1.3, -7.4 + i * 1.25);
+      for (const sz of [-6.2, -4.5, -2.8]) {
+        B.box('metal', 'deco', xs + 2.38, xs + 2.42, L, L + 1.1, sz - 0.02, sz + 0.02);
+        const plate = new THREE.BoxGeometry(0.02, 0.32, 0.45);
+        plate.rotateZ(0.35);
+        B.geo('metal', 'deco', plate, xs + 2.4, L + 1.2, sz);
+        block(k, xs + 2.3, xs + 2.5, sz - 0.1, sz + 0.1);
+      }
+      ['베토벤', '모차르트', '바흐', '슈베르트'].forEach((nm, i) => {
+        const pic = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.95), new THREE.MeshBasicMaterial({ map: portraitTex(nm) }));
+        pic.rotation.y = -Math.PI / 2;
+        pic.position.set(xe - 0.14, L + 2.05, -7 + i * 1.6);
+        scene.add(pic);
+      });
+    } else if (room.type === 'art') {
+      // 미술실: 모둠 책상 4개 + 둥근 의자, 이젤, 석고상, 물감
+      for (const tx of [xs + 3.4, xs + 6.3]) {
+        for (const tz of [-6.3, -2.9]) {
+          B.box('deskTop', 'deco', tx - 0.75, tx + 0.75, L + 0.72, L + 0.78, tz - 0.6, tz + 0.6);
+          for (const [lx, lz] of [[-0.65, -0.5], [0.65, -0.5], [-0.65, 0.5], [0.65, 0.5]]) B.box('metal', 'deco', tx + lx - 0.03, tx + lx + 0.03, L, L + 0.72, tz + lz - 0.03, tz + lz + 0.03);
+          block(k, tx - 0.75, tx + 0.75, tz - 0.6, tz + 0.6);
+          for (const side of [-1, 1]) {
+            for (const dz of [-0.3, 0.3]) {
+              const sx = tx + side * 1.02;
+              const sz = tz + dz;
+              B.geo('chair', 'chair', new THREE.CylinderGeometry(0.17, 0.17, 0.05, 14), sx, L + 0.43, sz);
+              B.box('metal', 'deco', sx - 0.02, sx + 0.02, L, L + 0.42, sz - 0.02, sz + 0.02);
+              chairs.push({ x: sx, z: sz, seatY: L + 0.45, ry: side < 0 ? Math.PI / 2 : -Math.PI / 2, level: k, room: room.id });
+            }
+          }
+          // 책상 위 물통·팔레트
+          B.geo('blue', 'deco', new THREE.CylinderGeometry(0.07, 0.07, 0.14, 10), tx - 0.3, L + 0.85, tz);
+          B.box('white', 'deco', tx + 0.1, tx + 0.45, L + 0.78, L + 0.8, tz - 0.15, tz + 0.15);
+        }
+      }
+      // 이젤 (창가)
+      const canvasCols = ['#e8a33d', '#6aa9d8', '#d86a7a', '#7cbf6a'];
+      for (let i = 0; i < 4; i++) {
+        const ex = xs + 2.8 + i * 1.45;
+        for (const dx of [-0.25, 0.25]) {
+          const leg = new THREE.BoxGeometry(0.04, 1.7, 0.04);
+          leg.rotateX(-0.12);
+          B.geo('lectern', 'deco', leg, ex + dx, L + 0.85, -0.8);
+        }
+        const cv = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.75), new THREE.MeshStandardMaterial({ color: canvasCols[i], roughness: 0.9 }));
+        cv.rotation.x = -0.12;
+        cv.rotation.y = Math.PI;
+        cv.position.set(ex, L + 1.2, -0.9);
+        scene.add(cv);
+        block(k, ex - 0.35, ex + 0.35, -1.05, -0.55);
+      }
+      // 석고상
+      B.box('white', 'deco', xs + 2.0, xs + 2.5, L, L + 1.0, -8.4, -7.9);
+      B.geo('white', 'deco', new THREE.CylinderGeometry(0.12, 0.2, 0.3, 14), xs + 2.25, L + 1.15, -8.15);
+      B.geo('white', 'deco', new THREE.SphereGeometry(0.2, 16, 12), xs + 2.25, L + 1.45, -8.15);
+      block(k, xs + 2.0, xs + 2.5, -8.4, -7.9);
+      // 사물함 위 물감통
+      const paints = ['red', 'yellow', 'blue', 'leaf2', 'books', 'ginkgo'];
+      for (let i = 0; i < 12; i++) B.geo(paints[i % paints.length], 'deco', new THREE.CylinderGeometry(0.08, 0.08, 0.16, 10), xe - 0.35, L + 1.28, -8.2 + i * 0.62);
+    } else {
+      // 짝꿍 책상 5줄 × 3쌍 + 의자 30개
+      for (let r = 0; r < 5; r++) {
+        const dx = xs + 2.9 + r * 1.15;
+        for (const cz of [-7.2, -4.5, -1.8]) {
+          B.box('deskTop', 'deco', dx - 0.25, dx + 0.25, L + 0.72, L + 0.76, cz - 0.65, cz + 0.65);
+          B.box('metal', 'deco', dx - 0.22, dx + 0.22, L + 0.55, L + 0.58, cz - 0.6, cz + 0.6);
+          for (const lz of [cz - 0.6, cz, cz + 0.6]) B.box('metal', 'deco', dx - 0.2, dx + 0.2, L, L + 0.72, lz - 0.02, lz + 0.02);
+          block(k, dx - 0.25, dx + 0.25, cz - 0.65, cz + 0.65);
+          for (const sz of [cz - 0.33, cz + 0.33]) {
+            const chx = dx + 0.55;
+            studentChair(chx, sz);
+          }
         }
       }
     }
     // 반 팻말 (복도로 튀어나온)
     const sign = new THREE.Mesh(
       signGeo,
-      new THREE.MeshBasicMaterial({ map: textTex(256, 92, '#f7f2e2', '#2b2b2b', [room.id.replace('-', ' - ')], 54, '#7a5532'), side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ map: textTex(256, 92, '#f7f2e2', '#2b2b2b', [room.type === 'class' ? room.id.replace('-', ' - ') : room.name], 54, '#7a5532'), side: THREE.DoubleSide }),
     );
     sign.rotation.y = Math.PI / 2;
     sign.position.set(xs + 1.4, L + 2.7, Z_CORR - 0.55);
@@ -1161,7 +1272,19 @@ export function buildWorld(scene, { menu = [] } = {}) {
     return best;
   }
 
+  // 칠판 글씨 바꾸기 (같은 글이면 다시 그리지 않음). text 가 없으면 기본 글
+  function writeBoard(id, text) {
+    const b = boards.get(id);
+    if (!b) return;
+    const t = text || b.defaultText;
+    if (t === b.text) return;
+    b.text = t;
+    drawBoardCanvas(b.canvas, t);
+    b.texture.needsUpdate = true;
+  }
+
   return {
+    writeBoard,
     walkables,
     occluders: [...built.wall, ...built.floor, ...built.glass],
     tapBlockers: built.wall,

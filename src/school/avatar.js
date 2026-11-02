@@ -161,7 +161,8 @@ function hashCode(str) {
 }
 
 export class Avatar {
-  constructor({ id, name, color, look, isMe = false, isTeacher = false }) {
+  constructor({ id, name, color, look, isMe = false, isTeacher = false, occlude = false }) {
+    this.occlude = occlude; // true 면 이름표·말풍선이 벽에 가려짐 (NPC)
     this.id = id;
     this.isMe = isMe;
     this.isTeacher = isTeacher;
@@ -363,12 +364,14 @@ export class Avatar {
       this.tag.material.dispose();
     }
     this.tag = makeNameTag(name, { isMe: this.isMe, isTeacher: this.isTeacher });
+    if (this.occlude) this.tag.material.depthTest = true;
     this.tagHolder.add(this.tag);
   }
 
   say(text) {
     this.clearBubble();
     this.bubble = makeBubble(text);
+    if (this.occlude) this.bubble.material.depthTest = true;
     this.bubble.position.y = 0.32 + this.bubble.scale.y / 2;
     this.tagHolder.add(this.bubble);
     this.bubbleT = 6;
