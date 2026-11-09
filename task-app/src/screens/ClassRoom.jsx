@@ -5,6 +5,7 @@ import * as api from '../lib/api.js';
 import { addDays, dueLabel, todayKST } from '../lib/date.js';
 import Planner from './Planner.jsx';
 import { periodText, schoolDaysList } from '../lib/schoolAttendance.js';
+import Seating from './Seating.jsx';
 import ClassExport from './ClassExport.jsx';
 import { ATT_REASONS, ATT_TYPES, daySummary, monthSummary, monthSummaryText, noticesText, parseRoster, reasonLabel, typeLabel } from '../lib/classroom.js';
 
@@ -36,6 +37,7 @@ const SECTIONS = [
   { key: 'attendance', label: '✅ 출결' },
   { key: 'notes', label: '📝 특이사항' },
   { key: 'roster', label: '👥 명렬표' },
+  { key: 'seat', label: '🪑 자리 배치' },
   { key: 'export', label: '📤 저장·인쇄' },
 ];
 
@@ -121,6 +123,7 @@ export default function ClassRoom({ tasks, categories, settings }) {
       )}
       {data && !needRoster && section === 'notes' && <><Notes day={day} students={students} notes={data.notes} run={run} /><PrintBar label="특이사항" onClick={() => toExport('notes')} /></>}
       {data && section === 'roster' && <Roster students={students} run={run} />}
+      {data && section === 'seat' && <Seating students={students} />}
       {section === 'export' && <ClassExport key={exportKind} day={day} initialKind={exportKind} />}
 
       <p className="small muted privacy-line">🔒 학급 기록은 선생님 본인만 볼 수 있어요. 건강·가정사 같은 민감한 내용은 적지 말고, 학교의 개인정보 지침을 따라 주세요.</p>

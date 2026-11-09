@@ -1,4 +1,4 @@
--- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + schema_planner.sql + schema_files.sql + schema_look.sql + 관리자 이메일 등록)
+-- 업무 챙김 한 번에 설치 (schema.sql + schema_phase2.sql + schema_public.sql + schema_links.sql + schema_mcp.sql + schema_push.sql + schema_notes.sql + schema_today.sql + schema_throw.sql + schema_class.sql + schema_planner.sql + schema_files.sql + schema_look.sql + schema_seating.sql + 관리자 이메일 등록)
 -- 업무 챙김용 새 Supabase 프로젝트의 SQL Editor에 전체를 붙여넣고 Run 한 번. 여러 번 실행해도 안전합니다.
 -- (GitHub 배포 작업이 배포할 때마다 이 파일을 자동으로 실행합니다.)
 -- ※ schema*.sql 을 고치면 이 파일도 같이 고쳐야 합니다.
@@ -833,6 +833,34 @@ end $$;
 
 -- 업무 챙김 — 화면 꾸미기(강조색·글씨 크기·글씨 진하기·바탕) 설정 칸. 여러 번 실행해도 안전합니다.
 alter table public.settings add column if not exists appearance jsonb not null default '{}'::jsonb;
+
+-- 업무 챙김 — 🪑 자리 배치(학급). 설정·현재 배치·비밀 지정석·저장 기록을 한 줄(jsonb)로. 본인만 보기. 여러 번 실행해도 안전합니다.
+
+-- 안전장치: 업무 챙김 전용 프로젝트에서만 실행
+do $$
+declare others text;
+begin
+  select string_agg(table_name, ', ' order by table_name) into others
+  from information_schema.tables
+  where table_schema = 'public'
+    and obj_description(format('public.%I', table_name)::regclass, 'pg_class') is distinct from 'task-keeper';
+  if others is not null then
+    raise exception '다른 앱이 쓰고 있는 프로젝트입니다 (이미 있는 표: %). 업무 챙김용으로 새로 만든 빈 프로젝트의 SQL Editor에서 실행하세요. 아무것도 바뀌지 않았습니다.', others;
+  end if;
+end $$;
+
+
+create table if not exists public.class_seating (
+  user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,   -- { rows, cols, fillFront, useHistory, students, avoid, current, secret, records: [{ id, title, date, rows, cols, grid }] }
+  updated_at timestamptz not null default now()
+);
+comment on table public.class_seating is 'task-keeper';
+alter table public.class_seating enable row level security;
+drop policy if exists owner_all on public.class_seating;
+create policy owner_all on public.class_seating for all
+  using (user_id = auth.uid() and public.is_allowed())
+  with check (user_id = auth.uid() and public.is_allowed());
 
 -- 관리자 이메일 등록 (관리자는 가입 열기/닫기와 사용자별 고급 구글 연동을 관리)
 insert into public.allowed_emails (email) values ('minable7@gmail.com'), ('minable17@gmail.com') on conflict do nothing;

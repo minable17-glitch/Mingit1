@@ -870,10 +870,22 @@ export async function deleteClassNote(id) {
   check(await supabase.from('class_notes').delete().eq('id', id));
 }
 
+// 🪑 자리 배치: 사용자마다 한 줄(jsonb). 표가 아직 없으면 null
+export async function loadSeating() {
+  const { data, error } = await supabase.from('class_seating').select('data').maybeSingle();
+  if (error) return null;
+  return data?.data ?? {};
+}
+
+export async function saveSeating(data) {
+  check(await supabase.from('class_seating').upsert({ user_id: (await supabase.auth.getUser()).data.user.id, data, updated_at: now() }));
+}
+
 // 학년말 정리: 학급 기록 모두 지우기
 export async function clearClassData() {
   check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
   check(await supabase.from('class_notices').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
+  await supabase.from('class_seating').delete().neq('user_id', '00000000-0000-0000-0000-000000000000'); // 자리 배치 기록도 (표가 없으면 그냥 넘어감)
 }
 
 // ── 일지(플래너): 날짜마다 메모·교시별 기록·하루 기록 ──────
