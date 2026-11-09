@@ -412,6 +412,11 @@ function Account() {
       <p className="small">
         <a href="/privacy.html" target="_blank">개인정보처리방침</a> · <a href="/terms.html" target="_blank">이용약관</a>
       </p>
+      <details className="small privacy-again">
+        <summary>개인정보 안내 다시 보기</summary>
+        <p>업무·메모에는 <b>학생 개인정보를 적지 말아 주세요.</b> 업무 제목은 “3반 상담 기록 정리”처럼 쓰고, 학생 출결·특이사항은 <b>학급</b> 탭(본인만 보기)에 적어 주세요.</p>
+        <button className="link" onClick={() => { try { localStorage.removeItem('tk-privacy-notice-dismissed'); } catch { /* 괜찮음 */ } alert('브리핑에 안내를 다시 보여 줄게요.'); }}>브리핑에 다시 띄우기</button>
+      </details>
       <p className="small muted">앱 버전 {typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '개발용'}</p>
       <div className="row"><button onClick={api.signOut}>로그아웃</button></div>
       {!open ? (

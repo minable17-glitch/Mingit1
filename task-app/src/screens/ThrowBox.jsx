@@ -88,6 +88,12 @@ function FileThumb({ file }) {
   return url ? <img className="throw-thumb" src={url} alt="" /> : <span aria-hidden="true">📄</span>;
 }
 
+// 목록엔 첫 줄 앞 40자만 (공문 전문·링크는 펼쳤을 때만)
+function firstLine(text) {
+  const line = String(text ?? '').split('\n').map((x) => x.trim()).find(Boolean) ?? '';
+  return line.length > 40 ? `${line.slice(0, 40)}…` : line;
+}
+
 const KST = 9 * 3600e3;
 function ago(iso) {
   const mins = Math.floor((Date.now() - Date.parse(iso)) / 60000);
@@ -110,13 +116,13 @@ export function ThrowBox({ items, tasks, categories, todayItems, showClass, relo
   }, [ids]);
   if (!items?.length) return null;
   return (
-    <details className="throw-box block" open>
-      <summary><b>📥 나중에 분류</b> <span className="small muted">{items.length}개 · 하나씩 눌러 어디에 둘지 정하세요</span></summary>
+    <details className="throw-box line-box">
+      <summary><span className="grow">미분류 <b>{items.length}개</b></span><span className="small muted">눌러서 정리 ›</span></summary>
       <ul className="throw-list">
         {items.map((it) => (
           <li key={it.id} className={open === it.id ? 'open' : ''}>
             <button className="throw-row" onClick={() => setOpen(open === it.id ? null : it.id)} aria-expanded={open === it.id}>
-              <span className="grow throw-text">{it.content}</span>
+              <span className="grow throw-text">{firstLine(it.content)}</span>
               {clips[it.id] > 0 && <span className="badge">📎 {clips[it.id]}</span>}
               <span className="small muted">{ago(it.created_at)}</span>
             </button>
@@ -195,6 +201,7 @@ function SortPanel({ item, clips = 0, tasks, categories, todayItems, showClass, 
 
   return (
     <div className="sort-panel stack">
+      {item.content.length > 40 || item.content.includes('\n') ? <p className="throw-full pre small">{item.content}</p> : null}
       {clips > 0 && <Attachments throwId={item.id} editable={false} title="📎 같이 던진 첨부" />}
       {mode === 'class' ? (
         <div className="proposal stack">

@@ -8,6 +8,7 @@ import { buddyOf, moodCounts, MOODS } from '../lib/buddies.js';
 import Buddy from './Buddy.jsx';
 import MindMap from './MindMap.jsx';
 import Calendar from './Calendar.jsx';
+import { AllTasks } from './TaskList.jsx';
 import { dueLabel, todayKST } from '../lib/date.js';
 
 const STATE = {
@@ -17,10 +18,11 @@ const STATE = {
 };
 const ORDER = ['critical', 'warning', 'good'];
 
-const VIEW_KEY = 'task-keeper.balance-view';
-const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'buddies'; } catch { return 'buddies'; } };
+// 기본은 '목록'(마감순). 예전 저장값(친구들)과 섞이지 않게 새 이름으로 기억
+const VIEW_KEY = 'task-keeper.balance-view2';
+const readView = () => { try { return localStorage.getItem(VIEW_KEY) || 'list'; } catch { return 'list'; } };
 
-export default function Balance({ tasks, categories, settings, links = [], thoughts, reminders = [], onOpen, reload }) {
+export default function Balance({ tasks, categories, categoryById, settings, links = [], thoughts, reminders = [], todayItems = [], onOpen, reload }) {
   const today = todayKST();
   const b = useMemo(() => analyzeBalance(tasks, categories, settings, links, today), [tasks, categories, settings, links, today]);
   const [view, setView] = useState(readView);
@@ -39,12 +41,15 @@ export default function Balance({ tasks, categories, settings, links = [], thoug
     <section className="viz-root">
       <header className="page-head"><h1>업무 한눈에</h1></header>
       <div className="view-switch" role="tablist">
+        <button role="tab" aria-selected={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => pick('list')}>목록</button>
         <button role="tab" aria-selected={view === 'buddies'} className={view === 'buddies' ? 'on' : ''} onClick={() => pick('buddies')}>🐣 친구들</button>
         <button role="tab" aria-selected={view === 'map'} className={view === 'map' ? 'on' : ''} onClick={() => pick('map')}>🧠 마인드맵</button>
         <button role="tab" aria-selected={view === 'cal'} className={view === 'cal' ? 'on' : ''} onClick={() => pick('cal')}>📅 달력</button>
       </div>
 
-      {view === 'cal' ? (
+      {view === 'list' ? (
+        <AllTasks tasks={tasks} categories={categories} categoryById={categoryById} settings={settings} links={links} reminders={reminders} todayItems={todayItems} reload={reload} onOpen={onOpen} />
+      ) : view === 'cal' ? (
         <Calendar tasks={tasks} categories={categories} reminders={reminders} onOpen={onOpen} />
       ) : view === 'map' ? (
         <MindMap tasks={tasks} categories={categories} links={links} thoughts={thoughts} settings={settings} reload={reload} onOpen={onOpen} />

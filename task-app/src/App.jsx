@@ -202,7 +202,7 @@ function Main({ userId, features }) {
   const close = () => { setOverlay(null); reload(); };
   const shared = {
     categories, categoryById, settings, reload, userId, tasks, templates, features, links, reminders, thoughts, todayItems, throwItems, showClass, setShowClass,
-    onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings,
+    onOpen: openTask, onOpenScreen: setOverlay, onSaved: setSettings, onTab: setTab,
   };
 
   const overlayView = overlay && {

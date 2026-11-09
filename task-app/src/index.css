@@ -1287,3 +1287,85 @@ html { font-size: 16px; }
 .seat-sheet .sheet-head .sheet-title { width: auto; }
 .seat-sheet.theme-plain .sheet-head .sheet-title { flex: 1; }
 .st-br { width: auto; max-width: 100%; max-height: 130px; }
+
+/* ═══ 브리핑 1단계 정리 (2026-11): 오늘에만 집중, 한 줄 알림, + 시트 ═══
+   글자 3단계: 제목 1.05rem/800 · 본문 0.95rem/500~700 · 보조 0.8rem/500(--muted)
+   색: 급함만 빨강(--danger), 나머지는 기본색 */
+.briefing { display: flex; flex-direction: column; gap: 10px; }
+.briefing > .block { margin-top: 0; }
+.brief-head { display: flex; align-items: flex-end; gap: 10px; padding: 4px 2px 0; }
+.brief-head h1 { font-size: 1.5rem; margin: 0; line-height: 1.2; }
+.add-btn { border-radius: 999px; padding: 10px 16px; font-weight: 800; flex: none; }
+.brief-principle { margin: -4px 2px 0; font-size: 0.85rem; color: var(--muted); }
+
+.stat-line { display: flex; align-items: center; gap: 14px; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 0.88rem; font-weight: 600; color: var(--text-2); text-align: left; }
+.stat-line b { color: var(--text); font-weight: 800; margin-left: 2px; }
+.stat-line .hot, .stat-line .hot b { color: var(--danger); }
+.stat-line .muted { font-size: 0.8rem; font-weight: 600; }
+.stat-line:hover:not(:disabled) { background: var(--card); }
+
+/* 한 줄 알림 (미분류·못 끝낸 일·메일·회고·지금 공강·개인정보) */
+.line-note { display: flex; align-items: center; gap: 10px; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 9px 14px; font-size: 0.88rem; font-weight: 600; color: var(--text-2); text-align: left; }
+.line-note:hover:not(:disabled) { background: var(--card); }
+.line-note .link { font-size: 0.85rem; padding: 0; }
+.warn-note { background: var(--fill); border-color: transparent; font-weight: 500; }
+.now-note { display: block; border-color: color-mix(in srgb, var(--primary) 35%, var(--line)); }
+.now-note .spare-planned, .now-note .spare-list { margin-top: 6px; }
+.line-box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0; margin: 0; }
+.line-box > summary { display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-size: 0.88rem; font-weight: 600; color: var(--text-2); list-style: none; cursor: pointer; }
+.line-box > summary::-webkit-details-marker { display: none; }
+.line-box[open] > summary { border-bottom: 1px solid var(--line); }
+.line-box .throw-list { margin: 8px; }
+.throw-full { margin: 0; background: var(--fill); border-radius: 10px; padding: 8px 10px; max-height: 180px; overflow: auto; overflow-wrap: anywhere; }
+
+/* 카드 머리 (마감 · 오늘 할 일) */
+.card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.card-head h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.seg.mini { width: auto; margin: 0; padding: 2px; }
+.seg.mini button { padding: 4px 9px; font-size: 0.78rem; }
+
+/* ① 마감 */
+.due-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.due-list li + li { border-top: 1px solid var(--line); }
+.due-row { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border-radius: 0; padding: 9px 2px; text-align: left; }
+.due-row:hover:not(:disabled) { background: none; }
+.due-row .grow { display: flex; flex-direction: column; min-width: 0; }
+.due-row b { font-size: 0.95rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-row .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-label { flex: none; font-size: 0.8rem; font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.due-label.hot { color: var(--danger); }
+
+/* ② 오늘 할 일 */
+.today-card::before { content: none; }
+.today-card .mine { list-style: none; padding: 0; margin: 0 0 6px; display: flex; flex-direction: column; gap: 2px; }
+.today-card .mine li { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 0.95rem; }
+.today-card .mine li.done span, .today-card .mine li.done .link { color: var(--muted); text-decoration: line-through; }
+.today-card .mine .order { opacity: 0.55; }
+.add-row input { padding: 9px 12px; }
+.remind-lines { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+.remind-lines li { display: flex; gap: 8px; align-items: center; }
+.remind-lines .remind-time { color: var(--text-2); font-weight: 700; font-variant-numeric: tabular-nums; flex: none; }
+/* ③ 다음 공강 (한 줄, 누르면 공강별 계획) */
+.today-card .spare-plan { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.today-card .spare-plan > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: 0.9rem; }
+.today-card .spare-plan > summary::-webkit-details-marker { display: none; }
+.today-card .spare-plan[open] > summary { margin-bottom: 8px; }
+.today-card .hint { margin: 8px 0 0; }
+.more-link { align-self: center; font-size: 0.88rem; padding: 6px 0 2px; }
+
+/* + 시트 */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.35); display: flex; align-items: flex-end; justify-content: center; animation: fade-in .12s ease-out; }
+.sheet { width: 100%; max-width: 640px; background: var(--card); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15); animation: sheet-up .18s ease-out; max-height: 88vh; overflow-y: auto; }
+.sheet-grip { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 4px auto 12px; }
+.sheet-close { display: block; margin: 10px auto 0; color: var(--muted); }
+@media (min-width: 700px) { .sheet-backdrop { align-items: center; } .sheet { border-radius: 20px; } }
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .sheet-backdrop { animation: none; } }
+
+/* 한눈에 → 목록 */
+.list-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.list-tools select { flex: 1; }
+.privacy-again { margin: 8px 0; }
+.privacy-again summary { cursor: pointer; color: var(--text-2); }
+.remind-lines .link, .today-card .mine .link { text-align: left; justify-content: flex-start; }

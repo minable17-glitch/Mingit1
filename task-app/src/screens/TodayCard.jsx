@@ -9,19 +9,18 @@ import { freePeriodsOn } from '../lib/timetable.js';
 import { autoPlan, buildToday, moveItem, scopeRange } from '../lib/today.js';
 
 const SCOPES = [
-  { key: 'day', tab: '☀️ 오늘', due: '🔥 오늘 마감 · 지난 마감', mine: '✅ 내 오늘 목록', carry: '어제까지 못 끝낸 내 할 일', bring: '오늘로 가져오기', ph: '오늘 할 일 추가' },
-  { key: 'week', tab: '📆 이번 주', due: '🔥 이번 주 마감', mine: '✅ 이번 주에 할 일', carry: '지난주에 못 끝낸 주간 할 일', bring: '이번 주로 가져오기', ph: '이번 주 할 일 추가 (예: 학부모 상담 일정 잡기)' },
-  { key: 'month', tab: '🗓 이번 달', due: '🔥 이번 달 마감', mine: '✅ 이번 달에 할 일', carry: '지난달에 못 끝낸 월간 할 일', bring: '이번 달로 가져오기', ph: '이번 달 할 일 추가 (예: 학급 문집 원고 모으기)' },
+  { key: 'day', tab: '오늘', due: '오늘 마감 · 지난 마감', mine: '오늘 할 일', carry: '어제까지 못 끝낸 내 할 일', bring: '오늘로 가져오기', ph: '오늘 할 일 추가' },
+  { key: 'week', tab: '이번 주', due: '이번 주 마감', mine: '이번 주에 할 일', carry: '지난주에 못 끝낸 주간 할 일', bring: '이번 주로 가져오기', ph: '이번 주 할 일 추가 (예: 학부모 상담 일정 잡기)' },
+  { key: 'month', tab: '이번 달', due: '이번 달 마감', mine: '이번 달에 할 일', carry: '지난달에 못 끝낸 월간 할 일', bring: '이번 달로 가져오기', ph: '이번 달 할 일 추가 (예: 학급 문집 원고 모으기)' },
 ];
 const SCOPE_KEY = 'task-keeper.today-scope';
 
-export default function TodayCard({ tasks, reminders, items, today, settings = {}, reload, onOpen, onOpenTimetable }) {
+// showDue=false: 브리핑처럼 '오늘 마감'을 따로 보여 주는 화면에서는 오늘 칸에서 마감 목록을 뺌
+export default function TodayCard({ tasks, reminders, items, today, settings = {}, reload, onOpen, onOpenTimetable, showDue = true }) {
   const [text, setText] = useState('');
-  const [addPeriod, setAddPeriod] = useState('');
   const [busy, setBusy] = useState(false);
   const [scope, setScope] = useState(() => { try { return localStorage.getItem(SCOPE_KEY) || 'day'; } catch { return 'day'; } });
   const pickScope = (e, s) => {
-    e.preventDefault(); // 접기/펼치기 대신 탭만 바꿈
     setScope(s);
     try { localStorage.setItem(SCOPE_KEY, s); } catch { /* 괜찮음 */ }
   };
@@ -56,45 +55,43 @@ export default function TodayCard({ tasks, reminders, items, today, settings = {
     e.preventDefault();
     if (!text.trim()) return;
     const title = text;
-    const period = addPeriod === '' ? null : Number(addPeriod);
     setText('');
-    run(() => api.addTodayItem({ day: key, title, position: nextPos(), scope: S.key, period }));
+    run(() => api.addTodayItem({ day: key, title, position: nextPos(), scope: S.key }));
   }
 
-  const pct = t.total ? Math.round(((t.doneCount) / t.total) * 100) : 0;
   const empty = !t.due.length && !t.reminders.length && !t.mine.length;
 
   // 공강 계획: 공강 교시마다 묶고, 나머지는 '시간 미정'
   const freeSet = new Set(free.map((p) => p.period));
   const slotOf = (i) => (i.period != null && freeSet.has(Number(i.period)) ? Number(i.period) : null);
-  const loose = t.mine.filter((i) => slotOf(i) === null);
   const planned = autoPlan(t.mine.map((i) => ({ ...i, period: slotOf(i) })), free);
   const rowProps = { busy, run, onOpen, free };
 
+  const nextFree = free.find((p) => !p.past);
+  const dueShown = S.key !== 'day' || showDue;
+
   return (
-    <details className="today-card block" open>
-      <summary>
-        <span className="today-tabs" role="tablist">
+    <section className="today-card block">
+      <div className="card-head">
+        <h2>{S.mine}</h2>
+        <span className="small muted">{t.mine.length ? `${t.mine.filter((i) => i.done).length}/${t.mine.length}` : ''}</span>
+        <span className="grow" />
+        <span className="seg mini" role="tablist">
           {SCOPES.map((x) => (
             <button key={x.key} role="tab" aria-selected={x.key === S.key} className={x.key === S.key ? 'on' : ''} onClick={(e) => pickScope(e, x.key)}>{x.tab}</button>
           ))}
         </span>
-        <span className="small muted">
-          {t.total ? `${t.total}개 중 ${t.doneCount}개 끝` : '아직 없어요'}
-          {t.reminders.length > 0 && ` · 🔔 ${t.reminders.length}`}
-        </span>
-        {t.total > 0 && <span className="today-bar" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>}
-      </summary>
+      </div>
 
       {t.carry.length > 0 && (
-        <div className="carry small">
+        <div className="line-note">
           <span className="grow">{S.carry} {t.carry.length}개</span>
           <button className="link" disabled={busy} onClick={() => run(() => api.updateTodayItems(t.carry.map((i, k) => ({ id: i.id, day: key, position: nextPos() + k, ...(S.key === 'day' ? { period: null } : {}) }))))}>{S.bring}</button>
           <button className="link muted" disabled={busy} onClick={() => run(() => Promise.all(t.carry.map((i) => api.deleteTodayItem(i.id))))}>버리기</button>
         </div>
       )}
 
-      {t.due.length > 0 && (
+      {dueShown && t.due.length > 0 && (
         <div className="today-group">
           <h3>{S.due}</h3>
           <ul>
@@ -109,32 +106,42 @@ export default function TodayCard({ tasks, reminders, items, today, settings = {
                     <span>{d.step.title} <span className="muted small">· {d.task.title}</span></span>
                   </label>
                 ) : (
-                  <button className="link grow left" onClick={() => onOpen(d.task.id)}>📄 {d.task.title} <span className="muted small">· {d.task.next_action}</span></button>
+                  <button className="link grow left" onClick={() => onOpen(d.task.id)}>{d.task.title} <span className="muted small">· {d.task.next_action}</span></button>
                 )}
-                <span className={d.overdue ? 'badge danger' : 'badge warn'}>{S.key === 'day' ? dueLabel(d.date, today) : `${formatShort(d.date)} · ${dueLabel(d.date, today).replace(' 마감', '')}`}</span>
+                <span className={d.overdue ? 'due-label hot' : 'due-label'}>{S.key === 'day' ? dueLabel(d.date, today).replace(' 마감', '') : formatShort(d.date)}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
 
+      {t.mine.length > 0 && (
+        <ul className="mine">
+          {t.mine.map((i, k) => <ItemRow key={i.id} i={i} list={t.mine} k={k} {...rowProps} />)}
+        </ul>
+      )}
+      <form className="row add-row" onSubmit={add}>
+        <input className="grow" placeholder={S.ph} value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="primary" disabled={busy || !text.trim()}>추가</button>
+      </form>
+
       {t.reminders.length > 0 && (
-        <div className="today-group">
-          <h3>🔔 {S.key === 'day' ? '오늘' : S.key === 'week' ? '이번 주' : '이번 달'} 알림</h3>
-          <ul>
-            {t.reminders.map((r) => (
-              <li key={r.id}>
-                <b className="remind-time">{S.key === 'day' ? remindLabel(r.remind_at).replace('오늘 ', '') : remindLabel(r.remind_at)}</b>
-                {r.task_id ? <button className="link grow left" onClick={() => onOpen(r.task_id)}>{r.title}</button> : <span className="grow">{r.title}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ul className="remind-lines">
+          {t.reminders.map((r) => (
+            <li key={r.id}>
+              <span className="remind-time">🔔 {S.key === 'day' ? remindLabel(r.remind_at).replace('오늘 ', '') : remindLabel(r.remind_at)}</span>
+              {r.task_id ? <button className="link grow left" onClick={() => onOpen(r.task_id)}>{r.title}</button> : <span className="grow">{r.title}</span>}
+            </li>
+          ))}
+        </ul>
       )}
 
       {free.length > 0 && (
-        <div className="today-group spare-plan">
-          <h3>☕ 자투리 시간 계획 <span className="muted">· 공강마다 할 일을 나눠 넣어요</span></h3>
+        <details className="spare-plan">
+          <summary>
+            <span className="grow">{nextFree ? <>다음 공강 <b>{nextFree.period}교시</b> {nextFree.start}~{nextFree.end}{nextFree.now ? ' (지금)' : ''}</> : '오늘 공강은 다 지났어요'}</span>
+            <span className="small muted">{nextFree ? `할 일 ${t.mine.filter((i) => slotOf(i) === nextFree.period).length}개 · 계획하기` : '계획 보기'}</span>
+          </summary>
           <ol>
             {free.map((p) => {
               const here = t.mine.filter((i) => slotOf(i) === p.period);
@@ -146,42 +153,23 @@ export default function TodayCard({ tasks, reminders, items, today, settings = {
                     {p.now && <span className="badge">지금</span>}
                   </div>
                   {here.length === 0
-                    ? <p className="small muted spare-empty">{p.past ? '지나간 공강' : '비어 있어요 — 아래 할 일의 ⏰에서 이 교시를 고르세요'}</p>
+                    ? <p className="small muted spare-empty">{p.past ? '지나간 공강' : '비어 있어요 — 할 일 옆 ⏰에서 이 교시를 고르세요'}</p>
                     : <ul className="mine">{here.map((i, k) => <ItemRow key={i.id} i={i} list={here} k={k} {...rowProps} />)}</ul>}
                 </li>
               );
             })}
           </ol>
-        </div>
+          {planned.length > 0 && (
+            <button className="link small" disabled={busy} onClick={() => run(() => api.updateTodayItems(planned))}>남은 공강에 차례로 하나씩 넣기 ({planned.length}개)</button>
+          )}
+        </details>
       )}
 
-      <div className="today-group">
-        <h3>{free.length > 0 ? '⏳ 시간 미정' : S.mine}</h3>
-        {loose.length > 0 && (
-          <ul className="mine">
-            {loose.map((i, k) => <ItemRow key={i.id} i={i} list={loose} k={k} {...rowProps} />)}
-          </ul>
-        )}
-        {planned.length > 0 && (
-          <button className="link small" disabled={busy} onClick={() => run(() => api.updateTodayItems(planned))}>✨ 남은 공강에 차례로 하나씩 넣기 ({planned.length}개)</button>
-        )}
-        <form className="row" onSubmit={add}>
-          <input className="grow" placeholder={S.ph} value={text} onChange={(e) => setText(e.target.value)} />
-          {free.length > 0 && (
-            <select value={addPeriod} onChange={(e) => setAddPeriod(e.target.value)} aria-label="언제 할까요">
-              <option value="">⏰ 언제든</option>
-              {free.filter((p) => !p.past).map((p) => <option key={p.period} value={p.period}>{p.period}교시 공강</option>)}
-            </select>
-          )}
-          <button className="primary" disabled={busy || !text.trim()}>추가</button>
-        </form>
-        {S.key === 'day' && free.length === 0 && !settings.bell_schedule?.length && onOpenTimetable && (
-          <p className="small muted">🕘 <button className="link" onClick={onOpenTimetable}>시간표</button>에 수업 시간을 표시하면 공강(자투리 시간)마다 할 일을 나눠 계획할 수 있어요.</p>
-        )}
-        {empty && S.key === 'day' && <p className="small muted">오늘 마감도 알림도 없어요. 오늘 꼭 할 것만 골라 적거나, 아래 업무를 펼쳐 “☀️ 오늘 할 일에”를 눌러 보세요.</p>}
-        {empty && S.key !== 'day' && <p className="small muted">{S.key === 'week' ? '이번 주' : '이번 달'} 마감이 없어요. 이 기간 안에 끝낼 큰 일을 적어 두세요. 하루 단위로 할 일은 ☀️ 오늘에 적으면 돼요.</p>}
-      </div>
-    </details>
+      {S.key === 'day' && free.length === 0 && !settings.bell_schedule?.length && onOpenTimetable && (
+        <p className="small muted hint"><button className="link" onClick={onOpenTimetable}>시간표</button>를 넣으면 공강마다 할 일을 나눠 계획할 수 있어요.</p>
+      )}
+      {empty && S.key !== 'day' && <p className="small muted hint">{S.key === 'week' ? '이번 주' : '이번 달'} 마감이 없어요. 이 기간 안에 끝낼 큰 일을 적어 두세요.</p>}
+    </section>
   );
 }
 
