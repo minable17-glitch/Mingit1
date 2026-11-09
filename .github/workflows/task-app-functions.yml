@@ -108,10 +108,10 @@ jobs:
           echo "::add-mask::$REMINDER_SECRET"
           echo "REMINDER_SECRET=$REMINDER_SECRET" >> "$GITHUB_ENV"
           args+=("REMINDER_SECRET=$REMINDER_SECRET")
-          supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
+          supabase secrets set --yes --project-ref "$PROJECT_REF" "${args[@]}"
 
       - name: 함수 배포
-        run: supabase functions deploy --project-ref "$PROJECT_REF"
+        run: supabase functions deploy --yes --project-ref "$PROJECT_REF"
 
       # 1분마다 push 함수를 불러 시간이 된 알림을 보내게 함 (pg_cron + pg_net). 이 작업 하나만 만들거나 고침
       - name: 시간 알림 예약 작업 등록
