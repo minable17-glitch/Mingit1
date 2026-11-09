@@ -129,8 +129,8 @@ export default function Seating({ students: roster = [] }) {
           <div className="block seat-settings">
             <h2 onClick={tapTitle}>배치 설정</h2>
             <div className="row">
-              <label className="seat-num">행(세로 줄)<input type="number" min="1" max="15" value={s.rows} onChange={(e) => update({ rows: Math.min(15, Math.max(1, Number(e.target.value) || 1)) })} /></label>
-              <label className="seat-num">열(가로 줄)<input type="number" min="1" max="15" value={s.cols} onChange={(e) => update({ cols: Math.min(15, Math.max(1, Number(e.target.value) || 1)) })} /></label>
+              <NumField label="행(세로 줄)" value={s.rows} onChange={(rows) => update({ rows })} />
+              <NumField label="열(가로 줄)" value={s.cols} onChange={(cols) => update({ cols })} />
             </div>
             <label className="row"><input type="checkbox" checked={s.fillFront} onChange={(e) => update({ fillFront: e.target.checked })} /> 앞자리(칠판 쪽)부터 채우기</label>
             <label className="row"><input type="checkbox" checked={s.useHistory} onChange={(e) => update({ useHistory: e.target.checked })} /> 과거 기록 반영 (많이 앉았던 자리 피하기)</label>
@@ -182,6 +182,31 @@ export default function Seating({ students: roster = [] }) {
       {view === 'history' && <HistoryView history={history} rows={s.rows} cols={s.cols} />}
       {view === 'saved' && <SavedView records={s.records} update={update} copySheet={copySheet} reuse={(g) => { update({ current: g.map((row) => [...row]), rows: g.length, cols: g[0]?.length ?? s.cols }); setView('make'); say('이 배치를 현재 배치로 가져왔어요.'); }} />}
     </div>
+  );
+}
+
+// 1~15 숫자 칸: 지우고 새로 칠 수 있게 입력 중엔 빈칸도 허용하고, 칸을 벗어날 때 맞춤. 폰용 −/+ 버튼
+function NumField({ label, value, onChange }) {
+  const [text, setText] = useState(String(value));
+  const [prev, setPrev] = useState(value);
+  if (prev !== value) { setPrev(value); setText(String(value)); } // 백업 열기 등으로 바뀌면 따라감
+  const clamp = (n) => Math.min(15, Math.max(1, n));
+  const set = (n) => { const v = clamp(n); setText(String(v)); if (v !== value) onChange(v); };
+  return (
+    <label className="seat-num">{label}
+      <span className="num-field">
+        <button type="button" onClick={() => set(value - 1)} disabled={value <= 1} aria-label={`${label} 줄이기`}>−</button>
+        <input type="text" inputMode="numeric" pattern="[0-9]*" value={text}
+          onChange={(e) => {
+            const t = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+            setText(t);
+            const n = Number.parseInt(t, 10);
+            if (n >= 1 && n <= 15 && n !== value) onChange(n);
+          }}
+          onBlur={() => set(Number.parseInt(text, 10) || value)} />
+        <button type="button" onClick={() => set(value + 1)} disabled={value >= 15} aria-label={`${label} 늘리기`}>+</button>
+      </span>
+    </label>
   );
 }
 
