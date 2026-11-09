@@ -1,6 +1,6 @@
 // 🙋 1인 1역 · 🧹 청소 당번 · 📄 자리배치표 (학급 → 자리 배치 안의 칸들)
 // 모두 자리 배치 기록(class_seating)에 같이 저장되어 본인만 보고, 어느 기기에서나 같음.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { todayKST, formatShort } from '../lib/date.js';
 import { autoFillCleaning, buildImagePrompt, classNames, roleIcon, cleaningCounts, normalizeCleaning, rotationPlan, parseRolesPaste, rotateCleaning, seatSheetModel } from '../lib/classDuty.js';
 
@@ -164,26 +164,83 @@ export function CleaningView({ s, update, roster, say }) {
 }
 
 // ── 📄 자리배치표 (한 장: 자리 + 역할, 교탁, 청소 표, 1인 1역 목록) ─────────
+// 디자인 세 가지: 기본 표 / 크림·남색 / 🦖 초록(GPT로 만든 캐릭터 그림을 자리에 붙임)
+const THEMES = [['plain', '기본 표'], ['navy', '크림·남색'], ['green', '🦖 초록 + 그림']];
+// 초록 디자인에서 그림을 붙일 자리
+const STICKERS = [
+  ['tl', '제목 왼쪽'], ['tr', '제목 오른쪽'], ['ml', '교탁 왼쪽'], ['mr', '교탁 오른쪽'], ['bl', '청소 표 왼쪽'], ['br', '오른쪽 아래'],
+];
+
+// 올린 그림을 360px 안으로 줄여 PNG(투명 배경 유지)로
+function shrinkImage(file, max = 360) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(img.src);
+      resolve(cv.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('그림 파일을 읽지 못했어요'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// 제목에서 "3반"처럼 반 번호는 노랗게
+function TitleText({ title }) {
+  const parts = title.split(/(\d+\s*반)/);
+  return <>{parts.map((x, i) => (/\d+\s*반/.test(x) ? <em key={i}>{x}</em> : x))}</>;
+}
+
 export function SeatSheetView({ s, update, roster, say }) {
   const [opt, setOpt] = useState(() => {
-    const def = { roles: true, clean: true, list: true, fancy: true };
-    try { return { ...def, ...JSON.parse(localStorage.getItem('task-keeper.seat-sheet') || '{}') }; } catch { return def; }
+    const def = { roles: true, clean: true, list: true, theme: 'green' };
+    try {
+      const saved = JSON.parse(localStorage.getItem('task-keeper.seat-sheet') || '{}');
+      if (!saved.theme && 'fancy' in saved) saved.theme = saved.fancy ? 'navy' : 'plain';
+      return { ...def, ...saved };
+    } catch { return def; }
   });
-  const toggle = (k) => setOpt((o) => { const n = { ...o, [k]: !o[k] }; try { localStorage.setItem('task-keeper.seat-sheet', JSON.stringify(n)); } catch { /* 괜찮음 */ } return n; });
+  const setO = (patch) => setOpt((o) => { const n = { ...o, ...patch }; try { localStorage.setItem('task-keeper.seat-sheet', JSON.stringify(n)); } catch { /* 괜찮음 */ } return n; });
   const [busy, setBusy] = useState(false);
+  const sheet = useRef(null);
+
+  // 인쇄할 때: 한 장(A4 가로)에 맞게 줄였다가 끝나면 되돌림
+  useEffect(() => {
+    const fit = () => {
+      const el = sheet.current;
+      if (!el) return;
+      el.style.width = '1100px';
+      el.style.minWidth = '1100px';
+      const k = Math.min(1, 1040 / el.scrollWidth, 715 / el.scrollHeight);
+      el.style.zoom = String(k);
+    };
+    const reset = () => { const el = sheet.current; if (el) { el.style.zoom = ''; el.style.width = ''; el.style.minWidth = ''; } };
+    window.addEventListener('beforeprint', fit);
+    window.addEventListener('afterprint', reset);
+    return () => { window.removeEventListener('beforeprint', fit); window.removeEventListener('afterprint', reset); };
+  }, []);
+
   if (!s.current) return <div className="block"><p className="empty">먼저 <b>🔄 배치</b>에서 자리를 배치해 주세요.</p></div>;
   const m = seatSheetModel({ grid: s.current, roles: s.roles, cleaning: s.cleaning, roster });
   const title = s.title || '자리배치표';
+  const theme = opt.theme;
+  const stickers = s.stickers ?? {};
 
-  // 그림 AI(GPT 등)에 줄 프롬프트 복사 — 학생 이름이 들어가므로 한 번 확인
   async function copyPrompt() {
-    if (!confirm('프롬프트에 학생 이름이 들어가요. 외부 AI 서비스에 보내도 되는지 학교 지침을 확인했나요?\n(이름을 빼고 싶으면 복사한 뒤 지워서 쓰세요)')) return;
+    if (!confirm('프롬프트에 학생 이름이 들어가요. 외부 AI 서비스에 보내도 되는지 학교 지침을 확인했나요?\n(이름 없이 그림만 받으려면 아래 ‘그림 붙이기’의 캐릭터 프롬프트를 쓰세요)')) return;
     const text = buildImagePrompt({ title, model: m });
     try { await navigator.clipboard.writeText(text); say('그림 프롬프트를 복사했어요. ChatGPT에 붙여넣으세요.'); } catch { window.prompt('아래 내용을 복사하세요', text); }
   }
-  // 제목에서 '자리배치표'만 주황색으로 (꾸민 디자인)
-  const tm = title.match(/^(.*?)(자리\s*배치\s*표)$/);
-
+  async function copyStickerPrompt() {
+    try { await navigator.clipboard.writeText(STICKER_PROMPT); say('캐릭터 그림 프롬프트를 복사했어요. (학생 이름 없음)'); } catch { window.prompt('아래 내용을 복사하세요', STICKER_PROMPT); }
+  }
+  async function putSticker(slot, file) {
+    if (!file) return;
+    try { update({ stickers: { ...stickers, [slot]: await shrinkImage(file) } }); } catch (e) { say(e.message, true); }
+  }
   async function excel() {
     setBusy(true);
     try {
@@ -191,78 +248,134 @@ export function SeatSheetView({ s, update, roster, say }) {
       await downloadSeatSheetXlsx({ title, model: m, opt, fileName: `${title.replace(/[\\/:*?"<>|]/g, '')}.xlsx` });
     } catch (e) { say(`엑셀을 만들지 못했어요: ${e.message}`, true); } finally { setBusy(false); }
   }
+  const sticker = (slot) => (theme === 'green' && stickers[slot] ? <img className={`sticker st-${slot}`} src={stickers[slot]} alt="" /> : null);
+  // 청소 방법을 "① 쓸기(…) → ② 닦기(…)" 한 줄로 (초록 디자인)
+  const steps = m.rules.map((r, i) => `${'①②③④⑤'[i] ?? `${i + 1}.`} ${r.title}${r.body ? `(${r.body.split('\n')[0]})` : ''}`).join('  →  ');
 
   return (
     <>
       <div className="block stack">
         <label className="stack"><span className="small muted">제목</span>
-          <input value={s.title} onChange={(e) => update({ title: e.target.value })} placeholder="예: 1-3반 자리배치표" />
+          <input value={s.title} onChange={(e) => update({ title: e.target.value })} placeholder="예: 1학년 3반 자리배치표" />
         </label>
-        <div className="row wrap sheet-opts">
-          <label className="row"><input type="checkbox" checked={opt.roles} onChange={() => toggle('roles')} /> 이름 아래 역할</label>
-          <label className="row"><input type="checkbox" checked={opt.clean} onChange={() => toggle('clean')} /> 청소 당번 표</label>
-          <label className="row"><input type="checkbox" checked={opt.list} onChange={() => toggle('list')} /> 1인 1역 목록</label>
-          <label className="row"><input type="checkbox" checked={opt.fancy} onChange={() => toggle('fancy')} /> 🎨 꾸민 디자인</label>
+        <div className="seg">
+          {THEMES.map(([k, l]) => <button key={k} type="button" className={theme === k ? 'on' : ''} onClick={() => setO({ theme: k })}>{l}</button>)}
         </div>
+        <div className="row wrap sheet-opts">
+          <label className="row"><input type="checkbox" checked={opt.roles} onChange={() => setO({ roles: !opt.roles })} /> 이름 아래 역할</label>
+          <label className="row"><input type="checkbox" checked={opt.clean} onChange={() => setO({ clean: !opt.clean })} /> 청소 당번 표</label>
+          <label className="row"><input type="checkbox" checked={opt.list} onChange={() => setO({ list: !opt.list })} /> 1인 1역 목록</label>
+        </div>
+        {theme === 'green' && (
+          <details className="sticker-box" open={!Object.keys(stickers).length}>
+            <summary><b>🖼 그림 붙이기</b> <span className="small muted">{Object.keys(stickers).length}/6 · GPT로 만든 캐릭터 그림을 자리마다</span></summary>
+            <ol className="small sticker-how">
+              <li><button type="button" className="link" onClick={copyStickerPrompt}>캐릭터 그림 프롬프트 복사</button> → ChatGPT에 붙여넣기 (학생 이름은 안 들어가요)</li>
+              <li>나온 그림을 내려받아, 아래 자리에 하나씩 넣기 (투명 배경이면 더 예뻐요)</li>
+            </ol>
+            <div className="sticker-slots">
+              {STICKERS.map(([k, l]) => (
+                <div key={k} className="sticker-slot">
+                  <label className="sticker-pick">
+                    {stickers[k] ? <img src={stickers[k]} alt="" /> : <span>＋</span>}
+                    <input type="file" accept="image/*" hidden onChange={(e) => { putSticker(k, e.target.files?.[0]); e.target.value = ''; }} />
+                  </label>
+                  <span className="small">{l}</span>
+                  {stickers[k] && <button type="button" className="link small danger-text" onClick={() => { const n = { ...stickers }; delete n[k]; update({ stickers: n }); }}>빼기</button>}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
         <div className="row wrap">
-          <button className="primary" onClick={() => window.print()}>🖨 인쇄 (A4 가로)</button>
+          <button className="primary" onClick={() => window.print()}>🖨 인쇄 (A4 가로 한 장)</button>
           <button disabled={busy} onClick={excel}>📗 엑셀로 내려받기</button>
-          <button onClick={copyPrompt}>🤖 GPT 그림 프롬프트 복사</button>
+          <button onClick={copyPrompt}>🤖 GPT 포스터 프롬프트 복사</button>
         </div>
       </div>
+
       {/* 이 화면을 연 동안만 인쇄 용지를 A4 가로로 */}
-      <style>{'@media print { @page { size: A4 landscape; margin: 8mm; } }'}</style>
+      {/* 그리고 앱의 나머지(안 보이게 숨긴 것)가 빈 2쪽을 만들지 않게 아예 빼 버림 */}
+      <style>{'@media print { @page { size: A4 landscape; margin: 8mm; } body *:not(:has(.print-area)):not(.print-area):not(.print-area *) { display: none !important; } }'}</style>
       <div className="block sheet-wrap">
-        <div className={`print-area seat-sheet${opt.fancy ? ' fancy' : ''}`}>
-          <div className="sheet-left">
-            {opt.fancy && <span className="deco deco-window" aria-hidden="true">🪟</span>}
-            {opt.fancy && <span className="deco deco-shelf" aria-hidden="true">📚🪴</span>}
-            <h2 className="sheet-title">{opt.fancy && tm ? <>{tm[1]}<em>{tm[2]}</em></> : title}</h2>
-            <div className="sheet-desks" style={{ gridTemplateColumns: `repeat(${m.seats[0]?.length ?? 1}, minmax(0, 1fr))` }}>
-              {m.seats.flatMap((row, r) => row.map((x, c) => (
-                <div key={`${r}-${c}`} className={x ? 'sheet-desk' : 'sheet-desk empty'}>
-                  {x && <><b>{x.name}</b>{opt.roles && <span>{opt.fancy && x.role && <i aria-hidden="true">{roleIcon(x.role)} </i>}{x.role || ' '}</span>}</>}
+        <div ref={sheet} className={`print-area seat-sheet theme-${theme}`}>
+          <header className="sheet-head">
+            {sticker('tl')}
+            <h2 className="sheet-title">{theme === 'plain' ? title : <TitleText title={title} />}</h2>
+            {sticker('tr')}
+          </header>
+          <div className="sheet-body">
+            <div className="sheet-left">
+              <div className="sheet-room">
+                <div className="sheet-desks" style={{ gridTemplateColumns: `repeat(${m.seats[0]?.length ?? 1}, minmax(0, 1fr))` }}>
+                  {m.seats.flatMap((row, r) => row.map((x, c) => (
+                    <div key={`${r}-${c}`} className={x ? 'sheet-desk' : 'sheet-desk empty'}>
+                      {x && <><b>{x.name}</b>{opt.roles && <span>{theme === 'navy' && x.role && <i aria-hidden="true">{roleIcon(x.role)} </i>}{x.role || ' '}</span>}</>}
+                    </div>
+                  )))}
                 </div>
-              )))}
+                {theme !== 'navy' && <div className="sheet-window">창문<br />운동장</div>}
+              </div>
+              <div className="sheet-board-row">
+                {sticker('ml')}
+                <div className="sheet-board">교탁</div>
+                {sticker('mr')}
+              </div>
+              {opt.clean && (
+                <div className="sheet-clean-wrap">
+                  {theme !== 'plain' && <div className="sheet-clean-badge">{sticker('bl')}<span>{theme === 'green' ? <>청소<br />당번</> : '🧹 청소·정리 구역'}</span></div>}
+                  <div className="grow">
+                    <table className="sheet-clean">
+                      <thead><tr><th>구역</th>{m.days.map((d) => <th key={d}>{d}</th>)}</tr></thead>
+                      <tbody>
+                        {m.cleanRows.map((r, i) => (
+                          <tr key={i}>
+                            {r.first && <th rowSpan={r.span}>{r.zone}</th>}
+                            {r.cells.map((n, j) => <td key={j}>{n}</td>)}
+                          </tr>
+                        ))}
+                        {theme !== 'green' && m.rules.map((r, i) => (
+                          <tr key={`r${i}`} className="rule"><th>{r.title}</th><td colSpan={m.days.length} className="pre">{r.body}</td></tr>
+                        ))}
+                        {theme !== 'green' && m.footer && <tr className="rule"><td colSpan={m.days.length + 1}>{m.footer}</td></tr>}
+                      </tbody>
+                    </table>
+                    {theme === 'green' && (steps || m.footer) && (
+                      <p className="sheet-steps"><b>정리 순서</b> {steps}{m.footer && <>  →  {m.footer}</>}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="sheet-board">교탁</div>
-            {opt.clean && (
-              <>
-                {opt.fancy && <h3 className="sheet-sub">🧹 청소·정리 구역</h3>}
-                <table className="sheet-clean">
-                  <thead><tr><th>구역</th>{m.days.map((d) => <th key={d}>{d}</th>)}</tr></thead>
-                  <tbody>
-                    {m.cleanRows.map((r, i) => (
-                      <tr key={i}>
-                        {r.first && <th rowSpan={r.span}>{r.zone}</th>}
-                        {r.cells.map((n, j) => <td key={j}>{n}</td>)}
-                      </tr>
-                    ))}
-                    {m.rules.map((r, i) => (
-                      <tr key={`r${i}`} className="rule"><th>{r.title}</th><td colSpan={m.days.length} className="pre">{r.body}</td></tr>
-                    ))}
-                    {m.footer && <tr className="rule"><td colSpan={m.days.length + 1}>{m.footer}</td></tr>}
-                  </tbody>
-                </table>
-              </>
+            {opt.list && (
+              <div className="sheet-right">
+                <div className="sheet-roles-box">
+                  {theme !== 'plain' && <h3 className="sheet-sub">{theme === 'green' ? '👑 1인 1역할' : '📋 1인 1역할'}</h3>}
+                  <table className="sheet-roles">
+                    <thead><tr><th>번호</th><th>이름</th><th>역할</th>{theme === 'plain' && <th>1인 1역할</th>}</tr></thead>
+                    <tbody>
+                      {m.roleList.map((r) => <tr key={r.name}><td>{r.number ?? ''}</td><td>{r.name}</td><td>{r.role}</td>{theme === 'plain' && <td>{r.detail}</td>}</tr>)}
+                    </tbody>
+                  </table>
+                </div>
+                {sticker('br')}
+              </div>
             )}
           </div>
-          {opt.list && (
-            <div className="sheet-right">
-              {!opt.fancy && <div className="sheet-window">운동장<br />창문</div>}
-              <div className="sheet-roles-box">
-              {opt.fancy && <h3 className="sheet-sub">📋 1인 1역할</h3>}
-              <table className="sheet-roles">
-                <thead><tr><th>번호</th><th>이름</th><th>역할</th><th>1인 1역할</th></tr></thead>
-                <tbody>
-                  {m.roleList.map((r) => <tr key={r.name}><td>{r.number ?? ''}</td><td>{r.name}</td><td>{r.role}</td><td>{r.detail}</td></tr>)}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </>
   );
 }
+
+// GPT에 줄 캐릭터 그림 프롬프트 (학생 이름·글자 없이 꾸밈 그림만)
+const STICKER_PROMPT = `교실 자리배치표를 꾸밀 스티커 그림을 만들어 줘. 글자는 하나도 넣지 마.
+
+공통: 귀여운 한국 초등·중학생 아이 캐릭터, 초록 공룡 옷(후드에 노란 뿔·눈) 입음, 밝은 파스텔 플랫 일러스트, 굵은 갈색 외곽선, 배경은 투명(PNG). 그림마다 따로 한 장씩.
+
+1. 공룡 옷 입은 남자아이와 여자아이가 나란히, 엄지척·브이 (가로로 긴 그림)
+2. 공룡 옷 입은 남자아이가 주먹 불끈, 여자아이가 확성기 들고 신난 모습
+3. 공룡 옷 입은 아이가 엎드려 턱 괴고 웃는 모습, 옆에 쌓인 책
+4. 작은 초록 아기 공룡과 브이 하는 공룡 옷 여자아이
+5. 빗자루와 쓰레받기 (청소 도구), 반짝이 몇 개
+6. 공룡 옷 아이 셋이 깃발 아래에서 "화이팅" 하듯 만세 (깃발은 비워 둠)`;
