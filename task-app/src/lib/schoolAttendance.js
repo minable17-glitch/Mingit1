@@ -72,31 +72,31 @@ export function schoolReportRows(records, students, extraOff = new Set()) {
   const name = (id) => st[id]?.name ?? '(누락)';
   const rows = [];
 
-  // 결석: 같은 학생·분류·사유·서류로 이어진 학교 가는 날은 한 줄로
+  // 결석: 같은 학생·같은 분류로 이어진 학교 가는 날은 한 줄로 (아래 반복문 설명 참고)
   const absents = records.filter((r) => r.type === 'absent').sort((a, b) => a.student_id.localeCompare(b.student_id) || a.day.localeCompare(b.day));
   let cur = null;
   const flush = () => {
     if (!cur) return;
     const days = Math.max(schoolDaysBetween(cur.start, cur.end, extraOff), cur.count);
-    rows.push({ sort: cur.start, num: st[cur.r.student_id]?.number ?? 1e9, cells: [fmtSchoolDate(cur.start), fmtSchoolDate(cur.end), `${days}일간`, '', CLASS[cur.r.reason] ?? '(누락)', '결석', code(cur.r.student_id), name(cur.r.student_id), cur.r.memo?.trim() ?? '', docsText('absent', cur.r.reason, cur.r.memo, cur.docs)] });
+    rows.push({ sort: cur.start, num: st[cur.r.student_id]?.number ?? 1e9, cells: [fmtSchoolDate(cur.start), fmtSchoolDate(cur.end), `${days}일간`, '', CLASS[cur.r.reason] ?? '(누락)', '결석', code(cur.r.student_id), name(cur.r.student_id), cur.memos.join(', '), docsText('absent', cur.r.reason, cur.memos.join(', '), cur.docs)] });
     cur = null;
   };
-  // 사유 글은 띄어쓰기·문장부호 차이는 같은 것으로, 한쪽이 비어 있으면 옆 날 사유를 따름
+  // 같은 학생·같은 분류(질병·미인정 등)로 이어진 결석은 사유가 달라도 한 줄로.
+  // 사유는 날마다 적은 것을 쉼표로 이어 붙임 (띄어쓰기만 다른 같은 사유는 한 번만)
   const memoKey = (m) => (m ?? '').replace(/[\s.,·()]/g, '');
   for (const r of absents) {
-    const a = memoKey(cur?.r.memo);
-    const b = memoKey(r.memo);
-    const same = cur && cur.r.student_id === r.student_id && cur.r.reason === r.reason && (!a || !b || a === b) && r.day === nextSchoolDay(cur.end, extraOff);
+    const same = cur && cur.r.student_id === r.student_id && cur.r.reason === r.reason && r.day === nextSchoolDay(cur.end, extraOff);
     if (same) {
       cur.end = r.day;
       cur.count += 1;
-      if (!a && b) cur.r = { ...cur.r, memo: r.memo }; // 첫날 사유가 비었으면 뒷날 사유로
-      // 서류는 날마다 낸 것을 모두 모음 (같은 건 한 번만)
+      const m = (r.memo ?? '').trim();
+      if (m && !cur.memos.some((x) => memoKey(x) === memoKey(m))) cur.memos.push(m);
+      // 서류도 날마다 낸 것을 모두 모음 (같은 건 한 번만)
       const docs = new Set([...splitDocs(cur.docs), ...splitDocs(r.docs)]);
       cur.docs = [...docs].join(', ');
     } else {
       flush();
-      cur = { r, start: r.day, end: r.day, count: 1, docs: r.docs ?? '' };
+      cur = { r, start: r.day, end: r.day, count: 1, docs: r.docs ?? '', memos: (r.memo ?? '').trim() ? [r.memo.trim()] : [] };
     }
   }
   flush();
