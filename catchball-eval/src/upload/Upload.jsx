@@ -78,7 +78,7 @@ export default function Upload() {
     <div className="cb-app">
       <header className="cb-header">
         <h1>⚾ 캐치볼 영상 제출</h1>
-        <p>반과 이름을 적고, 앱에서 바로 촬영하거나 찍어 둔 영상을 올려 주세요. 영상은 선생님만 볼 수 있는 곳에 저장됩니다.</p>
+        <p>반과 이름을 적고, 앱에서 바로 촬영하거나 찍어 둔 영상을 올려 주세요. 영상은 선생님만 볼 수 있는 곳에 저장됩니다. 선생님은 위쪽 "선생님" 버튼을 누르세요.</p>
       </header>
 
       {status === 'done' && result ? (
@@ -137,7 +137,6 @@ export default function Upload() {
           </>)}
         </section>
       )}
-      <p className="cb-admin-link"><a href="admin.html">선생님(관리자) 페이지</a></p>
     </div>
   );
 }

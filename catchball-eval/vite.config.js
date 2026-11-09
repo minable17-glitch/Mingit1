@@ -5,13 +5,5 @@ import { defineConfig } from 'vite'
 // 배포 워크플로가 GH_PAGES_BASE 를 "/저장소이름/" 으로 넣어 줌
 export default defineConfig({
   base: process.env.GH_PAGES_BASE || '/',
-  build: {
-    rollupOptions: {
-      input: {
-        main: 'index.html', // 학생 제출 페이지 (대문)
-        admin: 'admin.html', // 선생님 채점 페이지 (관리자)
-      },
-    },
-  },
   plugins: [react()],
 })

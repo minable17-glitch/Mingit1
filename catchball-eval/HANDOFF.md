@@ -7,7 +7,7 @@
 
 체육 수행평가용. 두 학생이 캐치볼하는 영상을 올리면 **노란 공**과 아이들의 **손목·발목**을 인식해 성공(잡음)/실패(떨어뜨림) 횟수를 자동으로 세고, 선생님이 고쳐서 저장하는 도구. 영상 인식은 전부 브라우저에서, 영상·기록 저장은 수파베이스에서. 원래 새싹책방(Mingit1) 저장소 안의 별도 페이지로 만들었다가 이 저장소로 분리함.
 
-**주소**: 배포 시 `https://<아이디>.github.io/<저장소>/` (학생, 대문), `.../admin.html` (선생님 관리자). 개발 시 `http://localhost:5173/` 와 `/admin.html`. 배포는 `.github/workflows/deploy.yml` (main 에 push → GitHub Pages. 저장소 Settings > Pages > Source 를 GitHub Actions 로 두어야 함).
+**주소**: 배포 시 `https://<아이디>.github.io/<저장소>/` 하나 (학생·선생님 공통, 위쪽 버튼으로 전환, `?teacher` 로 선생님 화면 바로 열기). 개발 시 `http://localhost:5173/`. 배포는 `.github/workflows/deploy.yml` (main 에 push → GitHub Pages. 저장소 Settings > Pages > Source 를 GitHub Actions 로 두어야 함).
 
 **동작 방식 (영상은 절대 서버로 올라가지 않음, 전부 브라우저 안에서 처리)**
 1. 영상 파일 선택 즉시 자동으로 채점 시작 (`src/App.jsx` → `startAnalysis`).
@@ -26,7 +26,7 @@ DUMP=8-12 node scripts/catchball-offline.mjs 영상.mp4  # 8~12초 구간 프레
 ```
 브라우저에서는 채점이 끝난 뒤 콘솔에서 `window.__catchballDebug` (track, events, groundY)로 같은 데이터를 볼 수 있음.
 
-### 12-1. 학생 제출 페이지 + 수파베이스 저장 (`index.html` 대문, `supabase/catchball.sql`)
+### 12-1. 학생 제출 화면 + 수파베이스 저장 (`src/upload/`, `supabase/catchball.sql`)
 
 학생이 로그인 없이 영상을 올리고, 선생님이 새싹책방 계정으로 로그인해 채점·기록하는 구조. 새싹책방과 **같은 수파베이스 프로젝트**를 쓰되 테이블·버킷·RPC 는 모두 `catchball_` 접두어로 분리.
 
@@ -36,7 +36,7 @@ DUMP=8-12 node scripts/catchball-offline.mjs 영상.mp4  # 8~12초 구간 프레
   - 📹 **바로 촬영해서 제출** (`LiveCapture.jsx` + `live.js`): 촬영하는 동안 같은 인식 코드로 공·손목(글러브)·발목(바닥선)을 실시간으로 잡아 성공/실패를 화면에 셈(0.5초마다 `detectEvents` 재계산). 촬영 끝과 동시에 녹화 파일(MediaRecorder, 1.5Mbps)과 자동 카운트를 **자동 업로드**. 느린 기기에서는 포즈 인식 간격을 자동으로 늘림(한 번 걸린 시간의 3배 휴식).
   - 📁 **찍어 둔 영상 올리기**: 브라우저에서 640px 로 다시 녹화해 압축(`compress.js`, 1분 100MB → 5~10MB, 영상 길이만큼 걸림) 후 업로드. 50MB 넘으면 거부.
   - 업로드(`api.js`): 익명 로그인 → storage 에 XHR POST(진행률) 경로 `<uid>/<시각>_<파일명>` → RPC `catchball_submit`.
-  - 학생 링크: 대문 주소 그대로 (설정 없음). 선생님은 `admin.html`.
+  - 학생 링크: 주소 그대로 (설정 없음). 선생님도 같은 주소에서 위쪽 버튼으로 전환.
 - **선생님 페이지** (`App.jsx`): 맨 위 로그인 칸(새싹책방 선생님 아이디/비밀번호) → "학생이 제출한 영상" 목록(자동 카운트 표시, ✕로 영상 삭제해 용량 정리) → 채점 버튼이 storage 에서 내려받아 자동 채점 → 저장 시 `catchball_save_result`(+제출 상태 '채점완료'). 로그인 안 해도 기기 저장(localStorage) 모드로 쓸 수 있음.
 - **용량**: 수파베이스 무료 플랜 저장소 1GB. 압축/앱 촬영 영상(1분 5~10MB) 기준 100~200편. 채점 끝난 영상은 목록에서 지워 비우는 운영 전제. 더 필요하면 Pro 플랜.
 - **검증 상태**: 수파베이스 호스트가 이 샌드박스 네트워크에서 막혀 있어(프록시 403) 실제 프로젝트로는 못 돌림. auth 익명 로그인·RPC·storage 를 흉내 낸 가짜 서버(scratchpad `mock-supabase.mjs`)로 학생 압축 업로드 → 선생님 로그인(틀린 비밀번호 거부) → 목록 → 내려받아 채점 → 저장 → 새로고침 후 세션 유지 → 영상 삭제 → 로그아웃, 그리고 가짜 카메라로 실시간 촬영 모드까지 브라우저 종단 테스트 통과. **실제 적용 후 첫 확인 포인트**: SQL 실행 후 버킷이 생겼는지, 학생 페이지 업로드가 403 없이 되는지(정책), 선생님 로그인 후 목록·다운로드가 되는지.

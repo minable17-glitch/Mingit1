@@ -416,7 +416,7 @@ export default function App() {
   return (
     <div className="cb-app">
       <header className="cb-header">
-        <h1>⚾ 캐치볼 영상 평가 <span className="cb-sub">관리자</span></h1>
+        <h1>⚾ 캐치볼 영상 평가 <span className="cb-sub">선생님</span></h1>
         <p>영상을 올리면 노란 공과 아이들의 손을 찾아 몇 번 주고받았는지 자동으로 셉니다. 영상은 이 기기 밖으로 나가지 않습니다.</p>
       </header>
 
@@ -536,7 +536,7 @@ export default function App() {
             <button type="button" className="cb-link" style={{ padding: 0, marginLeft: 'auto' }} onClick={() => refreshFromServer().catch((e) => setToast(e?.message || '새로고침 실패'))}>새로고침</button>
           </h2>
           {submissions.length === 0 ? (
-            <p className="cb-note">아직 제출된 영상이 없습니다. 학생 제출 페이지 주소를 학생들에게 보내 주세요: <code>{new URL('./', window.location.href).toString()}</code></p>
+            <p className="cb-note">아직 제출된 영상이 없습니다. 학생 제출 페이지 주소를 학생들에게 보내 주세요: <code>{new URL('./', window.location.href).toString()}</code> (학생은 같은 주소에서 "학생 제출" 화면을 씁니다)</p>
           ) : (
             <ul className="cb-sub-list">
               {submissions.map((it) => (
