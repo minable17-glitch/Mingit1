@@ -1,13 +1,3 @@
-# 새싹책방 (Mingit1)
-
-- `index.html` — 새싹책방 (학급 독서 챌린지 PWA). 운영 중.
-- `catchball.html` — 캐치볼 영상 평가 도구 (선생님용 채점 페이지. 영상 속 노란 공·손 인식으로 주고받은 횟수 자동 채점). 별도 페이지, 새싹책방과 독립.
-- `catchball-upload.html` — 학생용 제출 페이지 (앱 안에서 촬영하며 실시간 카운트 → 자동 업로드, 또는 찍어 둔 영상 압축 업로드). 영상·기록은 수파베이스에 저장되며, 설정 SQL은 `supabase/catchball.sql` (SQL Editor에서 한 번 실행).
-
-자세한 구조와 인수인계 내용은 `HANDOFF.md` 참고.
-
----
-
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
@@ -24,3 +14,5 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the Oxlint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+
+> `catchball-eval/` 폴더는 캐치볼 영상 평가 도구를 별도 저장소로 옮기기 위한 **임시 보관**입니다. 새싹책방과는 코드·DB·계정이 전혀 연결되어 있지 않으며, 새 저장소(catchball-eval)로 옮긴 뒤 이 폴더는 삭제합니다.

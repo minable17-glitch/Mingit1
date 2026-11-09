@@ -1,14 +1,40 @@
--- 캐치볼 영상 평가: 수파베이스 쪽 설정 (새싹책방 테이블과 독립, 추가만 함)
--- 이 파일은 Supabase MCP 로 실제 프로젝트(ikljkokebcqaxpctcjpy)에 적용되었습니다. 참고/재적용용.
+-- 캐치볼 영상 평가: 수파베이스 설정 (이 도구 전용 프로젝트에서 SQL Editor 로 한 번 실행)
+--
+-- 사전 준비: Supabase 대시보드 → Authentication → Sign In / Providers 에서 "Anonymous Sign-Ins" 를 켜 주세요.
+-- (학생 제출과 선생님 로그인 모두 익명 세션 위에서 동작합니다.)
 --
 -- 구조
 --   storage 버킷 catchball-videos (비공개, 50MB 제한): 학생이 올린 영상. 경로 = <업로더 auth uid>/<파일명>
---   catchball_submissions : 제출 목록 (반, 학생, 영상 경로, 촬영 중 자동 카운트, 상태)
---   catchball_results     : 선생님 채점 결과
---   catchball_teacher_sessions : "이 익명 세션은 어느 선생님인가" 매핑.
---       새싹책방의 teachers.auth_user_id 를 건드리지 않기 위해 따로 둠 (같은 브라우저에서 두 앱을 같이 써도 서로 로그인을 끊지 않음)
+--   catchball_teachers         : 선생님 계정 (아이디 + 해시된 비밀번호)
+--   catchball_teacher_sessions : "이 익명 세션은 어느 선생님인가" 매핑
+--   catchball_submissions      : 제출 목록 (반, 학생, 영상 경로, 촬영 중 자동 카운트, 상태)
+--   catchball_results          : 선생님 채점 결과
+--   catchball_settings         : 설정 (선생님 가입 코드)
 --
 -- 접근 방식: 테이블은 RLS 를 켜고 정책을 두지 않음(직접 접근 불가). 모든 읽기/쓰기는 아래 RPC(security definer)로만.
+
+create extension if not exists pgcrypto;
+
+create table if not exists catchball_teachers (
+  id uuid primary key default gen_random_uuid(),
+  username text not null unique,
+  password_hash text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists catchball_teacher_sessions (
+  auth_uid uuid primary key,
+  teacher_id uuid not null references catchball_teachers(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists catchball_settings (
+  key text primary key,
+  value text
+);
+-- 선생님 가입 코드. 첫 선생님은 코드 없이 가입할 수 있고, 그 뒤로는 이 코드를 알아야 가입 가능.
+-- 바꾸려면: update catchball_settings set value = '원하는코드' where key = 'signup_code';
+insert into catchball_settings (key, value) values ('signup_code', 'catch-2026') on conflict (key) do nothing;
 
 create table if not exists catchball_submissions (
   id uuid primary key default gen_random_uuid(),
@@ -33,7 +59,7 @@ create table if not exists catchball_results (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   submission_id uuid references catchball_submissions(id) on delete set null,
-  teacher_id uuid references teachers(id) on delete set null,
+  teacher_id uuid references catchball_teachers(id) on delete set null,
   eval_date date,
   class_name text,
   student1 text,
@@ -47,15 +73,11 @@ create table if not exists catchball_results (
   events jsonb
 );
 
-create table if not exists catchball_teacher_sessions (
-  auth_uid uuid primary key,
-  teacher_id uuid not null references teachers(id) on delete cascade,
-  created_at timestamptz not null default now()
-);
-
+alter table catchball_teachers enable row level security;
+alter table catchball_teacher_sessions enable row level security;
+alter table catchball_settings enable row level security;
 alter table catchball_submissions enable row level security;
 alter table catchball_results enable row level security;
-alter table catchball_teacher_sessions enable row level security;
 
 -- 현재 세션이 선생님인지
 create or replace function catchball_current_teacher()
@@ -65,23 +87,59 @@ language sql security definer set search_path = public as $$
 $$;
 grant execute on function catchball_current_teacher() to anon, authenticated;
 
--- 선생님 로그인 (새싹책방 선생님 계정 그대로. teachers.auth_user_id 는 건드리지 않음)
+-- 선생님 가입 (첫 선생님은 코드 없이, 그 뒤는 가입 코드 필요)
+create or replace function catchball_teacher_signup(p_username text, p_password text, p_code text default null)
+returns table(id uuid, username text)
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_code text;
+  v_count int;
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception '세션이 없어요. 페이지를 새로고침해 주세요';
+  end if;
+  if length(coalesce(trim(p_username), '')) < 2 then
+    raise exception '아이디는 2글자 이상이어야 해요';
+  end if;
+  if length(coalesce(p_password, '')) < 4 then
+    raise exception '비밀번호는 4글자 이상이어야 해요';
+  end if;
+  select count(*) into v_count from catchball_teachers;
+  select value into v_code from catchball_settings where key = 'signup_code';
+  if v_count > 0 and (v_code is null or coalesce(p_code, '') <> v_code) then
+    raise exception '가입 코드가 맞지 않아요';
+  end if;
+  if exists (select 1 from catchball_teachers t where t.username = trim(p_username)) then
+    raise exception '이미 있는 아이디예요';
+  end if;
+  insert into catchball_teachers (username, password_hash)
+  values (trim(p_username), crypt(p_password, gen_salt('bf')))
+  returning catchball_teachers.id into v_id;
+  insert into catchball_teacher_sessions (auth_uid, teacher_id) values (auth.uid(), v_id)
+    on conflict (auth_uid) do update set teacher_id = excluded.teacher_id, created_at = now();
+  return query select t.id, t.username from catchball_teachers t where t.id = v_id;
+end;
+$$;
+grant execute on function catchball_teacher_signup(text, text, text) to anon, authenticated;
+
+-- 선생님 로그인
 create or replace function catchball_teacher_login(p_username text, p_password text)
 returns table(id uuid, username text)
 language plpgsql security definer set search_path = public, extensions as $$
 declare
-  v_teacher teachers%rowtype;
+  v_teacher catchball_teachers%rowtype;
 begin
   if auth.uid() is null then
     raise exception '세션이 없어요. 다시 시도해 주세요';
   end if;
-  select * into v_teacher from teachers where teachers.username = p_username;
+  select * into v_teacher from catchball_teachers t where t.username = trim(p_username);
   if not found or v_teacher.password_hash <> crypt(p_password, v_teacher.password_hash) then
     raise exception '아이디 또는 비밀번호가 올바르지 않아요';
   end if;
   insert into catchball_teacher_sessions (auth_uid, teacher_id) values (auth.uid(), v_teacher.id)
     on conflict (auth_uid) do update set teacher_id = excluded.teacher_id, created_at = now();
-  return query select teachers.id, teachers.username from teachers where teachers.id = v_teacher.id;
+  return query select t.id, t.username from catchball_teachers t where t.id = v_teacher.id;
 end;
 $$;
 grant execute on function catchball_teacher_login(text, text) to anon, authenticated;
@@ -90,7 +148,7 @@ grant execute on function catchball_teacher_login(text, text) to anon, authentic
 create or replace function catchball_me()
 returns table(id uuid, username text)
 language sql security definer set search_path = public as $$
-  select t.id, t.username from teachers t where t.id = catchball_current_teacher();
+  select t.id, t.username from catchball_teachers t where t.id = catchball_current_teacher();
 $$;
 grant execute on function catchball_me() to anon, authenticated;
 
@@ -100,6 +158,22 @@ language sql security definer set search_path = public as $$
   delete from catchball_teacher_sessions where auth_uid = auth.uid();
 $$;
 grant execute on function catchball_teacher_logout() to anon, authenticated;
+
+-- 비밀번호 바꾸기 (로그인 상태에서)
+create or replace function catchball_change_password(p_old text, p_new text)
+returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_teacher catchball_teachers%rowtype;
+begin
+  select * into v_teacher from catchball_teachers t where t.id = catchball_current_teacher();
+  if not found then raise exception '선생님 로그인이 필요해요'; end if;
+  if v_teacher.password_hash <> crypt(p_old, v_teacher.password_hash) then raise exception '현재 비밀번호가 올바르지 않아요'; end if;
+  if length(coalesce(p_new, '')) < 4 then raise exception '새 비밀번호는 4글자 이상이어야 해요'; end if;
+  update catchball_teachers set password_hash = crypt(p_new, gen_salt('bf')) where id = v_teacher.id;
+end;
+$$;
+grant execute on function catchball_change_password(text, text) to anon, authenticated;
 
 -- 학생: 영상을 올린 뒤 제출 기록. storage_path 는 반드시 자기 uid 폴더여야 함
 create or replace function catchball_submit(

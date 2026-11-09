@@ -89,6 +89,19 @@ export function getSavedTeacherUsername() {
   try { return localStorage.getItem(TEACHER_NAME_KEY) || ''; } catch { return ''; }
 }
 
+// 선생님 가입 (첫 선생님은 코드 없이, 그 뒤는 가입 코드 필요 — supabase/catchball.sql 의 catchball_settings)
+export async function teacherSignup({ username, password, code }) {
+  await ensureSession();
+  const rows = await rpc('catchball_teacher_signup', { p_username: username.trim(), p_password: password, p_code: code?.trim() || null });
+  const me = Array.isArray(rows) ? rows[0] : rows;
+  try { localStorage.setItem(TEACHER_NAME_KEY, me?.username || username.trim()); } catch { /* 무시 */ }
+  return me;
+}
+
+export async function teacherChangePassword({ oldPassword, newPassword }) {
+  return rpc('catchball_change_password', { p_old: oldPassword, p_new: newPassword });
+}
+
 export async function teacherLogin({ username, password }) {
   await ensureSession();
   const rows = await rpc('catchball_teacher_login', { p_username: username.trim(), p_password: password });

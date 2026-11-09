@@ -3,7 +3,7 @@ import { DEFAULT_BALL_PARAMS, DEFAULT_EVENT_PARAMS, detectEvents, makeColorMask,
 import { analyzeVideo, previewMask } from './analyzer.js';
 import { loadPoseLandmarker } from './pose.js';
 import { addRecord, deleteRecord, exportRecordsToExcel, loadRecords, todayKST } from './records.js';
-import { deleteSubmission, fetchVideo, getSavedTeacherUsername, listResults, listSubmissions, saveResult, teacherLogin, teacherLogout, teacherMe } from './api.js';
+import { deleteSubmission, fetchVideo, getSavedTeacherUsername, listResults, listSubmissions, saveResult, teacherLogin, teacherLogout, teacherMe, teacherSignup } from './api.js';
 
 const FPS_OPTIONS = [
   { value: 10, label: '빠르게 (초당 10장)' },
@@ -66,7 +66,8 @@ export default function App() {
   const [toast, setToast] = useState('');
   // ── 선생님 로그인(수파베이스) + 제출 목록 ──
   const [teacher, setTeacher] = useState(null); // {id, username}
-  const [loginDraft, setLoginDraft] = useState(() => ({ username: getSavedTeacherUsername(), password: '' }));
+  const [loginDraft, setLoginDraft] = useState(() => ({ username: getSavedTeacherUsername(), password: '', code: '' }));
+  const [signupMode, setSignupMode] = useState(false);
   const [loginState, setLoginState] = useState('checking'); // checking | out | busy | in
   const [loginMsg, setLoginMsg] = useState('');
   const [submissions, setSubmissions] = useState([]);
@@ -121,11 +122,12 @@ export default function App() {
     if (!loginDraft.username.trim() || !loginDraft.password) { setLoginMsg('아이디와 비밀번호를 입력해 주세요.'); return; }
     setLoginState('busy'); setLoginMsg('');
     try {
-      const me = await teacherLogin(loginDraft);
+      const me = signupMode ? await teacherSignup(loginDraft) : await teacherLogin(loginDraft);
       setTeacher(me);
       await refreshFromServer();
       setLoginState('in');
-      setLoginDraft((d) => ({ ...d, password: '' }));
+      setSignupMode(false);
+      setLoginDraft((d) => ({ ...d, password: '', code: '' }));
     } catch (e) {
       setLoginState('out'); setLoginMsg(e?.message || '로그인에 실패했습니다.');
     }
@@ -133,7 +135,7 @@ export default function App() {
 
   const doLogout = async () => {
     await teacherLogout();
-    setTeacher(null); setSubmissions([]); setSheetResults([]); setLoginState('out');
+    setTeacher(null); setSubmissions([]); setSheetResults([]); setLoginState('out'); setSignupMode(false);
   };
 
   const gradeSubmission = async (item) => {
@@ -431,15 +433,17 @@ export default function App() {
         )}
         {(loginState === 'out' || loginState === 'busy') && (
           <>
-            <h2>선생님 로그인 <span className="cb-sub">새싹책방 선생님 계정 그대로. 로그인하면 학생이 올린 영상을 보고 결과를 서버에 저장할 수 있어요</span></h2>
+            <h2>{signupMode ? '선생님 계정 만들기' : '선생님 로그인'} <span className="cb-sub">{signupMode ? '처음 한 번만. 첫 선생님은 가입 코드 없이, 그 다음부터는 가입 코드가 필요해요' : '로그인하면 학생이 올린 영상을 보고 결과를 서버에 저장할 수 있어요'}</span></h2>
             <div className="cb-grid">
               <label>아이디<input autoComplete="username" value={loginDraft.username} onChange={(e) => setLoginDraft({ ...loginDraft, username: e.target.value })} /></label>
-              <label>비밀번호<input type="password" autoComplete="current-password" value={loginDraft.password} onChange={(e) => setLoginDraft({ ...loginDraft, password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') doLogin(); }} /></label>
+              <label>비밀번호<input type="password" autoComplete={signupMode ? 'new-password' : 'current-password'} value={loginDraft.password} onChange={(e) => setLoginDraft({ ...loginDraft, password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') doLogin(); }} /></label>
+              {signupMode && <label>가입 코드 <span className="cb-sub">(첫 선생님은 비워 두세요)</span><input value={loginDraft.code} onChange={(e) => setLoginDraft({ ...loginDraft, code: e.target.value })} /></label>}
             </div>
             <div className="cb-row">
-              <button type="button" className="cb-btn" onClick={doLogin} disabled={loginState === 'busy'}>{loginState === 'busy' ? '로그인 중...' : '로그인'}</button>
-              <span className="cb-note" style={{ margin: 0, alignSelf: 'center' }}>로그인 없이도 이 기기에서 영상을 올려 채점하고 기록할 수 있어요.</span>
+              <button type="button" className="cb-btn" onClick={doLogin} disabled={loginState === 'busy'}>{loginState === 'busy' ? '확인 중...' : signupMode ? '계정 만들기' : '로그인'}</button>
+              <button type="button" className="cb-btn ghost" onClick={() => { setSignupMode((v) => !v); setLoginMsg(''); }}>{signupMode ? '이미 계정이 있어요' : '계정 만들기'}</button>
             </div>
+            <p className="cb-note">로그인 없이도 이 기기에서 영상을 올려 채점하고 기록할 수 있어요.</p>
             {loginMsg && <p className="cb-error">{loginMsg}</p>}
           </>
         )}

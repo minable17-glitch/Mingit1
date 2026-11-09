@@ -1,7 +1,7 @@
 # 캐치볼 영상 평가 — 인수인계 문서
 
 이 문서는 다른 AI 코딩 세션에 그대로 붙여넣어 이어서 작업하는 용도입니다. 사용자는 비개발자 교사이므로 항상 쉬운 말로 설명해야 합니다.
-새싹책방(Mingit1 저장소)에서 분리해 나온 프로젝트이며, 수파베이스 프로젝트는 새싹책방과 같은 것을 쓰되 표·버킷·함수는 모두 `catchball_` 접두어로 독립되어 있습니다.
+새싹책방(Mingit1 저장소)에서 분리해 나온 프로젝트이며, **수파베이스 프로젝트도 전용**으로 씁니다. 사용자의 명확한 요구: 새싹책방과 절대 겹치지 않게(코드, 저장소, DB, 계정 모두 분리).
 
 ## 1. 전체 구조
 
@@ -28,16 +28,16 @@ DUMP=8-12 node scripts/catchball-offline.mjs 영상.mp4  # 8~12초 구간 프레
 
 ### 12-1. 학생 제출 화면 + 수파베이스 저장 (`src/upload/`, `supabase/catchball.sql`)
 
-학생이 로그인 없이 영상을 올리고, 선생님이 새싹책방 계정으로 로그인해 채점·기록하는 구조. 새싹책방과 **같은 수파베이스 프로젝트**를 쓰되 테이블·버킷·RPC 는 모두 `catchball_` 접두어로 분리.
+학생이 로그인 없이 영상을 올리고, 선생님이 이 도구 전용 계정(`catchball_teachers`)으로 로그인해 채점·기록하는 구조. **전용 수파베이스 프로젝트** 사용 (설정 순서는 README).
 
-- **DB/스토리지 설정** (`supabase/catchball.sql`): 사용자가 Supabase SQL Editor 에서 직접 실행해야 함 (MCP 로 자동 적용하려 했으나 사용자가 거부 → 새싹책방과 같은 수동 적용 방식). 내용: 버킷 `catchball-videos`(비공개, 50MB 제한, video/* 만), 테이블 `catchball_submissions`(제출), `catchball_results`(채점), `catchball_teacher_sessions`(익명 세션 ↔ 선생님 매핑), RPC `catchball_teacher_login/me/logout/submit/list_submissions/save_result/list_results/delete_result/delete_submission`, storage 정책(올리기: 자기 uid 폴더만 / 읽기·삭제: 선생님만).
-- **왜 teachers.auth_user_id 를 안 쓰나**: 새싹책방은 로그인할 때마다 `teachers.auth_user_id` 를 덮어써서, 캐치볼 페이지에서 로그인하면 같은 브라우저의 새싹책방 선생님 세션이 깨짐. 그래서 `catchball_teacher_sessions` 에 따로 매핑하고, 클라이언트도 `storageKey: 'sb-catchball-auth'` 로 세션 저장 칸을 분리(`src/supabase.js`).
+- **DB/스토리지 설정** (`supabase/catchball.sql`): 전용 프로젝트의 SQL Editor 에서 실행 (익명 로그인을 먼저 켜야 함). 내용: 버킷 `catchball-videos`(비공개, 50MB 제한, video/* 만), 테이블 `catchball_teachers`(아이디+bcrypt 해시), `catchball_teacher_sessions`(익명 세션 ↔ 선생님 매핑), `catchball_settings`(가입 코드 `signup_code`, 기본 `catch-2026`), `catchball_submissions`(제출), `catchball_results`(채점), RPC `catchball_teacher_signup/login/me/logout/change_password/submit/list_submissions/save_result/list_results/delete_result/delete_submission`, storage 정책(올리기: 자기 uid 폴더만 / 읽기·삭제: 선생님만). 첫 선생님은 코드 없이 가입, 그 뒤는 가입 코드 필요.
+- MCP 로 새 수파베이스 프로젝트를 만들려 했으나 자동 승인에서 거부됨 → 사용자가 대시보드에서 직접 만들고 URL/키를 `deploy.yml` 에 넣는 방식.
 - **학생 페이지** (`src/upload/`): 두 가지 모드.
   - 📹 **바로 촬영해서 제출** (`LiveCapture.jsx` + `live.js`): 촬영하는 동안 같은 인식 코드로 공·손목(글러브)·발목(바닥선)을 실시간으로 잡아 성공/실패를 화면에 셈(0.5초마다 `detectEvents` 재계산). 촬영 끝과 동시에 녹화 파일(MediaRecorder, 1.5Mbps)과 자동 카운트를 **자동 업로드**. 느린 기기에서는 포즈 인식 간격을 자동으로 늘림(한 번 걸린 시간의 3배 휴식).
   - 📁 **찍어 둔 영상 올리기**: 브라우저에서 640px 로 다시 녹화해 압축(`compress.js`, 1분 100MB → 5~10MB, 영상 길이만큼 걸림) 후 업로드. 50MB 넘으면 거부.
   - 업로드(`api.js`): 익명 로그인 → storage 에 XHR POST(진행률) 경로 `<uid>/<시각>_<파일명>` → RPC `catchball_submit`.
   - 학생 링크: 주소 그대로 (설정 없음). 선생님도 같은 주소에서 위쪽 버튼으로 전환.
-- **선생님 페이지** (`App.jsx`): 맨 위 로그인 칸(새싹책방 선생님 아이디/비밀번호) → "학생이 제출한 영상" 목록(자동 카운트 표시, ✕로 영상 삭제해 용량 정리) → 채점 버튼이 storage 에서 내려받아 자동 채점 → 저장 시 `catchball_save_result`(+제출 상태 '채점완료'). 로그인 안 해도 기기 저장(localStorage) 모드로 쓸 수 있음.
+- **선생님 화면** (`App.jsx`): 맨 위 로그인/계정 만들기 칸(전용 계정) → "학생이 제출한 영상" 목록(자동 카운트 표시, ✕로 영상 삭제해 용량 정리) → 채점 버튼이 storage 에서 내려받아 자동 채점 → 저장 시 `catchball_save_result`(+제출 상태 '채점완료'). 로그인 안 해도 기기 저장(localStorage) 모드로 쓸 수 있음.
 - **용량**: 수파베이스 무료 플랜 저장소 1GB. 압축/앱 촬영 영상(1분 5~10MB) 기준 100~200편. 채점 끝난 영상은 목록에서 지워 비우는 운영 전제. 더 필요하면 Pro 플랜.
 - **검증 상태**: 수파베이스 호스트가 이 샌드박스 네트워크에서 막혀 있어(프록시 403) 실제 프로젝트로는 못 돌림. auth 익명 로그인·RPC·storage 를 흉내 낸 가짜 서버(scratchpad `mock-supabase.mjs`)로 학생 압축 업로드 → 선생님 로그인(틀린 비밀번호 거부) → 목록 → 내려받아 채점 → 저장 → 새로고침 후 세션 유지 → 영상 삭제 → 로그아웃, 그리고 가짜 카메라로 실시간 촬영 모드까지 브라우저 종단 테스트 통과. **실제 적용 후 첫 확인 포인트**: SQL 실행 후 버킷이 생겼는지, 학생 페이지 업로드가 403 없이 되는지(정책), 선생님 로그인 후 목록·다운로드가 되는지.
 

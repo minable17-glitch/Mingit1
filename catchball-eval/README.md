@@ -6,16 +6,19 @@
 
 주소는 하나입니다. 위쪽 버튼으로 화면을 바꿉니다 (`src/Root.jsx`).
 - 🎒 **학생 제출** (기본 화면): 반·이름 입력 → 📹 앱 안에서 촬영(실시간 카운트, 끝나면 자동 업로드) 또는 📁 찍어 둔 영상 압축 업로드.
-- 👩‍🏫 **선생님**: 새싹책방 선생님 계정으로 로그인 → 학생이 제출한 영상 목록 → 채점 → 저장. 로그인 없이도 이 기기에서 영상을 올려 채점·기록 가능. 마지막에 보던 화면을 기억하므로 선생님 기기에서는 다음부터 바로 선생님 화면이 뜸. `?teacher` 를 주소 뒤에 붙여도 선생님 화면으로 열림.
+- 👩‍🏫 **선생님**: 전용 선생님 계정으로 로그인(처음엔 "계정 만들기") → 학생이 제출한 영상 목록 → 채점 → 저장. 로그인 없이도 이 기기에서 영상을 올려 채점·기록 가능. 마지막에 보던 화면을 기억하므로 선생님 기기에서는 다음부터 바로 선생님 화면이 뜸. `?teacher` 를 주소 뒤에 붙여도 선생님 화면으로 열림.
 
 ## 처음 설정 (한 번만)
 
-1. **수파베이스 SQL 실행**: 수파베이스 대시보드 → SQL Editor → `supabase/catchball.sql` 내용을 붙여 넣고 Run.
-   (버킷 `catchball-videos`, `catchball_` 로 시작하는 표·함수만 만들어지며 다른 앱의 표는 건드리지 않습니다.)
-   선생님 계정은 새싹책방 선생님 계정(`teachers` 표)을 그대로 씁니다.
-2. **GitHub Pages 켜기**: 저장소 Settings → Pages → Source 를 **GitHub Actions** 로. 이후 `main` 에 push 하면 자동 배포.
+이 도구는 **전용 수파베이스 프로젝트**를 씁니다. 다른 앱과 표·저장소·계정을 전혀 공유하지 않습니다.
+
+1. **수파베이스 프로젝트 만들기**: https://supabase.com/dashboard → New project → 이름 `catchball-eval`, 지역 Northeast Asia (Seoul). 무료 플랜은 조직당 활성 프로젝트 2개까지이므로, 자리가 없으면 안 쓰는 프로젝트를 Pause 하거나 새 Organization 을 만드세요.
+2. **익명 로그인 켜기**: 대시보드 → Authentication → Sign In / Providers → **Anonymous Sign-Ins** 켜기.
+3. **SQL 실행**: 대시보드 → SQL Editor → `supabase/catchball.sql` 내용을 붙여 넣고 Run. (버킷 `catchball-videos` 와 `catchball_` 표·함수가 만들어짐)
+4. **주소·키 넣기**: 대시보드 → Project Settings → API 에서 Project URL 과 publishable key 를 복사해 `.github/workflows/deploy.yml` 의 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` 에 넣고 커밋.
+5. **GitHub Pages 켜기**: 저장소 Settings → Pages → Source 를 **GitHub Actions** 로. 이후 `main` 에 push 하면 자동 배포.
    - 주소: `https://<아이디>.github.io/<저장소이름>/` (학생·선생님 공통, 위쪽 버튼으로 전환)
-3. 다른 수파베이스 프로젝트를 쓰려면 `.github/workflows/deploy.yml` 의 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` 를 바꾸세요.
+6. **선생님 계정 만들기**: 배포된 주소 → 위쪽 "선생님" → "계정 만들기". 첫 계정은 가입 코드 없이 만들어지고, 두 번째부터는 가입 코드(`catchball.sql` 의 `signup_code`, 기본 `catch-2026`)가 필요합니다.
 
 ## 로컬 개발
 
