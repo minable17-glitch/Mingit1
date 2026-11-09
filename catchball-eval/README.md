@@ -39,7 +39,8 @@ DUMP=8-12 node scripts/catchball-offline.mjs 영상.mp4  # 8~12초 구간 프레
 ```
 
 브라우저에서는 채점이 끝난 뒤 콘솔의 `window.__catchballDebug` (track, events, groundY)로 같은 데이터를 볼 수 있습니다.
-공 색 기준값은 `src/analysis.js` 의 `DEFAULT_BALL_PARAMS`, 판정 기준은 `DEFAULT_EVENT_PARAMS` 입니다.
+공 색 기준값은 `src/analysis.js` 의 `DEFAULT_BALL_PARAMS`(기본: 주황~노랑), 궤적 확정 기준은 `createTrackletTracker` 의 옵션, 캐치 판정 기준은 `DEFAULT_EVENT_PARAMS` 입니다.
+`CONFIRM_LOG=1` 을 붙이면 어떤 궤적이 왜 공으로 인정됐는지(이동 거리·속도·매끄러움·중력)가 출력됩니다.
 
 ## 잘 찍는 요령
 

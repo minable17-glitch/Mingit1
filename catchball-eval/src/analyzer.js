@@ -1,9 +1,9 @@
 // 영상을 일정 간격으로 한 장씩 넘기며 공 위치와 사람(손목) 위치를 기록합니다.
 // 영상은 브라우저 안에서만 읽고, 어디로도 올라가지 않습니다.
-import { createBallTracker, createStaticMap, detectBall } from './analysis.js';
+import { createCameraMotion, createStaticMap, createTrackletTracker, detectBallCandidates } from './analysis.js';
 import { extractPeople } from './pose.js';
 
-export const ANALYSIS_WIDTH = 640; // 분석용 축소 화면 너비 (속도와 정확도의 절충; 멀리 있는 작은 공도 잡으려면 이 정도는 필요)
+export const ANALYSIS_WIDTH = 960; // 분석용 축소 화면 너비. 실제 운동장 영상에서 공이 640 기준 4픽셀밖에 안 돼 960으로 올림
 
 function seekTo(video, t) {
   return new Promise((resolve) => {
@@ -39,9 +39,13 @@ export async function analyzeVideo(video, { fps = 15, ballParams, poseLandmarker
   canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-  const tracker = createBallTracker();
   const staticMap = createStaticMap({ staticFrames: Math.round(fps * 3) });
+  const camera = createCameraMotion();
   const track = [];
+  // 궤적이 뒤늦게 공으로 확정되면 앞 프레임들을 채워 넣음
+  const tracker = createTrackletTracker({
+    onConfirm: (points) => { for (const pt of points) { const f = track[pt.frame]; if (f && !f.found) { f.x = pt.x; f.y = pt.y; f.r = pt.r; f.found = true; } } },
+  });
   const step = 1 / fps;
   let lastPoseTs = -1;
 
@@ -50,10 +54,10 @@ export async function analyzeVideo(video, { fps = 15, ballParams, poseLandmarker
     await seekTo(video, Math.min(t, duration - 0.001));
     ctx.drawImage(video, 0, 0, width, height);
 
-    // 1) 공: 색으로 찾기
+    // 1) 공: 색으로 후보를 모두 찾고, 날아간 궤적만 공으로 인정
     const img = ctx.getImageData(0, 0, width, height);
-    const ball = detectBall(img.data, width, height, ballParams, tracker.predict(t), staticMap);
-    tracker.update(ball, t);
+    const candidates = detectBallCandidates(img.data, width, height, ballParams, staticMap);
+    const ball = tracker.update(candidates, t, i, camera.update(img.data, width, height));
 
     // 2) 사람: 포즈 인식 (켜져 있을 때만)
     let people = null;
