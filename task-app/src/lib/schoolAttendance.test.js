@@ -41,3 +41,20 @@ test('지각·조퇴·결과: 교시, 종료일자·기간 비움, 학부모와�
   assert.equal(periodText('early', '종례'), '종례~');
   assert.equal(docsText('absent', 'sick', '감기', ''), '');
 });
+
+test('이어진 결석: 사유 띄어쓰기·빈칸은 같은 것으로, 서류는 모아서', () => {
+  const st = [{ id: 'a', number: 11, name: '학생', student_code: '11' }];
+  const ab = (day, memo, docs) => ({ student_id: 'a', day, type: 'absent', reason: 'sick', memo, docs, periods: null });
+  // 목·금(빈 사유+진료확인서) → 한 줄 2일간
+  let rows = schoolReportRows([ab('2026-10-22', '기저질환', null), ab('2026-10-23', null, '진료확인서')], st);
+  assert.deepEqual(rows.map((r) => [r[0], r[1], r[2], r[8], r[9]]), [['2026.10.22.', '2026.10.23.', '2일간', '기저질환', '진료확인서']]);
+  // 띄어쓰기만 다르면 같은 사유, 금→월(주말 건너뜀)도 이어짐
+  rows = schoolReportRows([ab('2026-10-23', '기저 질환', '진료확인서'), ab('2026-10-26', '기저질환', '진료확인서')], st);
+  assert.deepEqual(rows.map((r) => [r[0], r[1], r[2], r[9]]), [['2026.10.23.', '2026.10.26.', '2일간', '진료확인서']]);
+  // 사유가 정말 다르면 따로
+  rows = schoolReportRows([ab('2026-10-22', '감기', null), ab('2026-10-23', '장염', null)], st);
+  assert.equal(rows.length, 2);
+  // 사이에 조퇴(다른 날 등교)가 있으면 이어지지 않음
+  rows = schoolReportRows([ab('2026-10-23', '기저질환', null), { ...ab('2026-10-26', '컨디션난조', null), type: 'early', periods: '2' }, ab('2026-10-27', '기저질환', null)], st);
+  assert.deepEqual(rows.filter((r) => r[5] === '결석').map((r) => r[2]), ['1일간', '1일간']);
+});

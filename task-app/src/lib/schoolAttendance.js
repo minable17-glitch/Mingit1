@@ -64,6 +64,8 @@ export function docsText(type, reason, memo, docs) {
 }
 
 // records: class_attendance 행들, students: class_students, extraOff: 학교 쉬는 날 Set
+const splitDocs = (d) => (d ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+
 export function schoolReportRows(records, students, extraOff = new Set()) {
   const st = Object.fromEntries(students.map((s) => [s.id, s]));
   const code = (id) => (st[id] ? (st[id].student_code || String(st[id].number)) : '(누락)');
@@ -79,12 +81,19 @@ export function schoolReportRows(records, students, extraOff = new Set()) {
     rows.push({ sort: cur.start, num: st[cur.r.student_id]?.number ?? 1e9, cells: [fmtSchoolDate(cur.start), fmtSchoolDate(cur.end), `${days}일간`, '', CLASS[cur.r.reason] ?? '(누락)', '결석', code(cur.r.student_id), name(cur.r.student_id), cur.r.memo?.trim() ?? '', docsText('absent', cur.r.reason, cur.r.memo, cur.docs)] });
     cur = null;
   };
+  // 사유 글은 띄어쓰기·문장부호 차이는 같은 것으로, 한쪽이 비어 있으면 옆 날 사유를 따름
+  const memoKey = (m) => (m ?? '').replace(/[\s.,·()]/g, '');
   for (const r of absents) {
-    const same = cur && cur.r.student_id === r.student_id && cur.r.reason === r.reason && (cur.r.memo ?? '').trim() === (r.memo ?? '').trim() && r.day === nextSchoolDay(cur.end, extraOff);
+    const a = memoKey(cur?.r.memo);
+    const b = memoKey(r.memo);
+    const same = cur && cur.r.student_id === r.student_id && cur.r.reason === r.reason && (!a || !b || a === b) && r.day === nextSchoolDay(cur.end, extraOff);
     if (same) {
       cur.end = r.day;
       cur.count += 1;
-      if (!cur.docs && r.docs) cur.docs = r.docs;
+      if (!a && b) cur.r = { ...cur.r, memo: r.memo }; // 첫날 사유가 비었으면 뒷날 사유로
+      // 서류는 날마다 낸 것을 모두 모음 (같은 건 한 번만)
+      const docs = new Set([...splitDocs(cur.docs), ...splitDocs(r.docs)]);
+      cur.docs = [...docs].join(', ');
     } else {
       flush();
       cur = { r, start: r.day, end: r.day, count: 1, docs: r.docs ?? '' };
