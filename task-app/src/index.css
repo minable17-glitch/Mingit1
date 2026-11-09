@@ -1187,3 +1187,44 @@ html { font-size: 16px; }
   .sheet-roles th, .sheet-roles td { padding: 0 4px; }
   .sheet-window { max-height: none; }
 }
+.duty-rot { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--fill); border-radius: 12px; padding: 10px 12px; }
+.duty-rot p { margin: 0; }
+.duty-rot input[type=date], .duty-rot select { background: var(--card); }
+
+/* ── 🎨 꾸민 자리배치표 (크림 바탕 · 남색 제목 띠 · 살구색 역할 띠 · 그림) ── */
+.seat-sheet.fancy { background: linear-gradient(180deg, #fdf6ec, #fbefe0); border-radius: 18px; padding: 16px; gap: 16px; position: relative; font-family: inherit; }
+.seat-sheet.fancy .sheet-left { position: relative; gap: 12px; }
+.seat-sheet.fancy .deco { position: absolute; font-size: 2.4rem; opacity: 0.9; pointer-events: none; }
+.seat-sheet.fancy .deco-window { left: 0; top: -6px; }
+.seat-sheet.fancy .deco-shelf { right: 0; top: -4px; font-size: 1.9rem; }
+.seat-sheet.fancy .sheet-title { width: auto; background: #1f3264; color: #fff; padding: 8px 34px; border-radius: 999px; font-size: 1.55rem; letter-spacing: -0.02em; box-shadow: 0 3px 0 #13204a; }
+.seat-sheet.fancy .sheet-title em { font-style: normal; color: #ff9a1f; margin-left: 6px; }
+.seat-sheet.fancy .sheet-desks { gap: 10px; }
+.seat-sheet.fancy .sheet-desk { border: 2px solid #22305a; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 2px 0 rgba(31, 50, 100, 0.25); }
+.seat-sheet.fancy .sheet-desk b { border-bottom: none; color: #1f2a4d; font-size: 1.2rem; padding: 6px 2px 4px; }
+.seat-sheet.fancy .sheet-desk span { background: #ffe9cf; color: #3a3a3a; font-size: 0.78rem; padding: 4px 2px; }
+.seat-sheet.fancy .sheet-desk span i { font-style: normal; }
+.seat-sheet.fancy .sheet-desk.empty { border: none; background: transparent; box-shadow: none; }
+.seat-sheet.fancy .sheet-board { background: linear-gradient(180deg, #f6d9a8, #e8bb78); border: 2px solid #8a5a2b; border-radius: 12px 12px 4px 4px; color: #4a2c0f; padding: 6px 48px; box-shadow: 0 4px 0 #8a5a2b; }
+.seat-sheet.fancy .sheet-sub { align-self: flex-start; margin: 4px 0 -4px; background: #1f3264; color: #fff; font-size: 0.95rem; padding: 4px 14px; border-radius: 999px; }
+.seat-sheet.fancy .sheet-clean { border-collapse: separate; border-spacing: 3px; background: #fff; border-radius: 14px; padding: 6px; border: 2px solid #22305a; }
+.seat-sheet.fancy .sheet-clean th, .seat-sheet.fancy .sheet-clean td { border: none; border-bottom: 1px solid #e7dccb; }
+.seat-sheet.fancy .sheet-clean thead th { background: #1f3264; color: #fff; border-radius: 6px; }
+.seat-sheet.fancy .sheet-clean tbody th { background: #ffe1c2; color: #3b2a1a; border-radius: 6px; }
+.seat-sheet.fancy .sheet-clean tr.rule th { background: transparent; color: #1f3264; }
+.seat-sheet.fancy .sheet-clean tr.rule th::before { content: '✔ '; color: #ff8a1f; }
+.seat-sheet.fancy .sheet-clean tr.rule td { text-align: left; border-bottom: none; }
+.seat-sheet.fancy .sheet-roles-box { background: #fff; border: 2px solid #22305a; border-radius: 16px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.seat-sheet.fancy .sheet-roles-box .sheet-sub { align-self: center; margin: 0; }
+.seat-sheet.fancy .sheet-roles { border-collapse: collapse; }
+.seat-sheet.fancy .sheet-roles th { background: #dfe6f3; color: #1f2a4d; border: none; }
+.seat-sheet.fancy .sheet-roles td { border: none; border-bottom: 1px solid #edf0f5; }
+.seat-sheet.fancy .sheet-roles td:last-child, .seat-sheet.fancy .sheet-roles th:last-child { display: none; } /* 꾸민 디자인은 번호·이름·역할만 (그림처럼) */
+@media print {
+  .seat-sheet.fancy { border-radius: 0; padding: 4mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .seat-sheet.fancy .sheet-title { font-size: 17pt; padding: 3px 24px; }
+  .seat-sheet.fancy .sheet-desk b { font-size: 12pt; padding: 3px 2px 2px; }
+  .seat-sheet.fancy .sheet-desk span { font-size: 7.5pt; padding: 2px; }
+  .seat-sheet.fancy .deco { font-size: 22pt; }
+  .seat-sheet.fancy .sheet-sub { font-size: 9pt; padding: 2px 10px; }
+}

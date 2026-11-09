@@ -2,7 +2,7 @@
 // 모두 자리 배치 기록(class_seating)에 같이 저장되어 본인만 보고, 어느 기기에서나 같음.
 import { useState } from 'react';
 import { todayKST, formatShort } from '../lib/date.js';
-import { autoFillCleaning, classNames, cleaningCounts, nextRotation, normalizeCleaning, parseRolesPaste, rotateCleaning, seatSheetModel } from '../lib/classDuty.js';
+import { autoFillCleaning, buildImagePrompt, classNames, roleIcon, cleaningCounts, normalizeCleaning, rotationPlan, parseRolesPaste, rotateCleaning, seatSheetModel } from '../lib/classDuty.js';
 
 // ── 🙋 1인 1역 ─────────────────────────
 export function RolesView({ s, update, roster, say }) {
@@ -71,7 +71,7 @@ export function CleaningView({ s, update, roster, say }) {
   const counts = cleaningCounts(c);
   const missing = names.filter((n) => !counts[n]);
   const twice = Object.entries(counts).filter(([, n]) => n > 1).map(([x]) => x);
-  const rot = nextRotation(c.base, c.weeks, today);
+  const plan = rotationPlan(c, today);
 
   return (
     <>
@@ -109,13 +109,22 @@ export function CleaningView({ s, update, roster, say }) {
             {twice.length > 0 && <>두 번 이상: {twice.join(', ')}</>}
           </p>
         )}
-        <div className="row wrap duty-rot">
-          <span>순환 기준일</span>
-          <input type="date" value={c.base} onChange={(e) => set({ ...c, base: e.target.value })} />
-          <select value={c.weeks} onChange={(e) => set({ ...c, weeks: Number(e.target.value) })}>
-            {[1, 2, 3, 4].map((w) => <option key={w} value={w}>{w}주마다</option>)}
-          </select>
-          {rot && <span className={rot.due ? 'badge warn' : 'badge'}>{rot.due ? '순환할 때예요 · ' : '다음 순환 '}{formatShort(rot.next)}</span>}
+        <div className="duty-rot">
+          <label className="row"><input type="checkbox" checked={c.auto} onChange={(e) => set({ ...c, auto: e.target.checked })} /> <b>정해진 날에 자동으로 순환</b> <span className="small muted">(위 → 아래)</span></label>
+          <div className="row wrap">
+            <span className="small muted">다음 순환일</span>
+            <input type="date" value={c.next} min={today} onChange={(e) => set({ ...c, next: e.target.value })} aria-label="다음 순환일" />
+            <select value={c.weeks} onChange={(e) => set({ ...c, weeks: Number(e.target.value) })} aria-label="순환 주기">
+              {[1, 2, 3, 4].map((w) => <option key={w} value={w}>{w}주마다</option>)}
+            </select>
+          </div>
+          {plan ? (
+            <p className="small muted">
+              {c.auto ? '🔄 자동 순환: ' : '순환 예정(자동 꺼짐): '}
+              {plan.upcoming.map((d) => formatShort(d)).join(' → ')} …
+              {c.base && <> · 마지막 순환 {formatShort(c.base)}</>}
+            </p>
+          ) : <p className="small muted">다음 순환일을 정하면 그날 앱을 열 때 자동으로 한 칸씩 돌려요.</p>}
         </div>
       </div>
 
@@ -157,13 +166,23 @@ export function CleaningView({ s, update, roster, say }) {
 // ── 📄 자리배치표 (한 장: 자리 + 역할, 교탁, 청소 표, 1인 1역 목록) ─────────
 export function SeatSheetView({ s, update, roster, say }) {
   const [opt, setOpt] = useState(() => {
-    try { return { roles: true, clean: true, list: true, ...JSON.parse(localStorage.getItem('task-keeper.seat-sheet') || '{}') }; } catch { return { roles: true, clean: true, list: true }; }
+    const def = { roles: true, clean: true, list: true, fancy: true };
+    try { return { ...def, ...JSON.parse(localStorage.getItem('task-keeper.seat-sheet') || '{}') }; } catch { return def; }
   });
   const toggle = (k) => setOpt((o) => { const n = { ...o, [k]: !o[k] }; try { localStorage.setItem('task-keeper.seat-sheet', JSON.stringify(n)); } catch { /* 괜찮음 */ } return n; });
   const [busy, setBusy] = useState(false);
   if (!s.current) return <div className="block"><p className="empty">먼저 <b>🔄 배치</b>에서 자리를 배치해 주세요.</p></div>;
   const m = seatSheetModel({ grid: s.current, roles: s.roles, cleaning: s.cleaning, roster });
   const title = s.title || '자리배치표';
+
+  // 그림 AI(GPT 등)에 줄 프롬프트 복사 — 학생 이름이 들어가므로 한 번 확인
+  async function copyPrompt() {
+    if (!confirm('프롬프트에 학생 이름이 들어가요. 외부 AI 서비스에 보내도 되는지 학교 지침을 확인했나요?\n(이름을 빼고 싶으면 복사한 뒤 지워서 쓰세요)')) return;
+    const text = buildImagePrompt({ title, model: m });
+    try { await navigator.clipboard.writeText(text); say('그림 프롬프트를 복사했어요. ChatGPT에 붙여넣으세요.'); } catch { window.prompt('아래 내용을 복사하세요', text); }
+  }
+  // 제목에서 '자리배치표'만 주황색으로 (꾸민 디자인)
+  const tm = title.match(/^(.*?)(자리\s*배치\s*표)$/);
 
   async function excel() {
     setBusy(true);
@@ -183,28 +202,33 @@ export function SeatSheetView({ s, update, roster, say }) {
           <label className="row"><input type="checkbox" checked={opt.roles} onChange={() => toggle('roles')} /> 이름 아래 역할</label>
           <label className="row"><input type="checkbox" checked={opt.clean} onChange={() => toggle('clean')} /> 청소 당번 표</label>
           <label className="row"><input type="checkbox" checked={opt.list} onChange={() => toggle('list')} /> 1인 1역 목록</label>
+          <label className="row"><input type="checkbox" checked={opt.fancy} onChange={() => toggle('fancy')} /> 🎨 꾸민 디자인</label>
         </div>
         <div className="row wrap">
           <button className="primary" onClick={() => window.print()}>🖨 인쇄 (A4 가로)</button>
           <button disabled={busy} onClick={excel}>📗 엑셀로 내려받기</button>
+          <button onClick={copyPrompt}>🤖 GPT 그림 프롬프트 복사</button>
         </div>
       </div>
       {/* 이 화면을 연 동안만 인쇄 용지를 A4 가로로 */}
       <style>{'@media print { @page { size: A4 landscape; margin: 8mm; } }'}</style>
       <div className="block sheet-wrap">
-        <div className="print-area seat-sheet">
+        <div className={`print-area seat-sheet${opt.fancy ? ' fancy' : ''}`}>
           <div className="sheet-left">
-            <h2 className="sheet-title">{title}</h2>
+            {opt.fancy && <span className="deco deco-window" aria-hidden="true">🪟</span>}
+            {opt.fancy && <span className="deco deco-shelf" aria-hidden="true">📚🪴</span>}
+            <h2 className="sheet-title">{opt.fancy && tm ? <>{tm[1]}<em>{tm[2]}</em></> : title}</h2>
             <div className="sheet-desks" style={{ gridTemplateColumns: `repeat(${m.seats[0]?.length ?? 1}, minmax(0, 1fr))` }}>
               {m.seats.flatMap((row, r) => row.map((x, c) => (
                 <div key={`${r}-${c}`} className={x ? 'sheet-desk' : 'sheet-desk empty'}>
-                  {x && <><b>{x.name}</b>{opt.roles && <span>{x.role || ' '}</span>}</>}
+                  {x && <><b>{x.name}</b>{opt.roles && <span>{opt.fancy && x.role && <i aria-hidden="true">{roleIcon(x.role)} </i>}{x.role || ' '}</span>}</>}
                 </div>
               )))}
             </div>
             <div className="sheet-board">교탁</div>
             {opt.clean && (
               <>
+                {opt.fancy && <h3 className="sheet-sub">🧹 청소·정리 구역</h3>}
                 <table className="sheet-clean">
                   <thead><tr><th>구역</th>{m.days.map((d) => <th key={d}>{d}</th>)}</tr></thead>
                   <tbody>
@@ -225,13 +249,16 @@ export function SeatSheetView({ s, update, roster, say }) {
           </div>
           {opt.list && (
             <div className="sheet-right">
-              <div className="sheet-window">운동장<br />창문</div>
+              {!opt.fancy && <div className="sheet-window">운동장<br />창문</div>}
+              <div className="sheet-roles-box">
+              {opt.fancy && <h3 className="sheet-sub">📋 1인 1역할</h3>}
               <table className="sheet-roles">
                 <thead><tr><th>번호</th><th>이름</th><th>역할</th><th>1인 1역할</th></tr></thead>
                 <tbody>
                   {m.roleList.map((r) => <tr key={r.name}><td>{r.number ?? ''}</td><td>{r.name}</td><td>{r.role}</td><td>{r.detail}</td></tr>)}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
 import { CleaningView, RolesView, SeatSheetView } from './ClassDuty.jsx';
+import { autoRotate } from '../lib/classDuty.js';
+import { todayKST } from '../lib/date.js';
 import { arrangeSeats, normalizeSeating, parseAvoid, parseNames, seatHistory, seatKey, swapSeats, toBackup, toSheetText } from '../lib/seating.js';
 
 const VIEWS = [['make', '🔄 배치'], ['sheet', '📄 자리배치표'], ['roles', '🙋 1인 1역'], ['clean', '🧹 청소 당번'], ['history', '📊 학생별 기록'], ['saved', '🔖 저장된 기록']];
@@ -26,7 +28,20 @@ export default function Seating({ students: roster = [] }) {
 
   useEffect(() => {
     let alive = true;
-    api.loadSeating().then((d) => { if (alive) setS(d === null ? false : normalizeSeating(d)); });
+    api.loadSeating().then((d) => {
+      if (!alive) return;
+      if (d === null) return setS(false);
+      const loaded = normalizeSeating(d);
+      // 청소 당번 자동 순환: 다음 순환일이 지났으면 지난 만큼 돌리고 저장
+      const { cleaning, times } = autoRotate(loaded.cleaning, todayKST());
+      if (times) {
+        const next = { ...loaded, cleaning };
+        setS(next);
+        api.saveSeating(next).catch(() => {});
+        setToast({ msg: `청소 당번을 정해진 날에 맞춰 ${times > 1 ? `${times}번 ` : ''}순환했어요.`, err: false });
+        setTimeout(() => setToast(null), 3500);
+      } else setS(loaded);
+    });
     return () => { alive = false; };
   }, []);
 
