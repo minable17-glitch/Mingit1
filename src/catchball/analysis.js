@@ -397,10 +397,12 @@ function wristDistanceNear(track, frame, k) {
 
 // 전환점 근처에서 공이 빠르게 내려오다가 갑자기 올라가면(튀어오름) 바닥에 떨어진 것
 function isBounce(track, frame) {
+  // 프레임 수가 아니라 시간(앞뒤 0.4초)으로 창을 잡음. 실시간 모드에서 프레임 간격이 들쭉날쭉해도 같은 기준이 되도록.
   const i = track.indexOf(frame);
-  const before = track.slice(Math.max(0, i - 4), i).filter((f) => f.found);
-  const after = track.slice(i + 1, i + 5).filter((f) => f.found);
-  if (before.length < 2 || after.length < 2) return false;
+  const before = [], after = [];
+  for (let k = i - 1; k >= 0 && frame.t - track[k].t <= 0.4; k--) if (track[k].found) before.unshift(track[k]);
+  for (let k = i + 1; k < track.length && track[k].t - frame.t <= 0.4; k++) if (track[k].found) after.push(track[k]);
+  if (before.length < 1 || after.length < 1) return false;
   const vyBefore = (frame.y - before[0].y) / Math.max(1e-3, frame.t - before[0].t);
   // 튀어오른 뒤 가장 높이 간 지점(y 최소)까지의 속도
   const top = after.reduce((m, f) => (f.y < m.y ? f : m), after[0]);

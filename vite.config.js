@@ -11,6 +11,8 @@ export default defineConfig({
         main: 'index.html',
         // 캐치볼 영상 평가 (별도 페이지: catchball.html)
         catchball: 'catchball.html',
+        // 학생용 영상 제출 페이지
+        catchballUpload: 'catchball-upload.html',
       },
     },
   },

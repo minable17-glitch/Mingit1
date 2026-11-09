@@ -92,3 +92,29 @@ input[type="range"] { width: 100%; accent-color: var(--cb-accent-dark); }
   .cb-events li .cb-reason { grid-column: 1 / -1; }
   .cb-events li .cb-x { grid-column: 3; grid-row: 1; justify-self: end; }
 }
+
+/* 학생 제출 페이지 */
+.cb-upload-progress { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.cb-progress-text.dark { color: var(--cb-text); font-size: 0.9rem; }
+.cb-done { text-align: center; }
+.cb-done h2 { justify-content: center; font-size: 1.4rem; }
+.cb-big { font-size: 1.2rem; font-weight: 700; margin: 6px 0; }
+.cb-config { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--cb-line); border-radius: 12px; background: #faf9f5; }
+.cb-config code { background: #fff; border: 1px solid var(--cb-line); border-radius: 6px; padding: 2px 6px; font-size: 0.85rem; word-break: break-all; }
+.cb-sub-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.cb-sub-list li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: #faf9f5; border: 1px solid var(--cb-line); font-size: 0.92rem; }
+.cb-sub-list li.graded { opacity: 0.6; }
+.cb-sub-list .meta { color: var(--cb-muted); font-size: 0.82rem; }
+.cb-pill { display: inline-block; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: #fff4e5; color: #7a4b00; margin-left: 6px; }
+.cb-pill.done { background: #e6f5eb; color: var(--cb-ok); }
+
+/* 앱 안 촬영 */
+.cb-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #f1efe7; border-radius: 12px; padding: 4px; }
+.cb-mode button { font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 6px; border: none; border-radius: 9px; background: transparent; color: var(--cb-muted); cursor: pointer; }
+.cb-mode button.on { background: #fff; color: var(--cb-text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+.cb-live { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.cb-video-wrap.is-hidden { display: none; }
+.cb-rec-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.85rem; font-weight: 600; padding: 6px 10px; border-radius: 999px; display: flex; align-items: center; gap: 6px; }
+.cb-rec-badge .dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; animation: cb-blink 1s infinite; }
+@keyframes cb-blink { 50% { opacity: 0.2; } }
+.cb-btn.bad-solid { background: var(--cb-bad); color: #fff; }
