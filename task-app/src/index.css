@@ -1118,3 +1118,72 @@ html { font-size: 16px; }
 .num-field { display: flex; align-items: center; gap: 4px; }
 .num-field input { flex: 1; min-width: 0; text-align: center; font-size: 1.05rem; font-weight: 700; }
 .num-field button { width: 40px; height: 42px; padding: 0; font-size: 1.2rem; flex: none; }
+
+/* ── 🙋 1인 1역 · 🧹 청소 당번 ── */
+.duty-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.duty-table th, .duty-table td { border-bottom: 1px solid var(--line); padding: 4px 4px; text-align: left; }
+.duty-table thead th { font-size: 0.78rem; color: var(--muted); font-weight: 700; }
+.duty-table td.num { width: 2.6em; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.duty-table td.nm { width: 5.5em; font-weight: 700; white-space: nowrap; }
+.duty-table input { width: 100%; padding: 7px 8px; font-size: 0.9rem; }
+.duty-table.clean { min-width: 560px; }
+.duty-table.clean th, .duty-table.clean td { text-align: center; }
+.duty-table.clean th.zone { background: var(--fill); font-size: 0.82rem; width: 8.5em; border-right: 1px solid var(--line); }
+.duty-table.clean tr.zone-first td, .duty-table.clean tr.zone-first th { border-top: 2px solid var(--line); }
+.duty-table.clean select { width: 100%; padding: 6px 4px; font-size: 0.88rem; text-align: center; }
+.duty-tools { margin-bottom: 10px; }
+.duty-check { margin: 8px 0 0; }
+.duty-rot { margin-top: 12px; font-size: 0.9rem; }
+.duty-rot input, .duty-rot select { padding: 6px 8px; }
+.duty-paste { margin-bottom: 12px; }
+.duty-setup > summary { list-style: none; cursor: pointer; }
+.duty-setup > summary::-webkit-details-marker { display: none; }
+.duty-setup > summary h2 { margin: 0; }
+.duty-setup[open] > summary h2 { margin-bottom: 10px; }
+.zone-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.zone-list li { display: flex; align-items: center; gap: 6px; }
+.small-num { flex: none; }
+.small-num button { width: 32px; height: 34px; font-size: 1rem; }
+.small-num b { min-width: 2.6em; text-align: center; font-size: 0.88rem; }
+.duty-sub { font-size: 0.95rem; margin: 16px 0 8px; }
+.rule-row { display: grid; grid-template-columns: 6em 1fr auto; gap: 6px; align-items: start; margin-bottom: 6px; }
+.duty-footer { margin-top: 10px; }
+.sheet-opts { gap: 6px 16px; font-size: 0.9rem; }
+
+/* ── 📄 자리배치표 (화면 미리보기 + A4 가로 인쇄) ── */
+.sheet-wrap { overflow-x: auto; }
+.seat-sheet { display: flex; gap: 14px; align-items: flex-start; min-width: 760px; color: #111; background: #fff; padding: 8px; border-radius: 8px; }
+.sheet-left { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.sheet-title { width: 100%; margin: 0; text-align: center; background: #f4cccc; padding: 8px; font-size: 1.3rem; font-weight: 800; color: #111; }
+.sheet-desks { display: grid; gap: 10px 14px; width: 100%; }
+.sheet-desk { border: 1.5px solid #333; display: flex; flex-direction: column; text-align: center; background: #fff; min-height: 52px; }
+.sheet-desk b { font-size: 1.15rem; padding: 4px 2px; border-bottom: 1px solid #333; word-break: keep-all; }
+.sheet-desk span { font-size: 0.72rem; padding: 2px; min-height: 1.3em; }
+.sheet-desk.empty { border: none; background: transparent; }
+.sheet-board { background: #fff2cc; border: 1.5px solid #333; padding: 6px 40px; font-weight: 800; font-size: 1.05rem; }
+.sheet-clean { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.sheet-clean th, .sheet-clean td { border: 1px solid #333; padding: 3px 4px; text-align: center; height: 1.6em; }
+.sheet-clean th { background: #f4cccc; font-weight: 700; }
+.sheet-clean tr.rule th { background: #fff; }
+.sheet-clean tr.rule td { font-size: 0.75rem; }
+.sheet-right { display: flex; gap: 10px; align-items: flex-start; }
+.sheet-window { writing-mode: vertical-rl; background: #c9daf8; border: 1.5px solid #333; padding: 16px 6px; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.2em; align-self: stretch; display: flex; align-items: center; justify-content: center; max-height: 420px; }
+.sheet-roles { border-collapse: collapse; font-size: 0.72rem; }
+.sheet-roles th, .sheet-roles td { border: 1px solid #333; padding: 1px 6px; text-align: center; white-space: nowrap; }
+.sheet-roles th { background: #eee; }
+@media print {
+  .seat-sheet { min-width: 0; width: 100%; padding: 0; gap: 8mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* A4 가로 한 장에 들어가게 촘촘히 */
+  .sheet-left { gap: 6px; }
+  .sheet-title { font-size: 15pt; padding: 4px; }
+  .sheet-desks { gap: 5px 10px; }
+  .sheet-desk { min-height: 0; }
+  .sheet-desk b { font-size: 12pt; padding: 2px; }
+  .sheet-desk span { font-size: 7pt; padding: 1px; min-height: 1.1em; }
+  .sheet-board { padding: 3px 30px; font-size: 11pt; }
+  .sheet-clean { font-size: 7.5pt; }
+  .sheet-clean th, .sheet-clean td { padding: 1px 3px; height: 1.35em; }
+  .sheet-roles { font-size: 7pt; }
+  .sheet-roles th, .sheet-roles td { padding: 0 4px; }
+  .sheet-window { max-height: none; }
+}

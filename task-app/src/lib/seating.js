@@ -1,10 +1,12 @@
 // 🪑 자리 배치 (순수 함수, 테스트 가능) — 선생님이 쓰던 '스마트 자리 배치 프로그램'과 같은 규칙.
 // 자리 표: grid[행][열] = 이름 또는 null. 1행이 맨 뒤, 마지막 행이 칠판(교탁) 쪽 = 앞자리.
 // 자리 이름은 "c열 r행" (예전 프로그램 백업과 그대로 맞음).
+import { normalizeCleaning, normalizeRoles } from './classDuty.js';
 
 export const DEFAULT_SEATING = {
   rows: 5, cols: 5, fillFront: true, useHistory: false,
   students: '', avoid: '', current: null, secret: null, records: [],
+  title: '', roles: {}, cleaning: null, // 자리배치표 제목, 1인 1역, 청소 당번 (classDuty.js)
 };
 
 export const seatKey = (r, c) => `${c + 1}열 ${r + 1}행`;
@@ -116,6 +118,9 @@ export function normalizeSeating(d) {
     records: (Array.isArray(v.records ?? v.savedRecords) ? (v.records ?? v.savedRecords) : [])
       .filter((r) => r && isGrid(r.grid))
       .map((r) => ({ id: r.id ?? Date.now() + Math.random(), title: r.title ? String(r.title) : '', date: String(r.date ?? ''), rows: r.rows ?? r.grid.length, cols: r.cols ?? (r.grid[0]?.length ?? 0), grid: r.grid })),
+    title: String(v.title ?? ''),
+    roles: normalizeRoles(v.roles),
+    cleaning: normalizeCleaning(v.cleaning),
   };
 }
 
@@ -124,5 +129,6 @@ export function toBackup(s) {
   return {
     rows: s.rows, cols: s.cols, fillFrontFirst: s.fillFront, useHistory: s.useHistory,
     studentInput: s.students, avoidInput: s.avoid, currentGrid: s.current, savedRecords: s.records, secretGrid: s.secret,
+    title: s.title, roles: s.roles, cleaning: s.cleaning,
   };
 }

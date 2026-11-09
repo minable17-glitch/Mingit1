@@ -7,9 +7,10 @@
 // 계정에 저장(본인만 보기)되어 어느 기기에서나 같고, AI 커넥터로는 나가지 않음.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
+import { CleaningView, RolesView, SeatSheetView } from './ClassDuty.jsx';
 import { arrangeSeats, normalizeSeating, parseAvoid, parseNames, seatHistory, seatKey, swapSeats, toBackup, toSheetText } from '../lib/seating.js';
 
-const VIEWS = [['make', '🔄 배치'], ['history', '📊 학생별 기록'], ['saved', '🔖 저장된 기록']];
+const VIEWS = [['make', '🔄 배치'], ['sheet', '📄 자리배치표'], ['roles', '🙋 1인 1역'], ['clean', '🧹 청소 당번'], ['history', '📊 학생별 기록'], ['saved', '🔖 저장된 기록']];
 const nowLabel = () => new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export default function Seating({ students: roster = [] }) {
@@ -120,9 +121,13 @@ export default function Seating({ students: roster = [] }) {
   return (
     <div className="seating">
       {toast && <div className={`seat-toast${toast.err ? ' err' : ''}`} role="status">{toast.err ? '⚠️' : '✅'} {toast.msg}</div>}
-      <div className="seg seat-views" role="tablist">
-        {VIEWS.map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}
+      <div className="chips scroll-x seat-views" role="tablist">
+        {VIEWS.map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'chip on' : 'chip'} onClick={() => setView(k)}>{l}</button>)}
       </div>
+
+      {view === 'sheet' && <SeatSheetView s={s} update={update} roster={roster} say={say} />}
+      {view === 'roles' && <RolesView s={s} update={update} roster={roster} say={say} />}
+      {view === 'clean' && <CleaningView s={s} update={update} roster={roster} say={say} />}
 
       {view === 'make' && (
         <div className="seat-layout">
@@ -168,7 +173,7 @@ export default function Seating({ students: roster = [] }) {
                 <span className="small muted grow">↔️ 학생을 누른 뒤 바꿀 자리를 누르세요.</span>
                 {swapFrom && <button className="small" onClick={() => setSwapFrom(null)}>선택 취소</button>}
                 <button className="small" onClick={() => copySheet(s.current)}>📋 시트로 복사</button>
-                <button className="small" onClick={() => window.print()}>🖨 인쇄</button>
+                <button className="small primary" onClick={() => setView('sheet')}>📄 자리배치표 만들기</button>
               </div>
             )}
             <div className="print-area">
