@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { getApiConfig, setApiConfig, submitVideo } from '../api.js';
+import { MAX_UPLOAD_BYTES, submitVideo } from '../api.js';
 import { canCompress, compressVideo, extForMime } from '../compress.js';
 import { todayKST } from '../records.js';
 import LiveCapture from './LiveCapture.jsx';
@@ -8,11 +8,10 @@ import { canRecord } from '../live.js';
 const MB = 1024 * 1024;
 
 export default function Upload() {
-  const [cfg] = useState(() => getApiConfig());
   const [info, setInfo] = useState(() => {
     let className = '';
     try { className = JSON.parse(localStorage.getItem('catchball_upload_last') || '{}').className || ''; } catch { /* 무시 */ }
-    return { date: todayKST(), className, student1: '', student2: '', submitCode: cfg.submitCode || '' };
+    return { date: todayKST(), className, student1: '', student2: '' };
   });
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | compressing | uploading | done | error
@@ -24,37 +23,30 @@ export default function Upload() {
   const abortRef = useRef(null);
 
   const validateInfo = () => {
-    if (!cfg.scriptUrl) return '제출 주소가 없습니다. 선생님이 보내 준 링크로 다시 열어 주세요.';
     if (!info.className.trim() || !info.student1.trim() || !info.student2.trim()) return '반과 두 사람 이름을 모두 적어 주세요.';
-    try {
-      localStorage.setItem('catchball_upload_last', JSON.stringify({ className: info.className.trim() }));
-      setApiConfig({ ...cfg, submitCode: info.submitCode });
-    } catch { /* 무시 */ }
+    try { localStorage.setItem('catchball_upload_last', JSON.stringify({ className: info.className.trim() })); } catch { /* 무시 */ }
     return null;
   };
 
   const busy = status === 'compressing' || status === 'uploading';
 
   const start = async () => {
-    if (!cfg.scriptUrl) { setStatus('error'); setMessage('제출 주소가 없습니다. 선생님이 보내 준 링크로 다시 열어 주세요.'); return; }
-    if (!info.className.trim() || !info.student1.trim() || !info.student2.trim()) { setMessage('반과 두 사람 이름을 모두 적어 주세요.'); return; }
+    const err = validateInfo();
+    if (err) { setMessage(err); return; }
     if (!file) { setMessage('영상을 먼저 골라 주세요.'); return; }
     setMessage('');
     setResult(null);
     const controller = new AbortController();
     abortRef.current = controller;
-    try {
-      localStorage.setItem('catchball_upload_last', JSON.stringify({ className: info.className.trim() }));
-      setApiConfig({ ...cfg, submitCode: info.submitCode });
-    } catch { /* 무시 */ }
 
-    let blob = file, fileName = file.name;
+    let blob = file, fileName = file.name, durationSec = null;
     try {
       if (compress) {
         setStatus('compressing'); setProgress(0);
         try {
           const out = await compressVideo(file, { onProgress: setProgress, signal: controller.signal });
           blob = out.blob;
+          durationSec = Number.isFinite(out.duration) ? Math.round(out.duration) : null;
           fileName = file.name.replace(/\.[^.]+$/, '') + '.' + extForMime(out.mimeType);
         } catch (e) {
           if (e?.name === 'AbortError') throw e;
@@ -62,15 +54,14 @@ export default function Upload() {
           setMessage('압축이 안 되어 원본을 그대로 올립니다.');
         }
       }
+      if (blob.size > MAX_UPLOAD_BYTES) throw new Error(`영상이 너무 큽니다 (${Math.round(blob.size / MB)}MB). "올리기 전에 영상 줄이기"를 켜거나 더 짧게 찍어 주세요.`);
       setStatus('uploading'); setProgress(0);
       const r = await submitVideo({
-        scriptUrl: cfg.scriptUrl,
-        submitCode: info.submitCode.trim(),
         info: { className: info.className.trim(), student1: info.student1.trim(), student2: info.student2.trim(), date: info.date },
-        blob, fileName,
+        blob, fileName, durationSec,
         onStatus: setMessage, onProgress: setProgress,
       });
-      setResult({ ...r, sizeMb: Math.round(blob.size / MB * 10) / 10, originalMb: Math.round(file.size / MB) });
+      setResult({ ...r, sizeMb: Math.round(blob.size / MB * 10) / 10, originalMb: Math.round(file.size / MB * 10) / 10 });
       setStatus('done');
       setMessage('');
     } catch (e) {
@@ -87,12 +78,8 @@ export default function Upload() {
     <div className="cb-app">
       <header className="cb-header">
         <h1>⚾ 캐치볼 영상 제출</h1>
-        <p>반과 이름을 적고, 앱에서 바로 촬영하거나 찍어 둔 영상을 올려 주세요. 영상은 선생님 구글 드라이브에만 저장됩니다.</p>
+        <p>반과 이름을 적고, 앱에서 바로 촬영하거나 찍어 둔 영상을 올려 주세요. 영상은 선생님만 볼 수 있는 곳에 저장됩니다.</p>
       </header>
-
-      {!cfg.scriptUrl && (
-        <section className="cb-card"><p className="cb-error">⚠️ 제출 주소가 없는 링크입니다. 선생님이 보내 준 링크로 다시 열어 주세요.</p></section>
-      )}
 
       {status === 'done' && result ? (
         <section className="cb-card cb-done">
@@ -108,7 +95,6 @@ export default function Upload() {
             <label>반<input placeholder="예: 1학년 3반" value={info.className} onChange={(e) => setInfo({ ...info, className: e.target.value })} disabled={busy} /></label>
             <label>학생 1<input placeholder="이름" value={info.student1} onChange={(e) => setInfo({ ...info, student1: e.target.value })} disabled={busy} /></label>
             <label>학생 2<input placeholder="이름" value={info.student2} onChange={(e) => setInfo({ ...info, student2: e.target.value })} disabled={busy} /></label>
-            <label>제출 코드 <span className="cb-sub">(선생님이 알려 준 경우만)</span><input placeholder="없으면 비워 두세요" value={info.submitCode} onChange={(e) => setInfo({ ...info, submitCode: e.target.value })} disabled={busy} /></label>
           </div>
 
           {canRecord() && (
@@ -119,7 +105,7 @@ export default function Upload() {
           )}
 
           {mode === 'live' && (
-            <LiveCapture key={`${info.student1}|${info.student2}`} cfg={cfg} info={info} validate={validateInfo} onDone={() => {}} />
+            <LiveCapture key={`${info.student1}|${info.student2}`} info={info} validate={validateInfo} />
           )}
 
           {mode === 'file' && (<>
@@ -147,7 +133,7 @@ export default function Upload() {
           )}
           {!busy && message && <p className={status === 'error' ? 'cb-error' : 'cb-note'}>{message}</p>}
 
-          <button type="button" className="cb-btn big" onClick={start} disabled={busy || !cfg.scriptUrl}>영상 올리기</button>
+          <button type="button" className="cb-btn big" onClick={start} disabled={busy}>영상 올리기</button>
           </>)}
         </section>
       )}

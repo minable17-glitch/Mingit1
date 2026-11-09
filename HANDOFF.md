@@ -427,23 +427,25 @@ DUMP=8-12 node scripts/catchball-offline.mjs 영상.mp4  # 8~12초 구간 프레
 ```
 브라우저에서는 채점이 끝난 뒤 콘솔에서 `window.__catchballDebug` (track, events, groundY)로 같은 데이터를 볼 수 있음.
 
-### 12-1. 학생 제출 페이지 + 구글 드라이브·시트 연동 (`catchball-upload.html`, `apps-script/`)
+### 12-1. 학생 제출 페이지 + 수파베이스 저장 (`catchball-upload.html`, `supabase/catchball.sql`)
 
-학생이 로그인 없이 영상을 선생님 구글 드라이브에 올리고, 제출 목록·채점 결과를 구글 시트에 남기는 구조. 선생님이 `apps-script/Code.gs` 를 앱스크립트 웹앱으로 한 번 배포하면 됨 (설치 순서는 `apps-script/README.md`).
+학생이 로그인 없이 영상을 올리고, 선생님이 새싹책방 계정으로 로그인해 채점·기록하는 구조. 새싹책방과 **같은 수파베이스 프로젝트**를 쓰되 테이블·버킷·RPC 는 모두 `catchball_` 접두어로 분리.
 
-- **앱스크립트 역할** (`Code.gs`, 선생님 계정으로 실행, 모든 사용자 접근): `start_upload`(드라이브 이어 올리기 세션 발급), `upload_whole`(예비: base64 중계, 40MB 이하), `finish_upload`(제출목록 시트 기록), 선생님 키 필요: `list_submissions`, `get_file`(영상 base64 반환, 40MB 이하), `save_result`, `list_results`. 스크립트 속성: `TEACHER_KEY`(필수), `SUBMIT_CODE`, `ROOT_FOLDER_ID`, `SHEET_ID`(선택).
+- **DB/스토리지 설정** (`supabase/catchball.sql`): 사용자가 Supabase SQL Editor 에서 직접 실행해야 함 (MCP 로 자동 적용하려 했으나 사용자가 거부 → 새싹책방과 같은 수동 적용 방식). 내용: 버킷 `catchball-videos`(비공개, 50MB 제한, video/* 만), 테이블 `catchball_submissions`(제출), `catchball_results`(채점), `catchball_teacher_sessions`(익명 세션 ↔ 선생님 매핑), RPC `catchball_teacher_login/me/logout/submit/list_submissions/save_result/list_results/delete_result/delete_submission`, storage 정책(올리기: 자기 uid 폴더만 / 읽기·삭제: 선생님만).
+- **왜 teachers.auth_user_id 를 안 쓰나**: 새싹책방은 로그인할 때마다 `teachers.auth_user_id` 를 덮어써서, 캐치볼 페이지에서 로그인하면 같은 브라우저의 새싹책방 선생님 세션이 깨짐. 그래서 `catchball_teacher_sessions` 에 따로 매핑하고, 클라이언트도 `storageKey: 'sb-catchball-auth'` 로 세션 저장 칸을 분리(`src/catchball/supabase.js`).
 - **학생 페이지** (`src/catchball/upload/`): 두 가지 모드.
-  - 📹 **바로 촬영해서 제출** (`LiveCapture.jsx` + `live.js`): 카메라를 켜고 촬영하는 동안 같은 인식 코드로 실시간으로 공·손목(글러브)·발목(바닥선)을 잡아 성공/실패를 화면에 세어 줌(0.5초마다 `detectEvents` 재계산). 촬영 끝 버튼을 누르면 녹화 파일(MediaRecorder, 1.5Mbps)과 자동 카운트가 **자동으로 업로드**됨. 느린 기기에서는 포즈 인식을 프레임 건너뛰며 돌림(`skipPose`).
-  - 📁 **찍어 둔 영상 올리기**: 브라우저에서 640px 로 다시 녹화해 압축(`compress.js`, 1분 100MB → 5~10MB, 영상 길이만큼 걸림) 후 업로드.
-  - 업로드 경로(`api.js` `submitVideo`): 1순위 드라이브 세션에 직접 PUT → 실패하면 2순위 앱스크립트 base64 중계(40MB 이하). 요청은 `text/plain` 으로 보내 CORS 사전요청을 피함(앱스크립트 302 리다이렉트를 fetch 가 따라감).
-  - 학생 링크는 선생님 페이지 설정에서 만들어짐: `catchball-upload.html?api=<앱스크립트 URL>` (주소가 localStorage 에 저장됨).
-- **선생님 페이지 연동** (`App.jsx`): 설정 > 구글 드라이브·시트 연동에 주소·선생님 키 입력 → 연결 확인 → "학생이 제출한 영상" 목록(자동 카운트 표시) → 채점 버튼이 `get_file` 로 영상을 받아 자동 채점 → 저장 시 `save_result` 로 시트에 기록(+제출목록 상태 '채점완료'). 설정은 localStorage 에 저장되어 다음에 자동 연결.
-- **검증 상태**: 실제 앱스크립트/드라이브는 선생님 계정이 필요해 **아직 실제로 돌려 보지 못함**. 대신 앱스크립트와 드라이브 PUT 을 흉내 낸 가짜 서버(`mock`)로 학생 압축·업로드 → 선생님 목록 → 가져와 채점 → 시트 저장 → 재접속 자동 연결까지, 그리고 가짜 카메라(y4m)로 실시간 촬영 모드까지 브라우저 종단 테스트를 통과함. **실제 배포 후 첫 확인 포인트**: (1) 드라이브 이어 올리기 세션에 브라우저가 직접 PUT 할 때 CORS 가 되는지(안 되면 자동으로 중계 경로로 감), (2) `get_file` 응답 크기(10MB 영상 → base64 13MB JSON)가 앱스크립트에서 정상 반환되는지.
+  - 📹 **바로 촬영해서 제출** (`LiveCapture.jsx` + `live.js`): 촬영하는 동안 같은 인식 코드로 공·손목(글러브)·발목(바닥선)을 실시간으로 잡아 성공/실패를 화면에 셈(0.5초마다 `detectEvents` 재계산). 촬영 끝과 동시에 녹화 파일(MediaRecorder, 1.5Mbps)과 자동 카운트를 **자동 업로드**. 느린 기기에서는 포즈 인식 간격을 자동으로 늘림(한 번 걸린 시간의 3배 휴식).
+  - 📁 **찍어 둔 영상 올리기**: 브라우저에서 640px 로 다시 녹화해 압축(`compress.js`, 1분 100MB → 5~10MB, 영상 길이만큼 걸림) 후 업로드. 50MB 넘으면 거부.
+  - 업로드(`api.js`): 익명 로그인 → storage 에 XHR POST(진행률) 경로 `<uid>/<시각>_<파일명>` → RPC `catchball_submit`.
+  - 학생 링크: 그냥 `catchball-upload.html` (설정 없음).
+- **선생님 페이지** (`App.jsx`): 맨 위 로그인 칸(새싹책방 선생님 아이디/비밀번호) → "학생이 제출한 영상" 목록(자동 카운트 표시, ✕로 영상 삭제해 용량 정리) → 채점 버튼이 storage 에서 내려받아 자동 채점 → 저장 시 `catchball_save_result`(+제출 상태 '채점완료'). 로그인 안 해도 기기 저장(localStorage) 모드로 쓸 수 있음.
+- **용량**: 수파베이스 무료 플랜 저장소 1GB. 압축/앱 촬영 영상(1분 5~10MB) 기준 100~200편. 채점 끝난 영상은 목록에서 지워 비우는 운영 전제. 더 필요하면 Pro 플랜.
+- **검증 상태**: 수파베이스 호스트가 이 샌드박스 네트워크에서 막혀 있어(프록시 403) 실제 프로젝트로는 못 돌림. auth 익명 로그인·RPC·storage 를 흉내 낸 가짜 서버(scratchpad `mock-supabase.mjs`)로 학생 압축 업로드 → 선생님 로그인(틀린 비밀번호 거부) → 목록 → 내려받아 채점 → 저장 → 새로고침 후 세션 유지 → 영상 삭제 → 로그아웃, 그리고 가짜 카메라로 실시간 촬영 모드까지 브라우저 종단 테스트 통과. **실제 적용 후 첫 확인 포인트**: SQL 실행 후 버킷이 생겼는지, 학생 페이지 업로드가 403 없이 되는지(정책), 선생님 로그인 후 목록·다운로드가 되는지.
 
 **알려진 한계 / 다음 할 일**
 - 공이 화면에서 **좌우로** 오가는 영상(옆에서 촬영)만 판정 가능. 카메라 쪽으로 던지는 영상은 안 됨.
 - 두 아이 이외의 사람·다른 팀이 화면에 있으면 손목 기준이 흐려짐 (포즈 2명까지만).
 - 실패 판정은 바닥선에 의존. 포즈가 안 잡히면 기본 바닥선(0.88)이라 낮게 떨어진 공을 놓칠 수 있음 → 선생님 수정 전제.
-- 드라이브 연동을 안 쓰면 기록이 기기 localStorage 에만 저장됨.
-- 선생님 페이지가 드라이브에서 가져올 수 있는 영상은 40MB 이하(앱스크립트 중계 한계). 앱 안 촬영·압축 업로드는 이 범위 안에 들어옴. 원본 그대로 올린 큰 영상은 링크로 내려받아 직접 올려 채점.
+- 선생님이 로그인하지 않으면 기록이 기기 localStorage 에만 저장됨.
+- 영상 한 편 50MB 제한(버킷 설정). 앱 안 촬영·압축 업로드는 이 범위 안에 들어옴.
 - `vite.config.js`의 `globIgnores: ['**/catchball*', '**/vision_wasm*']` 로 새싹책방 PWA 캐시에서 제외해 둠 (wasm 11MB).

@@ -758,3 +758,7 @@ begin
 end;
 $$;
 grant execute on function resume_challenge(uuid) to anon, authenticated;
+
+
+-- ── 캐치볼 영상 평가 ─────────────────────────────────
+-- 별도 파일 supabase/catchball.sql 참고 (테이블·버킷·RPC 모두 catchball_ 접두어, 새싹책방과 독립).

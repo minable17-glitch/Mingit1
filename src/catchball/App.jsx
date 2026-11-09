@@ -3,7 +3,7 @@ import { DEFAULT_BALL_PARAMS, DEFAULT_EVENT_PARAMS, detectEvents, makeColorMask,
 import { analyzeVideo, previewMask } from './analyzer.js';
 import { loadPoseLandmarker } from './pose.js';
 import { addRecord, deleteRecord, exportRecordsToExcel, loadRecords, todayKST } from './records.js';
-import { apiPost, fetchDriveVideo, getApiConfig, isValidScriptUrl, listResults, listSubmissions, saveResultToSheet, setApiConfig, studentUploadLink } from './api.js';
+import { deleteSubmission, fetchVideo, getSavedTeacherUsername, listResults, listSubmissions, saveResult, teacherLogin, teacherLogout, teacherMe } from './api.js';
 
 const FPS_OPTIONS = [
   { value: 10, label: '빠르게 (초당 10장)' },
@@ -16,10 +16,18 @@ const FPS_OPTIONS = [
 function ensureDuration(video) {
   if (Number.isFinite(video.duration)) return Promise.resolve();
   return new Promise((resolve) => {
-    const done = () => { video.removeEventListener('durationchange', done); video.currentTime = 0; resolve(); };
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      video.removeEventListener('durationchange', done);
+      video.currentTime = 0;
+      resolve();
+    };
+    const timer = setTimeout(done, 3000);
     video.addEventListener('durationchange', done);
     video.currentTime = 1e9;
-    setTimeout(done, 3000);
   });
 }
 
@@ -56,16 +64,16 @@ export default function App() {
   // ── 기록 ──
   const [records, setRecords] = useState(() => loadRecords());
   const [toast, setToast] = useState('');
-  // ── 구글 드라이브·시트 연동 ──
-  const [api, setApi] = useState(() => getApiConfig());
-  const [apiDraft, setApiDraft] = useState(() => getApiConfig());
-  const [apiState, setApiState] = useState('unknown'); // unknown | checking | ok | error
-  const [apiMsg, setApiMsg] = useState('');
+  // ── 선생님 로그인(수파베이스) + 제출 목록 ──
+  const [teacher, setTeacher] = useState(null); // {id, username}
+  const [loginDraft, setLoginDraft] = useState(() => ({ username: getSavedTeacherUsername(), password: '' }));
+  const [loginState, setLoginState] = useState('checking'); // checking | out | busy | in
+  const [loginMsg, setLoginMsg] = useState('');
   const [submissions, setSubmissions] = useState([]);
   const [sheetResults, setSheetResults] = useState([]);
   const [fetchingId, setFetchingId] = useState(null);
-  const [currentFileId, setCurrentFileId] = useState(null);
-  const apiReady = apiState === 'ok' && !!api.scriptUrl && !!api.teacherKey;
+  const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
+  const apiReady = !!teacher;
 
   const videoRef = useRef(null);
   const overlayRef = useRef(null);
@@ -86,46 +94,71 @@ export default function App() {
   // 영상 URL 정리
   useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
 
-  // ── 드라이브·시트 연동 ──
-  const refreshFromSheet = useCallback(async (cfg) => {
-    const [subs, res] = await Promise.all([listSubmissions(cfg), listResults(cfg)]);
+  // ── 선생님 로그인 / 제출 목록 ──
+  const refreshFromServer = useCallback(async () => {
+    const [subs, res] = await Promise.all([listSubmissions(), listResults()]);
     setSubmissions(subs);
     setSheetResults(res);
   }, []);
 
-  const connectApi = async (cfg = apiDraft) => {
-    if (!isValidScriptUrl(cfg.scriptUrl)) { setApiState('error'); setApiMsg('앱스크립트 주소 형식이 아닙니다. https://script.google.com/macros/s/…/exec 형태여야 합니다.'); return; }
-    if (!cfg.teacherKey) { setApiState('error'); setApiMsg('선생님 키를 입력해 주세요.'); return; }
-    setApiState('checking'); setApiMsg('');
+  // 페이지를 열 때 이미 로그인된 선생님이 있으면 그대로 이어감
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await teacherMe();
+        if (cancelled) return;
+        if (me) { setTeacher(me); await refreshFromServer(); setLoginState('in'); }
+        else setLoginState('out');
+      } catch (e) {
+        if (!cancelled) { setLoginState('out'); setLoginMsg(e?.message || ''); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshFromServer]);
+
+  const doLogin = async () => {
+    if (!loginDraft.username.trim() || !loginDraft.password) { setLoginMsg('아이디와 비밀번호를 입력해 주세요.'); return; }
+    setLoginState('busy'); setLoginMsg('');
     try {
-      await apiPost(cfg.scriptUrl, 'ping', {}, { timeoutMs: 20000 });
-      await refreshFromSheet(cfg);
-      setApi(cfg); setApiConfig(cfg);
-      setApiState('ok'); setApiMsg('연결되었습니다.');
+      const me = await teacherLogin(loginDraft);
+      setTeacher(me);
+      await refreshFromServer();
+      setLoginState('in');
+      setLoginDraft((d) => ({ ...d, password: '' }));
     } catch (e) {
-      setApiState('error'); setApiMsg(e?.message || '연결에 실패했습니다.');
+      setLoginState('out'); setLoginMsg(e?.message || '로그인에 실패했습니다.');
     }
   };
 
-  // 저장된 설정이 있으면 페이지를 열 때 자동으로 연결
-  useEffect(() => {
-    if (api.scriptUrl && api.teacherKey) connectApi(api);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const doLogout = async () => {
+    await teacherLogout();
+    setTeacher(null); setSubmissions([]); setSheetResults([]); setLoginState('out');
+  };
 
   const gradeSubmission = async (item) => {
-    setFetchingId(item.fileId);
+    setFetchingId(item.id);
     try {
-      const { blob, fileName } = await fetchDriveVideo(api, item.fileId);
+      const blob = await fetchVideo(item.path);
       setInfo((v) => ({ ...v, date: item.date || v.date, className: item.className, student1: item.student1, student2: item.student2, memo: '' }));
-      setCurrentFileId(item.fileId);
-      onPickFile(blob, fileName);
+      setCurrentSubmissionId(item.id);
+      onPickFile(blob, item.fileName || 'video.webm');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       setToast(e?.message || '영상을 가져오지 못했습니다.');
-      if (e?.link) window.open(e.link, '_blank');
     } finally {
       setFetchingId(null);
+    }
+  };
+
+  const removeSubmission = async (item) => {
+    if (!window.confirm(`${item.student1} · ${item.student2} 제출 영상을 지울까요? (저장 공간을 비웁니다. 채점 결과는 남습니다)`)) return;
+    try {
+      await deleteSubmission(item);
+      await refreshFromServer();
+      setToast('영상을 지웠습니다.');
+    } catch (e) {
+      setToast(e?.message || '삭제에 실패했습니다.');
     }
   };
 
@@ -208,7 +241,7 @@ export default function App() {
     if (!file) return;
     if (abortRef.current) abortRef.current.abort();
     if (videoUrl) URL.revokeObjectURL(videoUrl);
-    if (!name) setCurrentFileId(null); // 직접 고른 파일은 드라이브 제출물이 아님
+    if (!name) setCurrentSubmissionId(null); // 직접 고른 파일은 제출물이 아님
     setVideoUrl(URL.createObjectURL(file));
     setVideoName(name || file.name);
     setDuration(null);
@@ -349,7 +382,7 @@ export default function App() {
       bestStreak: stats.bestStreak,
       duration: duration ? Math.round(duration) : null,
       videoName,
-      fileId: currentFileId,
+      submissionId: currentSubmissionId,
       events,
     };
     addRecord(record);
@@ -357,11 +390,11 @@ export default function App() {
     if (apiReady) {
       setSaving(true);
       try {
-        await saveResultToSheet(api, record);
-        await refreshFromSheet(api);
-        setToast('구글 시트에 저장했습니다.');
+        await saveResult(record);
+        await refreshFromServer();
+        setToast('서버에 저장했습니다.');
       } catch (e) {
-        setToast('이 기기에는 저장했지만 구글 시트 저장은 실패했습니다: ' + (e?.message || ''));
+        setToast('이 기기에는 저장했지만 서버 저장은 실패했습니다: ' + (e?.message || ''));
       } finally {
         setSaving(false);
       }
@@ -369,7 +402,7 @@ export default function App() {
       setToast('기록을 저장했습니다.');
     }
     setInfo((v) => ({ ...v, student1: '', student2: '', memo: '' }));
-    setCurrentFileId(null);
+    setCurrentSubmissionId(null);
   };
 
   const onDeleteRecord = (id) => {
@@ -386,6 +419,31 @@ export default function App() {
         <h1>⚾ 캐치볼 영상 평가</h1>
         <p>영상을 올리면 노란 공과 아이들의 손을 찾아 몇 번 주고받았는지 자동으로 셉니다. 영상은 이 기기 밖으로 나가지 않습니다.</p>
       </header>
+
+      {/* 0. 선생님 로그인 */}
+      <section className="cb-card cb-login">
+        {loginState === 'checking' && <p className="cb-note">로그인 상태 확인 중...</p>}
+        {loginState === 'in' && teacher && (
+          <div className="cb-row" style={{ margin: 0, alignItems: 'center' }}>
+            <span>👩‍🏫 <b>{teacher.username}</b> 선생님으로 로그인됨 · 제출된 영상과 채점 결과가 서버에 저장됩니다</span>
+            <button type="button" className="cb-btn ghost" style={{ marginLeft: 'auto' }} onClick={doLogout}>로그아웃</button>
+          </div>
+        )}
+        {(loginState === 'out' || loginState === 'busy') && (
+          <>
+            <h2>선생님 로그인 <span className="cb-sub">새싹책방 선생님 계정 그대로. 로그인하면 학생이 올린 영상을 보고 결과를 서버에 저장할 수 있어요</span></h2>
+            <div className="cb-grid">
+              <label>아이디<input autoComplete="username" value={loginDraft.username} onChange={(e) => setLoginDraft({ ...loginDraft, username: e.target.value })} /></label>
+              <label>비밀번호<input type="password" autoComplete="current-password" value={loginDraft.password} onChange={(e) => setLoginDraft({ ...loginDraft, password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') doLogin(); }} /></label>
+            </div>
+            <div className="cb-row">
+              <button type="button" className="cb-btn" onClick={doLogin} disabled={loginState === 'busy'}>{loginState === 'busy' ? '로그인 중...' : '로그인'}</button>
+              <span className="cb-note" style={{ margin: 0, alignSelf: 'center' }}>로그인 없이도 이 기기에서 영상을 올려 채점하고 기록할 수 있어요.</span>
+            </div>
+            {loginMsg && <p className="cb-error">{loginMsg}</p>}
+          </>
+        )}
+      </section>
 
       {/* 1. 학생 정보 */}
       <section className="cb-card">
@@ -467,48 +525,31 @@ export default function App() {
             </div>
             <button type="button" className="cb-btn" onClick={startAnalysis} disabled={!videoUrl || busy}>바뀐 설정으로 다시 채점</button>
 
-            <div className="cb-slider-group">
-              <div className="cb-slider-title">구글 드라이브·시트 연동 <small>(학생 제출 + 시트 기록. 설치 방법은 apps-script/README.md)</small></div>
-              <label>앱스크립트 주소<input placeholder="https://script.google.com/macros/s/…/exec" value={apiDraft.scriptUrl} onChange={(e) => setApiDraft({ ...apiDraft, scriptUrl: e.target.value.trim() })} /></label>
-              <label>선생님 키<input type="password" placeholder="스크립트 속성 TEACHER_KEY 값" value={apiDraft.teacherKey} onChange={(e) => setApiDraft({ ...apiDraft, teacherKey: e.target.value })} /></label>
-              <div className="cb-row">
-                <button type="button" className="cb-btn" onClick={() => connectApi(apiDraft)} disabled={apiState === 'checking'}>{apiState === 'checking' ? '확인 중...' : '연결 확인'}</button>
-                {apiReady && <button type="button" className="cb-btn ghost" onClick={() => { setApiConfig({ scriptUrl: '', teacherKey: '' }); setApi({ scriptUrl: '', teacherKey: '' }); setApiDraft({ scriptUrl: '', teacherKey: '' }); setApiState('unknown'); setApiMsg(''); setSubmissions([]); setSheetResults([]); }}>연결 끊기</button>}
-              </div>
-              {apiMsg && <p className={apiState === 'error' ? 'cb-error' : 'cb-note'}>{apiMsg}</p>}
-              {apiReady && (
-                <div className="cb-config">
-                  <div><b>학생 제출 링크</b> <small className="cb-sub">이 링크를 학생들에게 보내 주세요</small></div>
-                  <code>{studentUploadLink(api.scriptUrl)}</code>
-                  <div className="cb-row" style={{ margin: 0 }}>
-                    <button type="button" className="cb-btn ghost" onClick={() => { navigator.clipboard?.writeText(studentUploadLink(api.scriptUrl)).then(() => setToast('링크를 복사했습니다.')); }}>링크 복사</button>
-                    <a className="cb-btn ghost" href={studentUploadLink(api.scriptUrl)} target="_blank" rel="noreferrer">열어 보기</a>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </section>
 
-      {/* 제출된 영상 (드라이브 연동 시) */}
+      {/* 제출된 영상 (로그인 시) */}
       {apiReady && (
         <section className="cb-card">
           <h2>📥 학생이 제출한 영상 <span className="cb-sub">{submissions.length}건</span>
-            <button type="button" className="cb-link" style={{ padding: 0, marginLeft: 'auto' }} onClick={() => refreshFromSheet(api).catch((e) => setToast(e?.message || '새로고침 실패'))}>새로고침</button>
+            <button type="button" className="cb-link" style={{ padding: 0, marginLeft: 'auto' }} onClick={() => refreshFromServer().catch((e) => setToast(e?.message || '새로고침 실패'))}>새로고침</button>
           </h2>
           {submissions.length === 0 ? (
-            <p className="cb-note">아직 제출된 영상이 없습니다. 설정의 학생 제출 링크를 학생들에게 보내 주세요.</p>
+            <p className="cb-note">아직 제출된 영상이 없습니다. 학생 제출 페이지 주소를 학생들에게 보내 주세요: <code>{new URL('catchball-upload.html', window.location.href).toString()}</code></p>
           ) : (
             <ul className="cb-sub-list">
               {submissions.map((it) => (
-                <li key={it.fileId} className={it.status === '채점완료' ? 'graded' : ''}>
+                <li key={it.id} className={it.status === '채점완료' ? 'graded' : ''}>
                   <div>
                     <div><b>{it.student1} · {it.student2}</b> <span className="cb-sub">{it.className}</span>
                       <span className={`cb-pill ${it.status === '채점완료' ? 'done' : ''}`}>{it.status || '미채점'}</span></div>
-                    <div className="meta">{it.date} · {it.sizeMb}MB{it.autoSuccess != null ? ` · 촬영 중 자동 카운트: 성공 ${it.autoSuccess} · 실패 ${it.autoFail}` : ''} · <a href={it.link} target="_blank" rel="noreferrer">드라이브에서 보기</a></div>
+                    <div className="meta">{it.date} · {it.sizeMb}MB{it.durationSec ? ` · ${fmtTime(it.durationSec)}` : ''}{it.autoSuccess != null ? ` · 촬영 중 자동 카운트: 성공 ${it.autoSuccess} · 실패 ${it.autoFail}` : ''}</div>
                   </div>
-                  <button type="button" className="cb-btn" onClick={() => gradeSubmission(it)} disabled={busy || fetchingId != null}>{fetchingId === it.fileId ? '가져오는 중...' : it.status === '채점완료' ? '다시 채점' : '채점'}</button>
+                  <div className="cb-row" style={{ margin: 0 }}>
+                    <button type="button" className="cb-btn" onClick={() => gradeSubmission(it)} disabled={busy || fetchingId != null}>{fetchingId === it.id ? '가져오는 중...' : it.status === '채점완료' ? '다시 채점' : '채점'}</button>
+                    <button type="button" className="cb-x" title="영상 지우기" onClick={() => removeSubmission(it)}>✕</button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -545,21 +586,21 @@ export default function App() {
             </ol>
           )}
           <label className="cb-memo">비고<input placeholder="예: 바람이 많이 불었음" value={info.memo} onChange={(e) => setInfo({ ...info, memo: e.target.value })} /></label>
-          <button type="button" className="cb-btn big" onClick={saveRecord} disabled={saving}>{saving ? '저장 중...' : apiReady ? '이 결과 구글 시트에 저장하기' : '이 결과 저장하기'}</button>
+          <button type="button" className="cb-btn big" onClick={saveRecord} disabled={saving}>{saving ? '저장 중...' : apiReady ? '이 결과 서버에 저장하기' : '이 결과 저장하기'}</button>
         </section>
       )}
 
       {/* 4. 기록 */}
       <section className="cb-card">
-        <h2>4. 저장된 기록 <span className="cb-sub">{apiReady ? '구글 시트 채점결과' : '이 기기에 저장됩니다'}</span></h2>
+        <h2>4. 저장된 기록 <span className="cb-sub">{apiReady ? '서버에 저장된 채점 결과' : '이 기기에 저장됩니다'}</span></h2>
         {apiReady && (
-          sheetResults.length === 0 ? <p className="cb-note">구글 시트에 아직 채점 결과가 없습니다.</p> : (
+          sheetResults.length === 0 ? <p className="cb-note">서버에 아직 채점 결과가 없습니다.</p> : (
             <div className="cb-table-wrap">
               <table className="cb-table">
                 <thead><tr><th>평가일</th><th>반</th><th>학생</th><th>성공</th><th>실패</th><th>연속</th></tr></thead>
                 <tbody>
-                  {sheetResults.map((r, i) => (
-                    <tr key={`${r.gradedAt}-${i}`}>
+                  {sheetResults.map((r) => (
+                    <tr key={r.id}>
                       <td>{r.date}</td><td>{r.className}</td><td>{r.student1} · {r.student2}</td>
                       <td className="ok">{r.success}</td><td className="bad">{r.fail}</td><td>{r.bestStreak}</td>
                     </tr>

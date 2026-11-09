@@ -1,148 +1,174 @@
-// 앱스크립트(구글 드라이브·시트 연동)와 통신하는 부분
-//
-// 요청은 Content-Type 을 text/plain 으로 보내야 앱스크립트가 CORS 사전 요청 없이 받아 줍니다.
+// 수파베이스(저장소 + 데이터베이스)와 통신하는 부분.
+// 영상은 storage 버킷 catchball-videos 에, 제출 목록·채점 결과는 RPC(supabase/catchball.sql)로 저장.
+import { supabase, supabaseAnonKey, supabaseUrl, VIDEO_BUCKET } from './supabase.js';
 
-const CONFIG_KEY = 'catchball_api_config_v1';
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 버킷 파일 크기 제한
 
-export function getApiConfig() {
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') || {}; } catch { /* 무시 */ }
-  const params = new URLSearchParams(window.location.search);
-  const fromUrl = params.get('api');
-  const scriptUrl = (fromUrl || saved.scriptUrl || import.meta.env.VITE_CATCHBALL_SCRIPT_URL || '').trim();
-  if (fromUrl && fromUrl !== saved.scriptUrl) setApiConfig({ ...saved, scriptUrl: fromUrl });
-  return { scriptUrl, teacherKey: saved.teacherKey || '', submitCode: saved.submitCode || '' };
+// 세션이 없으면 익명으로 로그인 (학생 제출, 선생님 로그인 전 단계 모두 이걸 거침)
+export async function ensureSession() {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return data.session;
+  const { data: anon, error } = await supabase.auth.signInAnonymously();
+  if (error) throw new Error('수파베이스 익명 로그인에 실패했습니다: ' + error.message);
+  return anon.session;
 }
 
-export function setApiConfig(next) {
-  try { localStorage.setItem(CONFIG_KEY, JSON.stringify(next)); } catch { /* 무시 */ }
+async function rpc(name, params = {}) {
+  const { data, error } = await supabase.rpc(name, params);
+  if (error) throw new Error(error.message || '서버 오류');
+  return data;
 }
 
-export function isValidScriptUrl(url) {
-  return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test((url || '').trim()) || /^https?:\/\/(localhost|127\.0\.0\.1)/.test(url || '');
-}
-
-// 학생 제출 페이지 링크 (앱스크립트 주소가 함께 들어감)
-export function studentUploadLink(scriptUrl) {
-  const base = new URL('catchball-upload.html', window.location.href);
-  base.searchParams.set('api', scriptUrl);
-  return base.toString();
-}
-
-export async function apiPost(scriptUrl, action, payload = {}, { timeoutMs = 120000 } = {}) {
-  if (!scriptUrl) throw new Error('앱스크립트 주소가 설정되지 않았습니다.');
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(scriptUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, ...payload }),
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { throw new Error('앱스크립트 응답을 읽을 수 없습니다. 배포 설정("모든 사용자")을 확인해 주세요.'); }
-    if (!data.ok && !data.tooLarge) throw new Error(data.error || '앱스크립트 오류');
-    return data;
-  } finally {
-    clearTimeout(timer);
-  }
+function safeName(name) {
+  return String(name || 'video').replace(/[^\w.가-힣-]+/g, '_').slice(0, 80);
 }
 
 // ── 학생 업로드 ──
 
-// 드라이브 이어 올리기 세션에 영상 전체를 한 번에 PUT (진행률 표시 가능)
-export function putToDrive(uploadUrl, blob, onProgress) {
-  return new Promise((resolve, reject) => {
+// storage 에 영상 올리기 (진행률을 보여 주려고 XHR 로 직접 보냄)
+export async function uploadVideo({ blob, fileName, onProgress }) {
+  const session = await ensureSession();
+  if (blob.size > MAX_UPLOAD_BYTES) throw new Error(`영상이 너무 큽니다 (${Math.round(blob.size / 1048576)}MB). 50MB 이하로 줄여서 올려 주세요.`);
+  const uid = session.user.id;
+  const path = `${uid}/${Date.now()}_${safeName(fileName)}`;
+  await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl, true);
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/${VIDEO_BUCKET}/${path}`, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+    xhr.setRequestHeader('apikey', supabaseAnonKey);
     xhr.setRequestHeader('Content-Type', blob.type || 'video/webm');
+    xhr.setRequestHeader('x-upsert', 'false');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        let fileId = null;
-        try { fileId = JSON.parse(xhr.responseText).id || null; } catch { /* 응답을 못 읽어도 이름으로 찾음 */ }
-        resolve({ fileId });
-      } else {
-        reject(new Error('드라이브 업로드 실패 (' + xhr.status + ')'));
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else {
+        let msg = '';
+        try { msg = JSON.parse(xhr.responseText).message || JSON.parse(xhr.responseText).error || ''; } catch { /* 무시 */ }
+        reject(new Error(`영상 올리기 실패 (${xhr.status}) ${msg}`.trim()));
       }
     };
-    xhr.onerror = () => reject(new Error('드라이브에 직접 올리지 못했습니다.'));
-    xhr.ontimeout = () => reject(new Error('드라이브 업로드 시간 초과'));
+    xhr.onerror = () => reject(new Error('영상을 올리지 못했습니다. 인터넷 연결을 확인해 주세요.'));
+    xhr.ontimeout = () => reject(new Error('영상 올리기 시간 초과'));
     xhr.timeout = 10 * 60 * 1000;
     xhr.send(blob);
   });
+  return { path };
 }
-
-export function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
-export const MAX_RELAY_BYTES = 40 * 1024 * 1024;
 
 /**
- * 영상 제출 전체 흐름. 1순위: 드라이브 직접 업로드, 실패하면 2순위: 앱스크립트 중계(40MB 이하).
+ * 영상 제출 전체 흐름: storage 업로드 → 제출 기록(RPC)
  * onStatus(text), onProgress(0~1)
  */
-export async function submitVideo({ scriptUrl, submitCode, info, blob, fileName, extra = {}, onStatus, onProgress }) {
-  const meta = {
-    submitCode,
-    className: info.className, student1: info.student1, student2: info.student2, date: info.date,
-    fileName, mimeType: blob.type || 'video/webm', size: blob.size,
-  };
-  let fileId = null, uploadedName = null, route = 'drive';
-  try {
-    onStatus?.('드라이브에 올릴 준비 중...');
-    const start = await apiPost(scriptUrl, 'start_upload', { ...meta, origin: window.location.origin });
-    uploadedName = start.fileName;
-    onStatus?.('드라이브로 올리는 중...');
-    const put = await putToDrive(start.uploadUrl, blob, onProgress);
-    fileId = put.fileId;
-  } catch (e) {
-    console.warn('드라이브 직접 업로드 실패, 앱스크립트 중계로 다시 시도', e);
-    if (blob.size > MAX_RELAY_BYTES) throw new Error('드라이브에 직접 올리지 못했고, 영상이 커서(' + Math.round(blob.size / 1048576) + 'MB) 다른 방법으로도 올릴 수 없습니다. 더 짧게 찍거나 압축해서 다시 올려 주세요.');
-    route = 'relay';
-    onStatus?.('다른 방법으로 올리는 중... (조금 더 걸립니다)');
-    onProgress?.(0);
-    const data = await blobToBase64(blob);
-    const res = await apiPost(scriptUrl, 'upload_whole', { ...meta, data }, { timeoutMs: 10 * 60 * 1000 });
-    fileId = res.fileId;
-    uploadedName = res.fileName;
-    onProgress?.(1);
-  }
+export async function submitVideo({ info, blob, fileName, durationSec = null, extra = {}, onStatus, onProgress }) {
+  onStatus?.('영상 올리는 중...');
+  const { path } = await uploadVideo({ blob, fileName, onProgress });
   onStatus?.('제출 기록 남기는 중...');
-  const done = await apiPost(scriptUrl, 'finish_upload', { ...meta, ...extra, fileId, fileName: uploadedName });
-  return { ...done, route };
+  const rows = await rpc('catchball_submit', {
+    p_eval_date: info.date || null,
+    p_class_name: info.className,
+    p_student1: info.student1,
+    p_student2: info.student2,
+    p_storage_path: path,
+    p_file_name: safeName(fileName),
+    p_size_bytes: blob.size,
+    p_mime_type: blob.type || 'video/webm',
+    p_duration_sec: durationSec,
+    p_auto_success: extra.autoSuccess ?? null,
+    p_auto_fail: extra.autoFail ?? null,
+    p_auto_events: extra.autoEvents ?? null,
+  });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  return { id: row?.id, path, fileName: safeName(fileName) };
 }
 
 // ── 선생님 ──
 
-export async function listSubmissions(cfg) {
-  const r = await apiPost(cfg.scriptUrl, 'list_submissions', { teacherKey: cfg.teacherKey });
-  return r.items || [];
+const TEACHER_NAME_KEY = 'catchball_teacher_username';
+
+export function getSavedTeacherUsername() {
+  try { return localStorage.getItem(TEACHER_NAME_KEY) || ''; } catch { return ''; }
 }
 
-export async function listResults(cfg) {
-  const r = await apiPost(cfg.scriptUrl, 'list_results', { teacherKey: cfg.teacherKey });
-  return r.items || [];
+export async function teacherLogin({ username, password }) {
+  await ensureSession();
+  const rows = await rpc('catchball_teacher_login', { p_username: username.trim(), p_password: password });
+  const me = Array.isArray(rows) ? rows[0] : rows;
+  try { localStorage.setItem(TEACHER_NAME_KEY, me?.username || username.trim()); } catch { /* 무시 */ }
+  return me;
 }
 
-export async function fetchDriveVideo(cfg, fileId) {
-  const r = await apiPost(cfg.scriptUrl, 'get_file', { teacherKey: cfg.teacherKey, fileId }, { timeoutMs: 10 * 60 * 1000 });
-  if (r.tooLarge) { const err = new Error(r.error); err.link = r.link; throw err; }
-  const bin = atob(r.data);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return { blob: new Blob([bytes], { type: r.mimeType || 'video/webm' }), fileName: r.fileName };
+// 이미 로그인된 선생님이 있으면 {id, username}, 없으면 null
+export async function teacherMe() {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return null;
+  const rows = await rpc('catchball_me');
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
-export async function saveResultToSheet(cfg, record) {
-  return apiPost(cfg.scriptUrl, 'save_result', { teacherKey: cfg.teacherKey, ...record });
+export async function teacherLogout() {
+  try { await rpc('catchball_teacher_logout'); } catch { /* 세션이 이미 없을 수 있음 */ }
+  await supabase.auth.signOut();
+}
+
+export async function listSubmissions() {
+  const rows = (await rpc('catchball_list_submissions')) || [];
+  return rows.map((r) => ({
+    id: r.id,
+    submittedAt: r.created_at,
+    date: r.eval_date,
+    className: r.class_name, student1: r.student1, student2: r.student2,
+    path: r.storage_path, fileName: r.file_name,
+    sizeMb: r.size_bytes ? Math.round(r.size_bytes / 1048576 * 10) / 10 : 0,
+    durationSec: r.duration_sec,
+    status: r.status,
+    autoSuccess: r.auto_success, autoFail: r.auto_fail,
+  }));
+}
+
+export async function listResults() {
+  const rows = (await rpc('catchball_list_results')) || [];
+  return rows.map((r) => ({
+    id: r.id, gradedAt: r.created_at, date: r.eval_date,
+    className: r.class_name, student1: r.student1, student2: r.student2,
+    success: r.success, fail: r.fail, bestStreak: r.best_streak,
+    duration: r.duration_sec, memo: r.memo, submissionId: r.submission_id,
+  }));
+}
+
+// 채점할 영상 내려받기 → Blob
+export async function fetchVideo(path) {
+  const { data, error } = await supabase.storage.from(VIDEO_BUCKET).download(path);
+  if (error) throw new Error('영상을 가져오지 못했습니다: ' + (error.message || ''));
+  return data;
+}
+
+export async function saveResult(record) {
+  return rpc('catchball_save_result', {
+    p_submission_id: record.submissionId || null,
+    p_eval_date: record.date || null,
+    p_class_name: record.className,
+    p_student1: record.student1,
+    p_student2: record.student2,
+    p_success: record.success,
+    p_fail: record.fail,
+    p_best_streak: record.bestStreak,
+    p_duration_sec: record.duration ?? null,
+    p_video_name: record.videoName || null,
+    p_memo: record.memo || null,
+    p_events: record.events || [],
+  });
+}
+
+export async function deleteResult(id) {
+  return rpc('catchball_delete_result', { p_id: id });
+}
+
+// 제출 기록과 영상 파일 삭제 (저장 용량 정리용)
+export async function deleteSubmission(item) {
+  const path = await rpc('catchball_delete_submission', { p_id: item.id });
+  const target = path || item.path;
+  if (target) {
+    const { error } = await supabase.storage.from(VIDEO_BUCKET).remove([target]);
+    if (error) throw new Error('기록은 지웠지만 영상 파일 삭제에 실패했습니다: ' + error.message);
+  }
 }

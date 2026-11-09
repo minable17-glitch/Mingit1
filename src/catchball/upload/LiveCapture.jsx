@@ -10,9 +10,9 @@ function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); re
 
 /**
  * 앱 안에서 촬영 → 실시간 카운트 → 촬영 끝나면 자동 제출
- * props: cfg(앱스크립트 설정), info({date, className, student1, student2, submitCode}), validate() → 오류문구|null, onDone(result), onReset()
+ * props: info({date, className, student1, student2}), validate() → 오류문구|null, onDone(result)
  */
-export default function LiveCapture({ cfg, info, validate, onDone }) {
+export default function LiveCapture({ info, validate, onDone }) {
   const [phase, setPhase] = useState('idle'); // idle | opening | ready | recording | uploading | done | error
   const [message, setMessage] = useState('');
   const [progress, setProgress] = useState(0);
@@ -105,11 +105,10 @@ export default function LiveCapture({ cfg, info, validate, onDone }) {
     try {
       const ext = /mp4/.test(blob.type) ? 'mp4' : 'webm';
       const r = await submitVideo({
-        scriptUrl: cfg.scriptUrl,
-        submitCode: info.submitCode?.trim() || '',
         info: { className: info.className.trim(), student1: info.student1.trim(), student2: info.student2.trim(), date: info.date },
         blob,
         fileName: `${info.student1.trim()}_${info.student2.trim()}.${ext}`,
+        durationSec: summary.duration,
         extra: { autoSuccess: final.stats.success, autoFail: final.stats.fail, autoEvents: final.events.map((e) => ({ t: e.t, type: e.type })) },
         onStatus: setMessage,
         onProgress: setProgress,
@@ -132,9 +131,9 @@ export default function LiveCapture({ cfg, info, validate, onDone }) {
     try {
       const ext = /mp4/.test(result.blob.type) ? 'mp4' : 'webm';
       const r = await submitVideo({
-        scriptUrl: cfg.scriptUrl, submitCode: info.submitCode?.trim() || '',
         info: { className: info.className.trim(), student1: info.student1.trim(), student2: info.student2.trim(), date: info.date },
         blob: result.blob, fileName: `${info.student1.trim()}_${info.student2.trim()}.${ext}`,
+        durationSec: result.duration,
         extra: { autoSuccess: result.stats.success, autoFail: result.stats.fail, autoEvents: result.events.map((e) => ({ t: e.t, type: e.type })) },
         onStatus: setMessage, onProgress: setProgress,
       });
