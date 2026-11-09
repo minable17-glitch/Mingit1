@@ -206,12 +206,16 @@ function QuickAdd({ categories, templates, onAdded, onOpenScreen }) {
   }
 
   return (
-    <form className="quick-add" onSubmit={submit}>
-      <input
-        className="grow"
-        placeholder="새 업무 한 줄 (예: 2학기 평가계획 제출)"
+    <form className="quick-add quick-new" onSubmit={submit}>
+      <textarea
+        className="grow new-title"
+        rows={2}
+        placeholder="새 업무 내용 (예: 2학기 평가계획 제출)  ·  Enter 등록, Shift+Enter 줄바꿈"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
+        }}
       />
       {templates.length > 0 && (
         <select value={templateId} onChange={(e) => pickTemplate(e.target.value)} title="템플릿">

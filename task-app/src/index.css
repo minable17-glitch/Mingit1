@@ -1453,3 +1453,12 @@ html { font-size: 16px; }
 .note-meta .plain-date input { width: 8.6em; }
 .note-meta .plain-date input::-webkit-calendar-picker-indicator { opacity: 0.45; margin-left: 2px; }
 .note-page .link.back { color: var(--text); font-weight: 600; }
+
+/* + 시트 새 업무: 내용 칸은 한 줄 통째로 크게, 나머지는 아랫줄 */
+.quick-add.quick-new .new-title {
+  flex: 1 1 100%; width: 100%; min-height: 76px; resize: vertical;
+  font: inherit; font-size: 17px; line-height: 1.5; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card, #fff); color: var(--text);
+}
+.quick-add.quick-new select, .quick-add.quick-new input[type="date"] { flex: 1 1 120px; min-height: 44px; }
+.quick-add.quick-new > button.primary { flex: 0 0 auto; min-height: 44px; padding: 0 20px; }
