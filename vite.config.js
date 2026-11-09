@@ -5,6 +5,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.GH_PAGES ? '/Mingit1/' : '/',
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        // 캐치볼 영상 평가 (별도 페이지: catchball.html)
+        catchball: 'catchball.html',
+      },
+    },
+  },
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
@@ -16,6 +25,8 @@ export default defineConfig({
       includeAssets: ['favicon.svg'],
       workbox: {
         cleanupOutdatedCaches: true,
+        // 캐치볼 평가 도구(포즈 인식 wasm 등 큰 파일)는 새싹책방 오프라인 캐시에 넣지 않음
+        globIgnores: ['**/catchball*', '**/vision_wasm*'],
         // 기본 네비게이션 폴백(캐시 우선)을 끄고, 아래 NetworkFirst 규칙이
         // 모든 화면 이동 요청을 대신 처리하게 함
         navigateFallback: null,

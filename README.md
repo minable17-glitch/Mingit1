@@ -1,3 +1,12 @@
+# 새싹책방 (Mingit1)
+
+- `index.html` — 새싹책방 (학급 독서 챌린지 PWA). 운영 중.
+- `catchball.html` — 캐치볼 영상 평가 도구 (영상 속 노란 공·손 인식으로 주고받은 횟수 자동 채점). 별도 페이지, 새싹책방과 독립.
+
+자세한 구조와 인수인계 내용은 `HANDOFF.md` 참고.
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
