@@ -244,6 +244,17 @@ export async function addStep(task, title, dueDate) {
   if (dueDate) syncCalendar(task.id);
 }
 
+// 체크리스트 항목 하나 빼기. 다음 행동이 그 항목이었으면 남은 첫 항목으로
+export async function deleteStep(task, step) {
+  check(await supabase.from('steps').delete().eq('id', step.id));
+  const rest = (task.steps ?? []).filter((s) => s.id !== step.id);
+  const next = nextActionFromSteps(rest);
+  const patch = { last_activity_at: now() };
+  if (task.next_action === step.title && next) patch.next_action = next;
+  check(await supabase.from('tasks').update(patch).eq('id', task.id));
+  await logActivity(task.id, 'edit', `체크리스트에서 뺌: ${step.title}`);
+}
+
 export async function completeTask(task) {
   check(await supabase.from('tasks').update({
     status: 'done', completed_at: now(), last_activity_at: now(),

@@ -138,7 +138,7 @@ export function TaskList({ rows, categoryById, today, onOpen, links, tasks, sett
                   </span>
                 )}
                 {reminder && <span className="badge remind">🔔 {remindLabel(reminder.remind_at)}</span>}
-                {total > 0 && <span className="row-steps">단계 {done}/{total}</span>}
+                {total > 0 && <span className="row-steps">체크 {done}/{total}</span>}
               </div>
               {task.latest_note && <div className="note">📝 {task.latest_note}</div>}
               {total > 0 && (
@@ -147,7 +147,7 @@ export function TaskList({ rows, categoryById, today, onOpen, links, tasks, sett
             </button>
             {isOpen && (
               <div className="row-detail">
-                {total === 0 && <p className="muted small">아직 세부 단계가 없어요.</p>}
+                {total === 0 && <p className="muted small">아직 체크리스트가 없어요.</p>}
                 <ul className="steps">
                   {[...(task.steps ?? [])].sort((a, b) => a.position - b.position).map((s) => (
                     <li key={s.id} className={s.done ? 'done' : ''}>
@@ -161,7 +161,7 @@ export function TaskList({ rows, categoryById, today, onOpen, links, tasks, sett
                 </ul>
                 {blockers.length > 0 && <p className="small muted">먼저 끝내야 할 업무: {blockers.map((b) => b.title).join(', ')}</p>}
                 <div className="row wrap">
-                  <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '단계 정하러 열기 →' : '업무 열기 →'}</button>
+                  <button className="primary" onClick={() => onOpen(task.id)}>{total === 0 ? '체크리스트 만들러 열기 →' : '업무 열기 →'}</button>
                   {todayItems !== null && ((todayItems ?? []).some((i) => i.day === today && isDayItem(i) && i.task_id === task.id && !i.done)
                     ? <span className="small muted">☀️ 오늘 목록에 있음</span>
                     : <button onClick={() => addToToday(task)}>☀️ 오늘 할 일에</button>)}

@@ -1369,3 +1369,87 @@ html { font-size: 16px; }
 .privacy-again { margin: 8px 0; }
 .privacy-again summary { cursor: pointer; color: var(--text-2); }
 .remind-lines .link, .today-card .mine .link { text-align: left; justify-content: flex-start; }
+
+/* ═══ 노트 느낌 (2026-11): 종이색 바탕 · 거의 검정 글자 · 회색 보조 · 급할 때만 빨강 · 얇은 줄 ═══ */
+:root {
+  --bg: #FAF8F4;
+  --card: #FFFFFF;
+  --text: #1B1B1A;
+  --text-2: #3A3834;
+  --muted: #6B675F;
+  --line: #E4DFD5;
+  --fill: #F0ECE3;
+  --fill-hover: #E8E3D8;
+  --danger: #B3321F;
+  --danger-soft: #F7E9E6;
+}
+:root[data-contrast='high'] { --muted: #5E5A53; --text-2: #2E2C28; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151413; --card: #1E1D1B; --text: #F2EFE9; --text-2: #D4D0C8; --muted: #A39E94; --line: #34312C; --fill: #262421; --fill-hover: #2E2B27; --danger: #E2705E; --danger-soft: #3A221E; }
+  :root[data-contrast='high'] { --muted: #B5B0A6; --text-2: #E2DED7; }
+}
+
+/* ── 업무 화면 = 노트 한 장 ── */
+.note-page { max-width: 640px; margin: 0 auto; }
+.note-top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.note-page .title-input { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; padding: 4px 0; margin-top: 4px; border: none; background: transparent; border-radius: 0; }
+.note-page .title-input:focus { background: transparent; border-bottom: 1.5px solid var(--text); padding: 4px 0; }
+.note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 0.875rem; color: var(--muted); margin: 2px 0 8px; }
+.note-meta .hot { color: var(--danger); font-weight: 700; }
+.plain-select, .plain-date input { background: transparent; border: none; padding: 4px 0; font-size: 0.875rem; color: var(--muted); border-radius: 0; min-height: 32px; }
+.plain-select { padding-right: 4px; cursor: pointer; }
+.plain-select:focus, .plain-date input:focus { background: transparent; border: none; border-bottom: 1px solid var(--text); }
+.tidy-link { display: block; text-align: left; }
+
+.note-sec { margin-top: 22px; }
+.note-label { font-size: 0.8125rem; font-weight: 600; color: var(--muted); margin: 0 0 4px; letter-spacing: 0.02em; }
+.note-label span { margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+/* 한 줄 입력(다음 행동·항목 추가·메모): 박스 없이 밑줄 하나 */
+.add-line { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.add-line input { background: transparent; border: none; border-radius: 0; padding: 0; min-height: 52px; font-size: 1rem; }
+.add-line input:focus { background: transparent; border: none; }
+.add-line:focus-within { border-bottom-color: var(--text); }
+.next-line { border-top: 1px solid var(--line); }
+.next-line input { font-weight: 600; }
+
+.check-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+.check-list li { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.check-list label { display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 8px 0; font-size: 1rem; line-height: 1.4; }
+.check-list input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--text); }
+.check-list li.done span { color: var(--muted); text-decoration: line-through; }
+.check-due { font-size: 0.8125rem; color: var(--muted); flex: none; }
+.check-due.hot { color: var(--danger); }
+.check-list .icon { min-width: 36px; min-height: 36px; color: var(--muted); opacity: 0.6; }
+.note-text { margin: 0; padding: 12px 0; border-top: 1px solid var(--line); font-size: 0.95rem; line-height: 1.55; color: var(--text-2); white-space: pre-wrap; }
+
+.wait-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 0.95rem; margin-top: 8px; }
+.wait-line input { padding: 8px 10px; }
+
+/* 접힌 줄: 첨부 · 시간 알림 · 활동 기록 */
+.fold-rows { margin-top: 26px; border-top: 1px solid var(--line); }
+.fold-row { border-bottom: 1px solid var(--line); padding: 0; }
+.fold-row > summary { display: flex; align-items: center; gap: 8px; min-height: 52px; list-style: none; cursor: pointer; font-size: 0.95rem; }
+.fold-row > summary::-webkit-details-marker { display: none; }
+.fold-row > summary::after { content: '›'; color: var(--muted); font-size: 1.1rem; transition: transform .15s; }
+.fold-row[open] > summary::after { transform: rotate(90deg); }
+.fold-row > summary .muted { font-size: 0.8125rem; }
+.fold-row[open] { padding-bottom: 12px; }
+.fold-row .att { border: none; box-shadow: none; padding: 0; margin: 0; background: transparent; }
+.fold-row .att .block-head h2:empty { display: none; }
+.fold-body .chip { min-height: 36px; }
+
+.done-wide { width: 100%; margin-top: 24px; min-height: 52px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 1rem; font-weight: 700; }
+.done-wide:hover:not(:disabled) { background: var(--text); opacity: 0.92; }
+
+/* ⋯ 메뉴 */
+.more-menu { position: relative; }
+.more-btn { min-width: 44px; min-height: 44px; color: var(--text); display: inline-flex; align-items: center; justify-content: center; }
+.menu-scrim { position: fixed; inset: 0; z-index: 30; }
+.menu-pop { position: absolute; right: 0; top: 44px; z-index: 31; list-style: none; margin: 0; padding: 6px; min-width: 230px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(27, 27, 26, 0.12); }
+.menu-pop button { width: 100%; text-align: left; background: none; border-radius: 8px; min-height: 44px; padding: 0 12px; font-weight: 500; }
+.menu-pop button:hover:not(:disabled) { background: var(--fill); }
+.note-meta .plain-select { field-sizing: content; width: auto; max-width: 11em; }
+.note-meta .plain-date input { width: 8.6em; }
+.note-meta .plain-date input::-webkit-calendar-picker-indicator { opacity: 0.45; margin-left: 2px; }
+.note-page .link.back { color: var(--text); font-weight: 600; }
