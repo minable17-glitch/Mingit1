@@ -15,7 +15,8 @@ function seekTo(video, t) {
       clearTimeout(timer);
       resolve();
     };
-    const timer = setTimeout(finish, 1500); // 혹시 seeked 가 안 오면 그냥 진행
+    // 느린 기기에서 seeked 가 늦게 와도 같은 장면을 두 번 읽지 않도록 넉넉히 기다림 (정 안 오면 진행)
+    const timer = setTimeout(finish, 8000);
     video.addEventListener('seeked', finish);
     video.currentTime = t;
   });
