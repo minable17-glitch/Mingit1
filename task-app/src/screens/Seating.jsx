@@ -15,7 +15,9 @@ const nowLabel = () => new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seou
 
 export default function Seating({ students: roster = [] }) {
   const [s, setS] = useState(null); // null = 불러오는 중, false = 표 준비 전
-  const [view, setView] = useState('make');
+  // 마지막으로 연 칸(배치·자리배치표·1인 1역·청소 당번 …)을 이 기기에 기억
+  const [view, setViewState] = useState(() => { try { return localStorage.getItem('task-keeper.seat-view') || 'make'; } catch { return 'make'; } });
+  const setView = (v) => { setViewState(v); try { localStorage.setItem('task-keeper.seat-view', v); } catch { /* 괜찮음 */ } };
   const [teacher, setTeacher] = useState(false); // 선생님 설정(떨어트릴 학생·비밀 지정석·백업) 보이기
   const [swapFrom, setSwapFrom] = useState(null);
   const [toast, setToast] = useState(null);
