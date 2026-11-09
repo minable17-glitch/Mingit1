@@ -137,6 +137,7 @@ export default function Upload() {
           </>)}
         </section>
       )}
+      <p className="cb-admin-link"><a href="admin.html">선생님(관리자) 페이지</a></p>
     </div>
   );
 }

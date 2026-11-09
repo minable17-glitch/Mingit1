@@ -8,8 +8,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: 'index.html', // 선생님 채점 페이지
-        upload: 'upload.html', // 학생 제출 페이지
+        main: 'index.html', // 학생 제출 페이지 (대문)
+        admin: 'admin.html', // 선생님 채점 페이지 (관리자)
       },
     },
   },
