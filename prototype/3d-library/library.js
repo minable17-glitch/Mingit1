@@ -1,11 +1,11 @@
-// 새싹책방 2.0 도서관 시제품 — ChatGPT 평면도(가로 40칸 × 세로 46칸)와 색상표를 그대로 옮김
+// 새싹책방 2.0 도서관 시제품 — ChatGPT 세로형 평면도(가로 24칸 × 세로 72칸)와 색상표를 그대로 옮김
 // 좌표: x 오른쪽 +, z 화면 앞쪽(입구 쪽) +. 뒤쪽 벽이 z 음수 방향.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const CELL = 0.3;                 // 평면도 1칸 = 0.3 (캐릭터 키 = 1)
-export const GRID = { w: 40, d: 46 };
+export const GRID = { w: 24, d: 72 };
 export const PALETTE = {
   floor: '#F5DFC2', wall: '#F7DFC0', frame: '#DDA765', shelf: '#D7A064',
   books: ['#A9BC78', '#E7C96F', '#8FAEB5', '#DFA7A0', '#EAD9B5'],
@@ -15,29 +15,37 @@ export const PALETTE = {
 const gx = (c) => (c - GRID.w / 2) * CELL, gz = (c) => (c - GRID.d / 2) * CELL;
 const deg = THREE.MathUtils.degToRad;
 
-// 평면도에서 읽은 좌석 배치 (칸 단위). 모둠 6곳 × 4석 + 창가 8석 = 32석
-const CLUSTERS = [[11, 11], [29, 13], [11, 24], [29, 26], [11, 37], [29, 39]];
-const WINDOW_ROWS = [10, 19, 28, 37];
+// 세로형 평면도에서 읽은 좌석 배치 (칸 단위). 4인 모둠 6곳 + 창가 8석 = 32석
+// 모둠: 위 책상 2개(의자는 위쪽, 아래를 봄) + 아래 책상 2개(의자는 아래쪽, 위를 봄), 가운데는 빈 공간
+const CLUSTER_COLS = [[4.5, 7.5], [16.5, 19.5]];       // 왼쪽 모둠, 오른쪽 모둠의 책상 가운데 x
+const CLUSTER_ROWS = [0, 20, 40];                        // 모둠 세로 간격 20칸
+const WINDOW_ROWS = [2.5, 23.5, 43.5, 64.5];
+export const SHELVES = [];                               // 모둠 뒤 낮은 책장 [x0, x1, y]
+export const RUGS = [];                                  // 모둠 카펫 [x0, x1, y0, y1]
 
 export function seatLayout() {
   const seats = [];
   let n = 1;
-  // 모둠: 가운데를 보고 둘러앉음 (위, 오른쪽, 아래, 왼쪽 순 = 평면도 번호 순)
-  for (const [cx, cy] of CLUSTERS) {
-    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
-      seats.push({ id: n++, kind: 'cluster', chair: [cx + dx * 4.5, cy + dy * 4.5], desk: [cx + dx * 3, cy + dy * 3], face: [-dx, -dy], vertical: dx !== 0 });
+  for (const off of CLUSTER_ROWS) {
+    for (const cols of CLUSTER_COLS) {
+      for (const [deskY, chairY, fy] of [[11, 9.5, 1], [16, 17.5, -1]]) {
+        for (const cx of cols) seats.push({ id: 0, kind: 'cluster', chair: [cx, chairY + off], desk: [cx, deskY + off], face: [0, fy], vertical: false, col: cols, off });
+      }
     }
   }
-  // 창가: 창밖을 보고 앉음
-  for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [3.5, cy], desk: [2, cy], face: [-1, 0], vertical: true });
-  for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [36.5, cy], desk: [38, cy], face: [1, 0], vertical: true });
+  // 평면도 번호 순서: 왼쪽 모둠 → 오른쪽 모둠, 위에서 아래
+  seats.sort((p, q) => p.off - q.off || p.col[0] - q.col[0] || p.chair[1] - q.chair[1] || p.chair[0] - q.chair[0]);
+  seats.forEach((s) => { s.id = n++; });
+  for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [2.5, cy], desk: [1, cy], face: [-1, 0], vertical: true });
+  for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [21.5, cy], desk: [23, cy], face: [1, 0], vertical: true });
   return seats.map((s) => ({
     ...s,
     x: gx(s.chair[0]), z: gz(s.chair[1]),
-    rotY: Math.atan2(s.face[0], s.face[1]),      // 캐릭터가 책상을 보는 방향
+    rotY: Math.atan2(s.face[0], s.face[1]),
     deskX: gx(s.desk[0]), deskZ: gz(s.desk[1]),
   }));
 }
+for (const off of CLUSTER_ROWS) for (const [x0, x1] of [[3, 9], [15, 21]]) { SHELVES.push([x0, x1, 6.5 + off]); RUGS.push([x0 - 0.6, x1 + 0.6, 8.4 + off, 18.6 + off]); }
 
 // 같은 색 도형을 모아 한 번에 그리기 위한 수집기
 class Batch {
@@ -103,8 +111,12 @@ function landscapeTexture() {
   for (let i = 0; i < 90; i++) tree(rnd() * W, H * (0.73 + rnd() * 0.04), (16 + rnd() * 14) * k, '#8CC56A', '#76B05A');
   for (let i = 0; i < 60; i++) tree(rnd() * W, H * (0.8 + rnd() * 0.08), (34 + rnd() * 26) * k, '#93CB66', '#79B456');
   for (let i = 0; i < 34; i++) tree(rnd() * W, H * (0.92 + rnd() * 0.06), (60 + rnd() * 34) * k, '#9ACF6A', '#7FB85A');
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  // 위로 하늘을 넉넉히 이어 붙임(풍경은 아래 SKY_FRAC 부분만 차지)
+  const big = document.createElement('canvas'); big.width = W; big.height = Math.round(H / LAND_FRAC); const bg = big.getContext('2d');
+  bg.fillStyle = '#9FD3F0'; bg.fillRect(0, 0, W, big.height); bg.drawImage(c, 0, big.height - H);
+  const t = new THREE.CanvasTexture(big); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
+const LAND_FRAC = 0.26;   // 풍경판에서 산·숲 그림이 차지하는 아래쪽 비율
 
 // 햇빛 자국: 가장자리가 부드럽게 번지는 따뜻한 빛 조각
 function softRectTexture() {
@@ -198,33 +210,30 @@ export function buildLibrary(scene) {
     for (const [dx, dy, dz, r] of [[0, 0.24, 0, 0.1], [-0.08, 0.19, 0.02, 0.075], [0.08, 0.19, -0.02, 0.075], [0, 0.18, 0.07, 0.065]]) solid.add(rnd() > 0.5 ? P.leaf : P.leafDark, ball, x + dx * k, y + dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
 
-  // 모둠마다: 둥근 카펫 + 뒤쪽을 감싸는 곡선 책장 + 화분
-  CLUSTERS.forEach(([cx, cy], i) => {
-    const x = gx(cx), z = gz(cy);
-    flat.add(i % 2 ? '#E9E2BE' : P.rug, new THREE.CircleGeometry(1, 48), x, 0.006, z, 0, 5.6 * CELL, 5.6 * CELL, 1, -Math.PI / 2);
-    const R = 7.1 * CELL;
-    for (let k = -2; k <= 2; k++) {
-      const a = deg(k * 17), sx = x + Math.sin(a) * R, sz = z - Math.cos(a) * R;
-      shelfUnit(sx, sz, -a);
-      flat.add(P.shadow, shadowDisc, sx, 0.012, sz + 0.05, -a, 0.34, 0.22, 1, -Math.PI / 2);
-    }
-    plant(x, SH.h, z - R, 1);
+  // 모둠마다: 사각 카펫(모서리 둥글게) + 뒤쪽 낮은 책장 + 화분
+  const rugShape = (w, d, r) => { const sh = new THREE.Shape(); const x = -w / 2, y = -d / 2;
+    sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + d - r); sh.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+    sh.lineTo(x + r, y + d); sh.quadraticCurveTo(x, y + d, x, y + d - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y); return new THREE.ShapeGeometry(sh, 6); };
+  RUGS.forEach(([x0, x1, y0, y1], i) => {
+    const w = (x1 - x0) * CELL, d = (y1 - y0) * CELL;
+    flat.add(i % 2 ? '#E9E2BE' : P.rug, rugShape(w, d, 0.28), gx((x0 + x1) / 2), 0.006, gz((y0 + y1) / 2), 0, 1, 1, 1, -Math.PI / 2);
   });
-  // 뒤쪽 벽 앞 낮은 책장 3개 (평면도: 4~12칸, 16~24칸, 28~36칸)
-  for (const [a, b] of [[4, 12], [16, 24], [28, 36]]) {
-    const n = 4, x0 = gx(a) + SH.w / 2 + 0.08;
-    for (let k = 0; k < n; k++) shelfUnit(x0 + k * (SH.w + 0.02), gz(1.4), 0);
-    plant(gx((a + b) / 2) + (a === 16 ? 0 : 0.7), SH.h, gz(1.4), 0.9);
-  }
-  plant(gx(37.5), 0, gz(42.5), 2.3);   // 입구 옆 큰 화분
+  SHELVES.forEach(([x0, x1, y], i) => {
+    const n = 3, span = (x1 - x0) * CELL, step = span / n;
+    for (let k = 0; k < n; k++) shelfUnit(gx(x0) + step * (k + 0.5), gz(y), 0);
+    flat.add(P.shadow, shadowDisc, gx((x0 + x1) / 2), 0.012, gz(y) + 0.06, 0, span * 0.55, 0.22, 1, -Math.PI / 2);
+    plant(gx(i % 2 ? x1 - 0.9 : x0 + 0.9), SH.h, gz(y), 0.95);
+  });
+  plant(gx(21.6), 0, gz(70.2), 2.1);   // 입구 옆 큰 화분
+  plant(gx(2.2), 0, gz(70.4), 1.6);    // 앞쪽 모서리 화분
 
   // ── 벽: 뒤쪽은 살구색 벽 + 창문 2개, 양옆은 나무 틀 통유리
   const zBack = gz(0), xL = gx(0), xR = gx(GRID.w), zFront = gz(GRID.d);
   // 뒤쪽 통창: 나무 기둥 + 가로 창살
-  for (let c = 0; c <= GRID.w; c += 8) solid.add(P.frame, box, gx(c), WALL_H / 2, zBack, 0, 0.1, WALL_H, 0.1);
+  for (let c = 0; c <= GRID.w; c += 6) solid.add(P.frame, box, gx(c), WALL_H / 2, zBack, 0, 0.1, WALL_H, 0.1);
   solid.add(P.frame, box, 0, WALL_H, zBack, 0, W + 0.1, 0.12, 0.12); solid.add(P.frame, box, 0, 0.05, zBack, 0, W + 0.1, 0.1, 0.1);
   solid.add(P.frame, box, 0, 2.05, zBack, 0, W, 0.06, 0.06);
-  const doorGarden = { z0: gz(4), z1: gz(7) }, doorEntry = { z0: gz(43), z1: gz(46) };
+  const doorGarden = { z0: gz(4), z1: gz(7) }, doorEntry = { z0: gz(68), z1: gz(71) };
   for (const [x, door] of [[xL, doorGarden], [xR, doorEntry]]) {
     for (let c = 0; c <= GRID.d; c += 8) {                                   // 세로 기둥
       const z = Math.min(gz(c), zFront);
@@ -242,7 +251,7 @@ export function buildLibrary(scene) {
   { const g = new THREE.Mesh(new THREE.PlaneGeometry(W, WALL_H), glass); g.position.set(0, WALL_H / 2, zBack); root.add(g); }
 
   // ── 햇빛: 왼쪽·뒤쪽 통창으로 비스듬히 들어와 바닥에 생기는 따뜻한 빛 자국 + 은은한 빛줄기
-  const sunMat = new THREE.MeshBasicMaterial({ map: softRectTexture(), transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const sunMat = new THREE.MeshBasicMaterial({ map: softRectTexture(), transparent: true, opacity: 0.36, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const beamMat = new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const SUN_DX = 2.6, SUN_DZ = 1.1;              // 창 아래 기준으로 빛이 바닥에 닿는 거리(오른쪽 앞 방향)
   const addPatch = (pts) => { const m = new THREE.Mesh(quadGeo(pts), sunMat); m.position.y = 0.015; m.renderOrder = 2; root.add(m); };
@@ -256,15 +265,15 @@ export function buildLibrary(scene) {
     const z0 = gz(c) + 0.12, z1 = Math.min(gz(c + 8), zFront) - 0.12;
     if (z1 - z0 < 0.5) continue;
     addPatch([[xL, z0], [xL, z1], [xL + SUN_DX, Math.min(z1 + SUN_DZ, zFront)], [xL + SUN_DX, Math.min(z0 + SUN_DZ, zFront - 0.2)]]);
-    if ((c / 8) % 2 === 0) addBeam([xL, 2.9, z0 + 0.3], [xL, 2.9, z1 - 0.3], [xL + SUN_DX, 0.02, z1 + SUN_DZ - 0.3], [xL + SUN_DX, 0.02, z0 + SUN_DZ + 0.3]);
+    if ((c / 8) % 2 === 0 && z1 + SUN_DZ < zFront) addBeam([xL, 2.9, z0 + 0.3], [xL, 2.9, z1 - 0.3], [xL + SUN_DX, 0.02, z1 + SUN_DZ - 0.3], [xL + SUN_DX, 0.02, z0 + SUN_DZ + 0.3]);
   }
-  for (let c = 0; c < GRID.w; c += 8) {           // 뒤쪽 통창 칸마다
-    const x0 = gx(c) + 0.12, x1 = gx(c + 8) - 0.12;
+  for (let c = 0; c < GRID.w; c += 6) {           // 뒤쪽 통창 칸마다
+    const x0 = gx(c) + 0.12, x1 = gx(c + 6) - 0.12;
     addPatch([[x0, zBack], [x0 + SUN_DZ * 0.8, zBack + SUN_DX * 0.8], [x1 + SUN_DZ * 0.8, zBack + SUN_DX * 0.8], [x1, zBack]]);
   }
 
   // ── 창밖 풍경판: 카메라를 똑바로 바라보도록 기울여 세운 큰 그림(산·나무·하늘)
-  const BD_H = 2.3;
+  const BD_H = 2.3 / LAND_FRAC;
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(W + 26, BD_H), new THREE.MeshBasicMaterial({ map: landscapeTexture(), fog: false }));
   backdrop.position.set(0, 0, zBack - 0.8); root.add(backdrop);
   const faceBackdrop = (pitchRad) => {
@@ -279,10 +288,12 @@ export function buildLibrary(scene) {
     solid.add(P.trunk, cyl, x, 0.55 * k, z, 0, 0.13 * k, 1.1 * k, 0.13 * k);
     for (const [dx, dy, dz, r] of [[0, 1.75, 0, 0.75], [-0.5, 1.45, 0.1, 0.52], [0.5, 1.45, -0.1, 0.52], [0, 1.4, 0.45, 0.48]]) solid.add(dy > 1.6 ? P.leaf : P.leafDark, ball, x + dx * k, dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
-  for (const [x, z, k] of [[-9, -5, 1.5], [-11.5, -1, 1.2], [-8.6, 2.5, 1.0], [-12, 5, 1.4], [9.2, -4.5, 1.4], [11.8, -0.5, 1.6], [8.8, 3.5, 1.1], [12.5, 6.5, 1.3], [-9.5, -10, 1.3], [9.5, -10.5, 1.5]]) tree(x, z, k);
-  for (const [x, z, r] of [[-7.6, -3.2, 0.34], [-7.9, 4.6, 0.3], [7.7, 0.8, 0.36], [8.1, -2.4, 0.3], [-10.4, 1.4, 0.4], [10.5, 4.4, 0.4]]) solid.add(P.leafDark, ball, x, r * 0.7, z, 0, r, r * 0.8, r);
-  flat.add(P.path, new THREE.CircleGeometry(1, 40), -9.2, -0.02, gz(5.5), 0, 2.9, 1.0, 1, -Math.PI / 2);
-  flat.add(P.path, new THREE.CircleGeometry(1, 40), 9.4, -0.02, gz(44.5), 0, 3.0, 1.0, 1, -Math.PI / 2);
+  for (let z = -D / 2 + 1; z < D / 2; z += 3.2) {
+    for (const side of [-1, 1]) { const x = side * (W / 2 + 2.2 + rnd() * 1.6); tree(x, z + rnd() * 1.4, 0.95 + rnd() * 0.5); }
+    for (const side of [-1, 1]) solid.add(P.leafDark, ball, side * (W / 2 + 0.9 + rnd() * 0.5), 0.24, z + 1.6, 0, 0.36, 0.3, 0.36);
+  }
+  flat.add(P.path, new THREE.CircleGeometry(1, 40), xL - 1.6, -0.02, gz(5.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
+  flat.add(P.path, new THREE.CircleGeometry(1, 40), xR + 1.6, -0.02, gz(69.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
 
   solid.build(root);
   // 카펫·그림자·길: 조명 영향 없이 납작하게, 그림자는 반투명
@@ -293,5 +304,5 @@ export function buildLibrary(scene) {
       : new THREE.MeshStandardMaterial({ color, roughness: 1 }));
     mesh.renderOrder = isShadow ? 1 : 0; root.add(mesh);
   }
-  return { root, seats, faceBackdrop, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(17), x1: gx(23) } };
+  return { root, seats, faceBackdrop, size: { W, D }, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(10), x1: gx(14) } };
 }

@@ -19,28 +19,24 @@ const sitAt = (id, look, state = 'read') => {
   av.root.position.set(s.x - Math.sin(s.rotY) * 0.04, SIT_Y, s.z - Math.cos(s.rotY) * 0.04);
   av.root.rotation.y = s.rotY; av.setState(state); av.lookUp = 0.3; scene.add(av.root); avatars.push(av);
 };
-sitAt(1, looks[0]); sitAt(7, looks[2]); sitAt(10, looks[1], 'sit'); sitAt(15, looks[3]); sitAt(17, looks[4]); sitAt(22, looks[5], 'sit'); sitAt(25, looks[3]); sitAt(30, looks[0]);
+sitAt(1, looks[0]); sitAt(4, looks[2]); sitAt(6, looks[1], 'sit'); sitAt(7, looks[3]); sitAt(9, looks[4]); sitAt(11, looks[5], 'sit'); sitAt(14, looks[2]); sitAt(16, looks[0]); sitAt(18, looks[1]); sitAt(23, looks[4], 'sit'); sitAt(26, looks[3]); sitAt(30, looks[5]); sitAt(29, looks[2], 'sit');
 const walker = (x, z, ry, look, state = 'walk') => { const av = new Avatar(look); av.root.position.set(x, 0, z); av.root.rotation.y = ry; av.setState(state); av.lookUp = 0.36; scene.add(av.root); avatars.push(av); };
-walker(-0.35, 1.2, 0.4, looks[3]);
-walker(0.25, 4.3, -0.25, looks[1]);
+walker(-0.3, -4.2, 0.5, looks[3]);
+walker(0.25, -1.0, -0.2, looks[1]);
 const me = avatars[avatars.length - 1];
 
 let camera;
 const pitch = THREE.MathUtils.degToRad(view === 'lib' ? 56 : view === 'libwide' ? 50 : 44);
 const aim = (cam, target, dist) => { cam.position.set(target.x, target.y + Math.sin(pitch) * dist, target.z + Math.cos(pitch) * dist); cam.lookAt(target); };
 if (view === 'lib') {
-  // 전체 조망: 방 전체 배치 확인용
+  // 전체 조망: 세로로 긴 방 전체
   camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 0.1, 300);
-  aim(camera, new THREE.Vector3(0, 0, -0.2), 37);
-} else if (view === 'libwide') {
-  // 폰 세로 화면에 방 폭 전체를 맞춘 경우(캐릭터가 작아짐)
-  camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 300);
-  aim(camera, new THREE.Vector3(0, 0.4, 0.4), 50);
+  aim(camera, new THREE.Vector3(0, 0, 0.4), 54);
 } else {
-  // 실제 게임 화면: 내 캐릭터를 따라가는 카메라. 폭 약 6.5칸이 보이고 세로로는 도서관 대부분이 보임
+  // 실제 게임 화면: 방 폭(통창 포함)이 화면에 꼭 맞고, 내 캐릭터를 따라 위아래로만 움직임
   camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 300);
   const p = me.root.position;
-  aim(camera, new THREE.Vector3(p.x * 0.5, 0.4, p.z - 3.3), 23);
+  aim(camera, new THREE.Vector3(0, 0.4, p.z - 3.3), 31);
 }
 lib.faceBackdrop(pitch);
 avatars.forEach((a, i) => { a.t = 0.4 + i * 0.37; a.update(0); });
