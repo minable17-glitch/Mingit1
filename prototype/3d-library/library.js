@@ -15,27 +15,22 @@ export const PALETTE = {
 const gx = (c) => (c - GRID.w / 2) * CELL, gz = (c) => (c - GRID.d / 2) * CELL;
 const deg = THREE.MathUtils.degToRad;
 
-// 세로형 평면도에서 읽은 좌석 배치 (칸 단위). 4인 모둠 6곳 + 창가 8석 = 32석
-// 모둠: 위 책상 2개(의자는 위쪽, 아래를 봄) + 아래 책상 2개(의자는 아래쪽, 위를 봄), 가운데는 빈 공간
-const CLUSTER_COLS = [[4.5, 7.5], [16.5, 19.5]];       // 왼쪽 모둠, 오른쪽 모둠의 책상 가운데 x
-const CLUSTER_ROWS = [0, 20, 40];                        // 모둠 세로 간격 20칸
+// 세로형 평면도에서 읽은 좌석 배치 (칸 단위). 사방에서 마주 앉는 4인 모둠 6곳 + 창가 8석 = 32석
+// 모둠 가운데에서 책상은 2.5칸, 의자는 4칸 떨어져 있고, 모두 가운데를 보고 앉음
+const CLUSTER_CENTERS = [[5, 14], [19, 14], [5, 34], [19, 34], [5, 54], [19, 54]];
 const WINDOW_ROWS = [2.5, 23.5, 43.5, 64.5];
-export const SHELVES = [];                               // 모둠 뒤 낮은 책장 [x0, x1, y]
-export const RUGS = [];                                  // 모둠 카펫 [x0, x1, y0, y1]
+export const SHELVES = CLUSTER_CENTERS.map(([cx, cy]) => [cx - 3, cx + 3, cy - 6.5]);   // 모둠 뒤 낮은 책장 [x0, x1, y]
+export const RUGS = CLUSTER_CENTERS.map(([cx, cy]) => [cx, cy, 4.7]);                    // 둥근 카펫 [x, y, 반지름]
 
 export function seatLayout() {
   const seats = [];
   let n = 1;
-  for (const off of CLUSTER_ROWS) {
-    for (const cols of CLUSTER_COLS) {
-      for (const [deskY, chairY, fy] of [[11, 9.5, 1], [16, 17.5, -1]]) {
-        for (const cx of cols) seats.push({ id: 0, kind: 'cluster', chair: [cx, chairY + off], desk: [cx, deskY + off], face: [0, fy], vertical: false, col: cols, off });
-      }
+  // 평면도 번호 순서: 위 → 오른쪽 → 아래 → 왼쪽
+  for (const [cx, cy] of CLUSTER_CENTERS) {
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      seats.push({ id: n++, kind: 'cluster', chair: [cx + dx * 4, cy + dy * 4], desk: [cx + dx * 2.5, cy + dy * 2.5], face: [-dx, -dy], vertical: dx !== 0 });
     }
   }
-  // 평면도 번호 순서: 왼쪽 모둠 → 오른쪽 모둠, 위에서 아래
-  seats.sort((p, q) => p.off - q.off || p.col[0] - q.col[0] || p.chair[1] - q.chair[1] || p.chair[0] - q.chair[0]);
-  seats.forEach((s) => { s.id = n++; });
   for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [2.5, cy], desk: [1, cy], face: [-1, 0], vertical: true });
   for (const cy of WINDOW_ROWS) seats.push({ id: n++, kind: 'window', chair: [21.5, cy], desk: [23, cy], face: [1, 0], vertical: true });
   return seats.map((s) => ({
@@ -45,7 +40,6 @@ export function seatLayout() {
     deskX: gx(s.desk[0]), deskZ: gz(s.desk[1]),
   }));
 }
-for (const off of CLUSTER_ROWS) for (const [x0, x1] of [[3, 9], [15, 21]]) { SHELVES.push([x0, x1, 6.5 + off]); RUGS.push([x0 - 0.6, x1 + 0.6, 8.4 + off, 18.6 + off]); }
 
 // 같은 색 도형을 모아 한 번에 그리기 위한 수집기
 class Batch {
@@ -212,13 +206,9 @@ export function buildLibrary(scene) {
     for (const [dx, dy, dz, r] of [[0, 0.24, 0, 0.1], [-0.08, 0.19, 0.02, 0.075], [0.08, 0.19, -0.02, 0.075], [0, 0.18, 0.07, 0.065]]) solid.add(rnd() > 0.5 ? P.leaf : P.leafDark, ball, x + dx * k, y + dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
 
-  // 모둠마다: 사각 카펫(모서리 둥글게) + 뒤쪽 낮은 책장 + 화분
-  const rugShape = (w, d, r) => { const sh = new THREE.Shape(); const x = -w / 2, y = -d / 2;
-    sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + d - r); sh.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
-    sh.lineTo(x + r, y + d); sh.quadraticCurveTo(x, y + d, x, y + d - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y); return new THREE.ShapeGeometry(sh, 6); };
-  RUGS.forEach(([x0, x1, y0, y1], i) => {
-    const w = (x1 - x0) * CELL, d = (y1 - y0) * CELL;
-    flat.add(i % 2 ? '#E9E2BE' : P.rug, rugShape(w, d, 0.28), gx((x0 + x1) / 2), 0.006, gz((y0 + y1) / 2), 0, 1, 1, 1, -Math.PI / 2);
+  // 모둠마다: 둥근 카펫 + 뒤쪽 낮은 책장 + 화분
+  RUGS.forEach(([x, y, r], i) => {
+    flat.add(i % 2 ? '#E9E2BE' : P.rug, new THREE.CircleGeometry(1, 56), gx(x), 0.006, gz(y), 0, r * CELL, r * CELL, 1, -Math.PI / 2);
   });
   SHELVES.forEach(([x0, x1, y], i) => {
     const n = 3, span = (x1 - x0) * CELL, step = span / n;

@@ -19,7 +19,7 @@ const sitAt = (id, look, state = 'read') => {
   av.root.position.set(s.x - Math.sin(s.rotY) * 0.04, SIT_Y, s.z - Math.cos(s.rotY) * 0.04);
   av.root.rotation.y = s.rotY; av.setState(state); av.lookUp = 0.3; scene.add(av.root); avatars.push(av);
 };
-sitAt(1, looks[0]); sitAt(4, looks[2]); sitAt(6, looks[1], 'sit'); sitAt(7, looks[3]); sitAt(9, looks[4]); sitAt(11, looks[5], 'sit'); sitAt(14, looks[2]); sitAt(16, looks[0]); sitAt(18, looks[1]); sitAt(23, looks[4], 'sit'); sitAt(26, looks[3]); sitAt(30, looks[5]); sitAt(29, looks[2], 'sit');
+sitAt(1, looks[0]); sitAt(2, looks[2]); sitAt(4, looks[1], 'sit'); sitAt(5, looks[3]); sitAt(7, looks[4]); sitAt(8, looks[5], 'sit'); sitAt(9, looks[2]); sitAt(12, looks[0]); sitAt(13, looks[1]); sitAt(14, looks[4], 'sit'); sitAt(15, looks[3]); sitAt(26, looks[3]); sitAt(30, looks[5]); sitAt(29, looks[2], 'sit');
 const walker = (x, z, ry, look, state = 'walk') => { const av = new Avatar(look); av.root.position.set(x, 0, z); av.root.rotation.y = ry; av.setState(state); av.lookUp = 0.36; scene.add(av.root); avatars.push(av); };
 walker(-0.3, -4.2, 0.5, looks[3]);
 walker(0.25, -1.0, -0.2, looks[1]);
