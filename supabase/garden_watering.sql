@@ -216,8 +216,7 @@ $$;
 grant execute on function teacher_delete_log(uuid) to anon, authenticated;
 
 -- ── 6) 반 참여율: 한 번도 안 읽은 학생도 0일로 넣어 전체 학생 평균으로 계산
-drop function if exists get_class_progress(uuid);
-create function get_class_progress(p_class_id uuid)
+create or replace function get_class_progress(p_class_id uuid)
 returns table(joined_today int, total_students int, class_pct numeric, communal_minutes int)
 language sql security definer set search_path = public, extensions as $$
   select
