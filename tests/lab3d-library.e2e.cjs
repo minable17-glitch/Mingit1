@@ -26,6 +26,7 @@ async function open(ctx, id, nick, log) {
   await p.getByText('읽기', { exact: true }).click();
   try { await p.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000 }); }
   catch (e) { await p.screenshot({ path: `${OUT}/fail-open.png` }); console.log('open failed; lib3d:', await p.evaluate(() => ({ has: !!window.__lib3d, synced: window.__lib3d && window.__lib3d._synced, body: document.body.innerText.slice(0, 200) })), log); throw e; }
+  await p.click('[data-view="top"]'); await p.waitForTimeout(300);   // 이 점검은 위에서 보기 기준(걷기 점검은 lab3d-roam)
   return p;
 }
 const seatXY = async (p, id) => { await p.evaluate(() => window.__lib3d.setZoom(false)); await p.waitForTimeout(2500); return seatXY0(p, id); };

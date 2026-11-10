@@ -205,10 +205,12 @@ export function buildLibrary(scene) {
   const rim = new THREE.TorusGeometry(0.235, 0.068, 8, 20, Math.PI * 1.72); rim.rotateZ(Math.PI * 0.64); rim.rotateX(Math.PI / 2);
   const rimEnd = new THREE.SphereGeometry(0.068, 8, 6);
   const seats = seatLayout();
+  const obstacles = [];   // 걸어 다닐 때 부딪히는 것들: { kind: 'rect', x, z, w, d, ry } | { kind: 'circle', x, z, r }
   const sofa = (x, z, ry, i) => {
     const sage = i % 3 !== 1, main = sage ? P.sofaSage : P.sofaCream, dark = sage ? P.sofaSageDk : P.sofaCreamDk;
     const at = (lx, lz) => [x + lx * Math.cos(ry) + lz * Math.sin(ry), z - lx * Math.sin(ry) + lz * Math.cos(ry)];
     const [cx, cz] = at(0, -0.05);
+    obstacles.push({ kind: 'circle', x: cx, z: cz, r: 0.27 });
     solid.add(dark, cushion, cx, 0.13, cz, ry, 0.27, 0.1, 0.26);          // 받침
     solid.add(main, ball, cx, 0.2, cz, ry, 0.25, 0.065, 0.23);                   // 방석(봉긋)
     solid.add(main, backShell, cx, 0.31, cz, ry, 0.27, 0.26, 0.26);           // 등받이·팔걸이 감싸는 벽
@@ -220,6 +222,7 @@ export function buildLibrary(scene) {
   seats.forEach((s, i) => {
     const ry = s.rotY;
     solid.add(P.desk, deskTop, s.deskX, DESK_Y, s.deskZ, ry);
+    obstacles.push({ kind: 'rect', x: s.deskX, z: s.deskZ, w: 3 * CELL - 0.06, d: 2 * CELL - 0.06, ry });
     for (const [lx, lz] of [[-0.36, -0.21], [0.36, -0.21], [-0.36, 0.21], [0.36, 0.21]]) {
       const wx = s.deskX + lx * Math.cos(ry) + lz * Math.sin(ry), wz = s.deskZ - lx * Math.sin(ry) + lz * Math.cos(ry);
       solid.add(P.shelf, cyl, wx, DESK_Y / 2, wz, 0, 0.03, DESK_Y, 0.03);
@@ -232,6 +235,7 @@ export function buildLibrary(scene) {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const SH = { w: 0.56, h: 0.74, d: 0.3 };
   const shelfUnit = (x, z, ry) => {
+    obstacles.push({ kind: 'rect', x, z, w: SH.w + 0.02, d: SH.d + 0.02, ry });
     const put = (color, geo, lx, ly, lz, sx, sy, sz) => solid.add(color, geo, x + lx * Math.cos(ry) + lz * Math.sin(ry), ly, z - lx * Math.sin(ry) + lz * Math.cos(ry), ry, sx, sy, sz);
     put(P.shelf, box, 0, SH.h / 2, -0.03, SH.w, SH.h, SH.d - 0.06);          // 뒤판 겸 몸통
     put(P.shelf, box, 0, SH.h - 0.025, 0, SH.w + 0.02, 0.05, SH.d + 0.02);    // 윗판
@@ -256,6 +260,7 @@ export function buildLibrary(scene) {
     const pool = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), floorGlowMat); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.016, z + 0.3); pool.renderOrder = 2; root.add(pool);   // 바닥의 은은한 빛
   };
   const plant = (x, y, z, k = 1) => {
+    if (y === 0) obstacles.push({ kind: 'circle', x, z, r: 0.11 * k });
     solid.add(P.pot, cyl, x, y + 0.07 * k, z, 0, 0.085 * k, 0.14 * k, 0.085 * k);
     for (const [dx, dy, dz, r] of [[0, 0.24, 0, 0.1], [-0.08, 0.19, 0.02, 0.075], [0.08, 0.19, -0.02, 0.075], [0, 0.18, 0.07, 0.065]]) solid.add(rnd() > 0.5 ? P.leaf : P.leafDark, ball, x + dx * k, y + dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
@@ -298,9 +303,16 @@ export function buildLibrary(scene) {
     const s = x < 0 ? -1 : 1, dw = door.z1 - door.z0;
     solid.add(P.frame, box, x + s * dw * 0.34, 1.0, door.z0 + dw * 0.14, deg(s * 62), 0.06, 1.92, dw, 0, 0);
   }
+  // 앞쪽 통창: 위에서 내려다볼 때는 화면을 가리므로 숨기고, 캐릭터 시점에서만 보임
+  const front = new THREE.Group(); front.visible = false; root.add(front);
+  { const fb = new Batch();
+    for (let c = 0; c <= GRID.w; c += 6) fb.add(P.frame, box, gx(c), WALL_H / 2, zFront, 0, 0.09, WALL_H, 0.09);
+    for (const y of [0.05, 2.05, WALL_H]) fb.add(P.frame, box, 0, y, zFront, 0, W + 0.1, y === 2.05 ? 0.06 : 0.1, 0.1);
+    fb.build(front); }
   const glass = new THREE.MeshBasicMaterial({ color: '#EAF7FF', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
   for (const x of [xL, xR]) { const g = new THREE.Mesh(new THREE.PlaneGeometry(D, WALL_H), glass); g.rotation.y = Math.PI / 2; g.position.set(x, WALL_H / 2, 0); root.add(g); }
   { const g = new THREE.Mesh(new THREE.PlaneGeometry(W, WALL_H), glass); g.position.set(0, WALL_H / 2, zBack); root.add(g); }
+  { const g = new THREE.Mesh(new THREE.PlaneGeometry(W, WALL_H), glass); g.position.set(0, WALL_H / 2, zFront); front.add(g); }
 
   // ── 커튼: 옆 통창 위·뒤쪽 모서리에 드리운 반투명 크림색 커튼(주름진 면)
   const curtainGeo = (() => { const g = new THREE.PlaneGeometry(1.1, 3.0, 24, 8); const p = g.attributes.position;
@@ -377,5 +389,5 @@ export function buildLibrary(scene) {
       : new THREE.MeshStandardMaterial({ color, roughness: 1 }));
     mesh.renderOrder = isShadow ? 1 : 0; root.add(mesh);
   }
-  return { root, seats, faceBackdrop, size: { W, D }, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(10), x1: gx(14) } };
+  return { root, seats, obstacles, front, faceBackdrop, size: { W, D }, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(10), x1: gx(14) } };
 }

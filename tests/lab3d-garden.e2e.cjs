@@ -52,6 +52,7 @@ async function run(supportsWater) {
   await p.getByText(/💧 물 주기/).click(); await p.waitForTimeout(3200);
   console.log(tag, '한 번 더 준 뒤:', JSON.stringify(await state()));
   // 전체 보기로 바꾼 뒤 나무를 눌러 친구 정보 열기
+  await p.click('[data-view="top"]'); await p.waitForTimeout(300);
   await p.getByText('🔭 전체 보기').click(); await p.waitForTimeout(2500); await p.screenshot({ path: `${OUT}/g4-overview.png` });
   const [tx, ty] = await p.evaluate(() => { const w = window.__garden3d, i = w.slots.findIndex((s) => s && s.nick === '수아'), t = w.garden.trees[i], v = new (w.camera.position.constructor)(t.x, 0.1, t.z).project(w.camera), r = w.canvas.getBoundingClientRect(); return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]; });
   await p.mouse.click(tx, ty); await p.waitForTimeout(500);

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GardenWorld } from "./GardenWorld.js";
 import { webglAvailable } from "./LibraryWorld.js";
 import { connectRoom } from "./realtime.js";
+import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
 
@@ -14,7 +15,10 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
   const [near, setNear] = useState(true);            // 가까이 보기(내 나무 둘레) / 전체 보기
   const isStudent = role === "student" && !!studentInfo?.id;
   const classId = classInfo?.id;
-  const cb = useRef({}); cb.current = { onTapTree, onTapClassTree };
+  const [view, setViewState] = useState(() => (isStudent ? loadView() : "top"));
+  const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); saveView(v); };
+  const metaRef = useRef(null), leavingRef = useRef(false);
+  const cb = useRef({}); cb.current = { onTapTree, onTapClassTree, onGoLibrary };
   // 화분 개수가 달라질 때만 장면을 다시 지음(학생이 32명을 넘으면 화단이 늘어남)
   const islands = Math.max(8, Math.ceil((trees?.length || 0) / 4));
 
@@ -24,16 +28,23 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
     let world;
     try {
       world = new GardenWorld(canvasRef.current, {
-        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname } : null,
-        onEvent: (type, payload) => { if (type === "tapTree") cb.current.onTapTree?.(payload.id); else if (type === "tapClassTree") cb.current.onTapClassTree?.(); },
+        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname } : null, view,
+        onEvent: (type, payload) => {
+          if (type === "tapTree") cb.current.onTapTree?.(payload.id);
+          else if (type === "tapClassTree") cb.current.onTapClassTree?.();
+          else if (type === "me") { metaRef.current = { ...metaRef.current, ...payload }; roomRef.current?.update(metaRef.current); }
+          else if (type === "door" && cb.current.onGoLibrary && !leavingRef.current) { leavingRef.current = true; cb.current.onGoLibrary(); }
+        },
       });
     } catch (err) { console.error("3D 정원을 열지 못했어요:", err); onUnsupported?.(); return undefined; }
     worldRef.current = world; setReady(true);
     if (new URLSearchParams(window.location.search).get("debug") === "1") window.__garden3d = world;   // 자동 점검용
     const meId = isStudent ? studentInfo.id : null;
+    const startPos = world.me ? { x: Math.round(world.me.avatar.root.position.x * 100) / 100, z: Math.round(world.me.avatar.root.position.z * 100) / 100 } : {};
+    metaRef.current = isStudent ? { nick: studentInfo.nickname, place: "garden", state: "stand", ...startPos } : { observer: true };
     const room = connectRoom({
       classId, key: meId || `teacher-${Math.random().toString(36).slice(2, 8)}`,
-      meta: isStudent ? { nick: studentInfo.nickname, place: "garden", state: "stand" } : { observer: true },
+      meta: metaRef.current,
       forceLocal: new URLSearchParams(window.location.search).get("rtlocal") === "1",
       onSync: (list) => world.setOthers(list.filter((o) => !o.observer && o.place === "garden")),
     });
@@ -48,29 +59,36 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
 
   const water = async (all) => {
     if (busy || !onWater) return;
-    setBusy(true); setNear(true);     // 물 줄 때는 내 나무를 가까이서 봄
-    const meta = { nick: studentInfo?.nickname, place: "garden" };
+    setBusy(true); if (view === "top") setNear(true);     // 위에서 볼 때는 내 나무를 가까이서 봄(캐릭터 시점에서는 나무까지 걸어감)
+    const upd = (state) => { metaRef.current = { ...metaRef.current, state }; roomRef.current?.update(metaRef.current); };
     try {
-      roomRef.current?.update({ ...meta, state: "water" });
+      upd("water");
       // 연출과 저장을 함께 진행하고, 둘 다 끝난 뒤에 결과를 알림(저장에 실패하면 나무는 자라지 않음)
       const [n] = await Promise.all([onWater(all), worldRef.current?.water()]);
       if (!n) showToast?.("줄 수 있는 물이 없어요.");
     } catch (e) { showToast?.(e?.message || "물주기에 실패했어요. 다시 시도해 주세요."); }
-    finally { roomRef.current?.update({ ...meta, state: "stand" }); setBusy(false); }
+    finally { upd("stand"); setBusy(false); }
   };
 
   return (
     <div style={{ position: "relative", width: "100%", aspectRatio: "10 / 13", marginTop: 4, overflow: "hidden", background: "#CFE9F5" }}>
-      <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} />
+      {/* 캐릭터 시점에서는 화면을 끌어 둘러보므로 페이지 스크롤을 막음(위에서 보기는 예전처럼 스크롤 가능) */}
+      <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: view === "top" ? "pan-y" : "none" }} />
       {!ready && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}
       {onGoLibrary && ready && (
-        <button onClick={onGoLibrary} style={{ position: "absolute", top: 10, left: 12, border: "none", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, borderRadius: 20,
+        <button onClick={() => { leavingRef.current = true; onGoLibrary(); }} style={{ position: "absolute", top: 10, left: 12, border: "none", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, borderRadius: 20,
           padding: "5px 12px", fontSize: 12.5, color: "#fff", boxShadow: "0 2px 6px #0000001a" }}>📚 도서관 가기</button>
       )}
       {isStudent && ready && (
-        <button onClick={() => setNear((n) => !n)} style={{ position: "absolute", top: 10, right: 12, border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
-          padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
+        <div style={{ position: "absolute", top: 10, right: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+          <ViewPicker view={view} onChange={chooseView} />
+          {view === "top" && (
+            <button onClick={() => setNear((n) => !n)} style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
+              padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
+          )}
+        </div>
       )}
+      {isStudent && ready && !busy && <Joystick bottom={waterReady ? 76 : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {isStudent && waterReady && (
         <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", gap: 8, justifyContent: "center", pointerEvents: "none" }}>
           {waterLeft > 0 ? (

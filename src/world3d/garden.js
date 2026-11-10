@@ -26,6 +26,7 @@ export function planterLayout(students = 32) {
   return out;
 }
 
+const ballFar = new THREE.SphereGeometry(1, 8, 6);
 const ball = new THREE.SphereGeometry(1, 18, 14), cyl = new THREE.CylinderGeometry(1, 1, 1, 14), box = new THREE.BoxGeometry(1, 1, 1);
 const M4 = (x, y, z, sx, sy, sz, q) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q || new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz));
 const qEuler = (rx, ry, rz) => new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
@@ -156,8 +157,9 @@ export function buildGarden(scene, students = 32) {
   const planters = planterLayout(students);
   const ringStone = new THREE.SphereGeometry(1, 10, 8);
   const treeShadowGeo = new THREE.CircleGeometry(1, 20);
-  const trees = [];
+  const trees = [], obstacles = [];   // 걸을 때 부딪히는 것: { kind: 'circle', x, z, r } | { kind: 'rect', x, z, w, d, ry }
   for (const p of planters) {
+    obstacles.push({ kind: 'circle', x: p.x, z: p.z, r: 0.38 });
     for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; solid.addM(k % 2 ? G.stone : G.stoneDk, ringStone, M4(p.x + Math.cos(a) * 0.3, 0.05, p.z + Math.sin(a) * 0.3, 0.115, 0.065, 0.085, qEuler(0, -a + Math.PI / 2, 0))); }
     solid.addM(G.soil, cyl, M4(p.x, 0.045, p.z, 0.27, 0.05, 0.27));
     solid.addM(G.soilDk, ball, M4(p.x, 0.07, p.z, 0.2, 0.035, 0.2));
@@ -175,6 +177,7 @@ export function buildGarden(scene, students = 32) {
 
   // ── 가운데: 돌 테두리 둥근 화단 + 우리 반 나무
   const [cx, cz] = CENTER, RING = 1.36;
+  obstacles.push({ kind: 'circle', x: cx, z: cz, r: RING + 0.12 });
   solid.addM(G.grass, cyl, M4(cx, 0.03, cz, RING, 0.06, RING));
   for (let k = 0; k < 26; k++) { const a = (k / 26) * Math.PI * 2; solid.addM(k % 2 ? G.stone : G.stoneDk, new THREE.BoxGeometry(1, 1, 1), M4(cx + Math.cos(a) * RING, 0.09, cz + Math.sin(a) * RING, 0.36, 0.18, 0.2, qEuler(0, -a + Math.PI / 2, 0))); }
   let classTree = null, classStage = -1;
@@ -191,6 +194,8 @@ export function buildGarden(scene, students = 32) {
 
   // ── 우물과 수도꼭지, 디딤돌
   const [wx, wz] = WELL;
+  obstacles.push({ kind: 'circle', x: wx, z: wz, r: 0.55 }, { kind: 'circle', x: wx + 0.42, z: wz - 0.3, r: 0.1 },
+    { kind: 'circle', x: wx - 1.5, z: wz - 0.55, r: 0.3 }, { kind: 'circle', x: wx + 0.95, z: wz + 0.55, r: 0.3 });
   for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; for (const [yy, off] of [[0.1, 0], [0.27, 0.22]]) solid.addM((k + (off ? 1 : 0)) % 2 ? G.stone : G.stoneDk, box, M4(wx + Math.cos(a + off) * 0.5, yy, wz + Math.sin(a + off) * 0.5, 0.23, 0.17, 0.13, qEuler(0, -(a + off) + Math.PI / 2, 0))); }
   solid.addM(G.water, cyl, M4(wx, 0.3, wz, 0.45, 0.04, 0.45));
   solid.addM(G.faucet, cyl, M4(wx + 0.42, 0.55, wz - 0.3, 0.04, 1.0, 0.04));
@@ -202,7 +207,8 @@ export function buildGarden(scene, students = 32) {
   bush(wx - 1.5, wz - 0.55, 1.2); bush(wx + 0.95, wz + 0.55, 1.2);
 
   // ── 벤치 2개, 도서관 모퉁이(문·통창·지붕), 디딤돌
-  const bench = (x, z, ry) => { const q = qEuler(0, ry, 0); solid.addM(G.wood, box, M4(x, 0.3, z, 1.2, 0.08, 0.36, q)); for (const s of [-1, 1]) { const o = new THREE.Vector3(s * 0.42, 0, 0).applyQuaternion(q); solid.addM(G.woodDk, box, M4(x + o.x, 0.14, z + o.z, 0.1, 0.28, 0.3, q)); } shadow(x, z + 0.08, 0.7, 0.3); };
+  let doorSpot = null;
+  const bench = (x, z, ry) => { obstacles.push({ kind: 'rect', x, z, w: 1.2, d: 0.36, ry }); const q = qEuler(0, ry, 0); solid.addM(G.wood, box, M4(x, 0.3, z, 1.2, 0.08, 0.36, q)); for (const s of [-1, 1]) { const o = new THREE.Vector3(s * 0.42, 0, 0).applyQuaternion(q); solid.addM(G.woodDk, box, M4(x + o.x, 0.14, z + o.z, 0.1, 0.28, 0.3, q)); } shadow(x, z + 0.08, 0.7, 0.3); };
   bench(-2.4, -6.55, deg(8)); bench(3.0, -6.2, deg(-12));
   {
     const L = new Batch(), H = 1.7;                      // 건물 중심 기준 좌표. +x 벽에 문과 통창
@@ -224,12 +230,19 @@ export function buildGarden(scene, students = 32) {
     // 문(건물 기준 (H, -0.02))이 DOOR 자리에 오도록 건물 위치를 잡음
     const LS = 0.72, off = new THREE.Vector3((H + 0.25) * LS, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
     lg.scale.setScalar(LS); lg.rotation.y = ang; lg.position.set(dx0 - off.x, 0, dz0 - off.z); root.add(lg);
+    obstacles.push({ kind: 'rect', x: dx0 - off.x, z: dz0 - off.z, w: 3.5 * LS, d: 3.5 * LS, ry: ang, tall: true }, { kind: 'circle', x: dx0 + 0.3, z: dz0 + 1.25, r: 0.25 });
+    // 정원에 들어올 때 서는 곳(문 바로 앞)과 문으로 나가는 방향
+    const out = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
+    doorSpot = { x: dx0 + out.x * 0.9, z: dz0 + out.z * 0.9, door: { x: dx0 + out.x * 0.15, z: dz0 + out.z * 0.15 } };
     for (const [ax, az, r] of [[0.25, 0.1, 0.27], [0.75, 0.3, 0.23], [0.45, 0.6, 0.21], [1.05, -0.05, 0.19], [0.95, 0.7, 0.18]]) solid.addM(G.stone, cyl, M4(dx0 + ax, 0.03, dz0 + az, r, 0.03, r * 0.85));
     bush(dx0 + 0.3, dz0 + 1.25, 1.0); daisy(dx0 + 0.9, dz0 + 1.3, 1.2); daisy(dx0 + 0.6, dz0 + 1.7, 1.1);
   }
 
   // ── 숲: 마당 둘레의 큰 나무와 덤불, 들꽃
-  const bigTree = (x, z, k) => {
+  const front = new THREE.Group(); front.visible = false; root.add(front);
+  const frontB = new Batch(); let fseed = 101; const frnd = () => (fseed = (fseed * 16807) % 2147483647) / 2147483647;   // 앞쪽 숲은 따로 뽑아 기존 배치가 바뀌지 않게
+  const bigTree = (x, z, k, b = solid) => {
+    if (b !== solid) { b.addM(G.trunk, new THREE.CylinderGeometry(0.16, 0.26, 1.5, 8), M4(x, 0.75 * k, z, k, k, k)); for (const [bx, by, bz, r, light] of [[0, 2.15, 0, 0.9, 1], [-0.7, 1.8, 0.1, 0.65, 0], [0.7, 1.8, -0.1, 0.68, 0], [0, 1.75, 0.6, 0.62, 1]]) b.addM(light ? '#9FCF52' : '#86BD48', ballFar, M4(x + bx * k, by * k, z + bz * k, r * k, r * k * 0.9, r * k)); return; }
     solid.addM(G.trunk, new THREE.CylinderGeometry(0.16, 0.26, 1.5, 12), M4(x, 0.75 * k, z, k, k, k));
     for (const [bx, by, bz, r, light] of [[0, 2.15, 0, 0.9, 1], [-0.7, 1.8, 0.1, 0.65, 0], [0.7, 1.8, -0.1, 0.68, 0], [0, 1.75, 0.6, 0.62, 1], [0.1, 1.8, -0.6, 0.6, 0], [-0.35, 2.5, 0.2, 0.5, 1]]) solid.addM(light ? '#9FCF52' : '#86BD48', ball, M4(x + bx * k, by * k, z + bz * k, r * k, r * k * 0.9, r * k));
     shadow(x + 0.2, z + 0.25, 1.1 * k, 0.9 * k);
@@ -238,11 +251,15 @@ export function buildGarden(scene, students = 32) {
     const ex = Math.cos(a) * 4.3, ez = 0.4 + Math.sin(a) * 7.3;
     if (ex < -2.4 && ez > 4.4) continue;                         // 도서관 자리
     if (ez < 4.6) for (const [d, kMin, kMax] of [[1.5, 0.6, 0.85], [3.2, 0.8, 1.1], [5.0, 0.95, 1.3]]) bigTree(ex + Math.cos(a) * (d + rnd() * 0.6), ez + Math.sin(a) * (d + rnd() * 0.6), kMin + rnd() * (kMax - kMin));
+    else for (const [d, kMin, kMax] of [[1.5, 0.6, 0.85], [3.2, 0.8, 1.1], [5.0, 0.95, 1.3]]) bigTree(ex + Math.cos(a) * (d + frnd() * 0.6), ez + Math.sin(a) * (d + frnd() * 0.6), kMin + frnd() * (kMax - kMin), frontB);
     bush(ex + Math.cos(a) * 0.25, ez + Math.sin(a) * 0.25, 1.1 + rnd() * 0.5);
     if (rnd() > 0.35) daisy(ex - Math.cos(a) * (0.25 + rnd() * 0.3), ez - Math.sin(a) * (0.25 + rnd() * 0.3), 1.3);
   }
   islands.forEach(([x, z]) => { for (let k = 0; k < 3; k++) { const a = rnd() * 6.28; daisy(x + Math.cos(a) * 0.95, z + Math.sin(a) * 0.9, 0.9); } });
 
+  // 앞쪽(화면 아래쪽) 숲: 위에서 볼 때는 마당을 가리므로, 캐릭터 시점에서만 보임
+  for (let x = -14; x <= 14; x += 2.2) for (const dz of [11.5, 14]) frontB.addM(frnd() > 0.5 ? '#9FCF52' : '#86BD48', ballFar, M4(x + frnd(), 1.6, dz + frnd() * 2, 1.4, 1.5, 1.3));
+  for (const [color, geo] of frontB.merged()) front.add(new THREE.Mesh(geo, mats(color)));
   solid.build(root);
   { const m = new THREE.Mesh(new THREE.BufferGeometry(), shadowMat); const pos = []; for (const g of shadowGeos) { const gi = g.toNonIndexed(); pos.push(...gi.attributes.position.array); } m.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); m.renderOrder = 1; root.add(m); }
 
@@ -255,5 +272,10 @@ export function buildGarden(scene, students = 32) {
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(BD_W, BD_H), new THREE.MeshBasicMaterial({ map: landscapeTexture(BD_W / BD_H), fog: false })); root.add(backdrop);
   const faceBackdrop = (p) => { backdrop.rotation.set(-p, 0, 0); backdrop.position.set(0, Math.cos(p) * BD_H / 2 - 0.15, zB - Math.sin(p) * BD_H / 2); };
   faceBackdrop(deg(48));
-  return { root, trees, planters, setStage, setClassStage, faceBackdrop, dispose() { root.traverse((o) => { o.geometry?.dispose?.(); const m = o.material; if (m) { m.map?.dispose?.(); m.dispose?.(); } }); for (const m of matCache.values()) m.dispose(); } };
+  // 걸을 수 있는 마당: 모래 오솔길 타원 + 도서관 문 앞
+  const inside = (x, z) => (x / 4.2) ** 2 + ((z - 0.4) / 7.2) ** 2 <= 1 || Math.hypot(x - doorSpot.x, z - doorSpot.z) < 1.0;
+  // 카메라가 못 들어가는 곳: 마당 둘레의 큰 나무 숲, 도서관 건물
+  const tallRects = obstacles.filter((o) => o.tall);
+  const cameraSolid = (x, z) => (x / 5.3) ** 2 + ((z - 0.4) / 8.3) ** 2 > 1 || tallRects.some((o) => { const dx = x - o.x, dz = z - o.z, c = Math.cos(o.ry), s = Math.sin(o.ry); return Math.abs(dx * c - dz * s) < o.w / 2 + 0.3 && Math.abs(dx * s + dz * c) < o.d / 2 + 0.3; });
+  return { root, trees, planters, obstacles, inside, cameraSolid, doorSpot, front, setStage, setClassStage, faceBackdrop, dispose() { root.traverse((o) => { o.geometry?.dispose?.(); const m = o.material; if (m) { m.map?.dispose?.(); m.dispose?.(); } }); for (const m of matCache.values()) m.dispose(); } };
 }
