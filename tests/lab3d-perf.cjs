@@ -11,7 +11,7 @@ const session = JSON.stringify({ role: 'student', classInfo: { id: 'class-demo',
   await p.getByText('읽기', { exact: true }).click();
   await p.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 30000 });
   const measure = (label) => p.evaluate((lbl) => new Promise((res) => { const w = window.__lib3d; w._dirty = true; requestAnimationFrame(() => requestAnimationFrame(() => { const i = w.renderer.info.render; res(`${lbl}: 그리기 ${i.calls}번, 삼각형 ${(i.triangles / 1000).toFixed(0)}천 개, 도형 ${w.renderer.info.memory.geometries}, 그림 ${w.renderer.info.memory.textures}`); })); }), label);
-  await p.evaluate(() => window.__lib3d.setZoom(false)); await p.waitForTimeout(2500);
+  await p.evaluate(() => { window.__lib3d.setView('top'); window.__lib3d.setZoom(false); }); await p.waitForTimeout(2500);
   console.log(await measure('빈 도서관(나 혼자, 전체 보기)'));
   // 친구 31명이 모두 자리에 앉음(절반은 읽는 중)
   await p.evaluate(() => { const list = []; for (let i = 1; i <= 31; i++) list.push({ id: 'stu-' + String(i).padStart(2, '0'), nick: '친구' + i, seat: i, state: i % 2 ? 'read' : 'sit', seatAt: i }); window.__lib3d.setOthers(list); });
@@ -19,6 +19,11 @@ const session = JSON.stringify({ role: 'student', classInfo: { id: 'class-demo',
   console.log(await measure('32명 모두 앉음(전체 보기)'));
   await p.evaluate(() => window.__lib3d.setZoom(true)); await p.waitForTimeout(2500);
   console.log(await measure('32명 모두 앉음(가까이 보기)'));
+  // 걸어 다니는 시점: 입구에서 도서관 안쪽을 보면 거의 모두가 화면에 들어옴(가장 무거운 경우)
+  await p.evaluate(() => window.__lib3d.setView('third')); await p.waitForTimeout(1500);
+  console.log(await measure('32명 모두 앉음(뒤에서 보기, 입구에서 안쪽)'));
+  await p.evaluate(() => window.__lib3d.setView('first')); await p.waitForTimeout(1500);
+  console.log(await measure('32명 모두 앉음(내 눈으로)'));
   await p.screenshot({ path: require('path').join(__dirname, 'out', 'perf32.png') });
   await b.close();
 })().catch((e) => { console.error('FAILED', e.message); process.exit(1); });

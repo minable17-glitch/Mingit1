@@ -3,10 +3,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { LibraryWorld, webglAvailable } from "./LibraryWorld.js";
 import { connectRoom } from "./realtime.js";
+import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", paper: "#FBF7EE", leafL: "#9BD187" };
 const seatKey = (classId, studentId) => `saesak_seat_${classId}_${studentId}`;
-
 export default function Library3D({
   classInfo, studentInfo, role, reading, myBook, doneToday, dailyTargetMinutes,
   resumeMinutes, bonusResumeMinutes, onStartTarget, onStartFree, onStartBonus,
@@ -17,13 +17,23 @@ export default function Library3D({
   const [people, setPeople] = useState([]);
   const [mySeat, setMySeat] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [near, setNear] = useState(true);            // 가까이 보기 / 전체 보기
   const [leaving, setLeaving] = useState(false);
   const isStudent = role === "student" && !!studentInfo?.id;
   const classId = classInfo?.id;
+  // 보는 방법: 뒤에서(3인칭) / 내 눈으로(1인칭) / 전체(위에서). 학생만 걸어 다님
+  const [view, setViewState] = useState(() => (isStudent ? loadView() : "top"));
+  const [cardH, setCardH] = useState(130);
+  const [tip, setTip] = useState(false);
+  const cardRef = useRef(null);
+  useEffect(() => {
+    const el = cardRef.current; if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => setCardH(el.offsetHeight)); ro.observe(el); return () => ro.disconnect();
+  });
+  const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); if (v === "top") worldRef.current?.setZoom(false); saveView(v); };
 
   // 최신 콜백을 장면 이벤트에서 쓰기 위한 참조
-  const cb = useRef({}); cb.current = { onTapFriend, showToast };
+  const cb = useRef({}); cb.current = { onTapFriend, showToast, onGoGarden, timer, leaving };
+  const goGarden = () => { if (cb.current.leaving) return; setLeaving(true); const w = worldRef.current; if (w) w.goGarden(onGoGarden); else onGoGarden(); };
 
   useEffect(() => {
     if (!classId || !canvasRef.current) return undefined;
@@ -38,7 +48,7 @@ export default function Library3D({
     try {
       world = new LibraryWorld(canvasRef.current, {
         me: isStudent ? { id: meId, nick: studentInfo.nickname } : null,
-        lastSeat,
+        lastSeat, view,
         onEvent: (type, payload) => {
           if (type === "me") {
             metaRef.current = { ...metaRef.current, ...payload };
@@ -48,10 +58,12 @@ export default function Library3D({
           } else if (type === "tapFriend") cb.current.onTapFriend?.(payload);
           else if (type === "bumped") cb.current.showToast?.("친구가 먼저 앉았어요. 다른 자리를 골라 주세요 🙂");
           else if (type === "hint") cb.current.showToast?.(payload);
+          else if (type === "door" && cb.current.onGoGarden && !cb.current.timer && !cb.current.leaving) { cb.current.leaving = true; setLeaving(true); cb.current.onGoGarden(); }
         },
       });
     } catch (err) { console.error("3D 도서관을 열지 못했어요:", err); onUnsupported?.(); return undefined; }
     worldRef.current = world; setLoading(false);
+    if (isStudent) { let seen = false; try { seen = !!localStorage.getItem("saesak_lib_tip"); localStorage.setItem("saesak_lib_tip", "1"); } catch { /* 무시 */ } if (!seen) setTip(true); }
     if (params.get("debug") === "1") window.__lib3d = world;   // 자동 점검용
     const room = connectRoom({
       classId, key: meId || `teacher-${Math.random().toString(36).slice(2, 8)}`, meta: baseMeta,
@@ -69,15 +81,14 @@ export default function Library3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, isStudent, studentInfo?.id]);
 
-  // 읽는 동안: 내 상태를 "읽는 중"으로 알리고, 도서관 전체가 보이도록 전체 보기로 바꿈(끝나면 원래 보기로)
-  const nearBeforeRead = useRef(true);
+  // 읽는 동안: 내 상태를 "읽는 중"으로 알리고, 도서관 전체가 보이도록 위에서 보기로 바꿈(끝나면 원래 보기로)
   useEffect(() => {
     const w = worldRef.current; if (!w) return;
     w.setReading(!!reading);
-    if (reading) { nearBeforeRead.current = near; setNear(false); w.setZoom(false); }
-    else { setNear(nearBeforeRead.current); w.setZoom(nearBeforeRead.current); }
+    if (reading) { w.setView("top"); w.setZoom(false); } else { w.setView(view); if (view === "top") w.setZoom(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reading, loading]);
+  useEffect(() => { if (!tip) return undefined; const t = setTimeout(() => setTip(false), 6000); return () => clearTimeout(t); }, [tip]);
 
   const readingCount = people.filter((p) => p.state === "read").length;
   const start = (fn) => { worldRef.current?.autoSeat(); fn?.(); };
@@ -102,15 +113,26 @@ export default function Library3D({
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", pointerEvents: "auto" }}>
-          <button onClick={() => { const n = !near; setNear(n); worldRef.current?.setZoom(n); }} style={{ ...pill, border: "none", cursor: "pointer" }}>{near ? "🔭 전체 보기" : "🔍 가까이 보기"}</button>
-          {isStudent && near && <button onClick={() => worldRef.current?.focusMe()} style={{ ...pill, border: "none", cursor: "pointer" }}>📍 내 위치</button>}
+          {isStudent && !reading && (
+            <ViewPicker view={view} onChange={chooseView} />
+          )}
+          {view === "top" && !reading && <button onClick={() => worldRef.current?.focusMe()} style={{ ...pill, border: "none", cursor: "pointer" }}>📍 처음 위치로</button>}
           {onGoGarden && !timer && (
-            <button disabled={leaving} onClick={() => { setLeaving(true); const w = worldRef.current; if (w) w.goGarden(onGoGarden); else onGoGarden(); }}
+            <button disabled={leaving} onClick={goGarden}
               style={{ ...pill, border: "none", cursor: leaving ? "default" : "pointer", color: "#fff", background: leaving ? "#a8c49a" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
               {leaving ? "정원으로 가는 중…" : waterLeft > 0 ? `🌳 정원 가기 · 💧${waterLeft}` : "🌳 정원 가기"}</button>
           )}
         </div>
       </div>
+
+      {/* 걷기 조이스틱(학생, 읽지 않을 때) */}
+      {isStudent && !timer && !reading && !loading && <Joystick bottom={cardH + 24} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {tip && !timer && (
+        <div onClick={() => setTip(false)} style={{ position: "absolute", left: "50%", top: "42%", transform: "translate(-50%, -50%)", background: "#35503Fd9", color: "#fff",
+          borderRadius: 16, padding: "12px 16px", fontSize: 13.5, lineHeight: 1.6, textAlign: "center", maxWidth: 280, zIndex: 6 }}>
+          🕹️ 왼쪽 아래 동그라미를 밀면 걸어요<br />👆 화면을 끌면 둘레를 둘러봐요<br />🪑 빈 의자를 누르면 가서 앉아요
+        </div>
+      )}
 
       {/* 읽는 중: 도서관 위에 뜨는 타이머 카드. 탭바까지 덮어서 읽는 동안에는 다른 탭으로 나가지 않게 함 */}
       {timer && (() => {
@@ -146,11 +168,11 @@ export default function Library3D({
       })()}
 
       {/* 아래쪽: 읽기 버튼(기존 읽기 탭과 같은 동작). 읽는 중에는 위의 타이머 카드가 대신 보임 */}
-      {!timer && <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, background: "#ffffffee", borderRadius: 18, padding: "12px 14px",
+      {!timer && <div ref={cardRef} style={{ position: "absolute", left: 12, right: 12, bottom: 12, background: "#ffffffee", borderRadius: 18, padding: "12px 14px",
         boxShadow: "0 6px 18px #3f7e4e22", border: `1px solid ${C.leafL}55` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: C.inkSoft }}>{mySeat ? `${mySeat}번 자리 · 오늘 읽을 책` : isStudent ? "빈자리를 눌러 앉아 보세요 · 오늘 읽을 책" : "오늘 읽을 책"}</div>
+            <div style={{ fontSize: 11, color: C.inkSoft }}>{mySeat ? `${mySeat}번 자리 · 오늘 읽을 책` : isStudent ? "걸어가서 빈 의자를 눌러 앉아 보세요 · 오늘 읽을 책" : "오늘 읽을 책"}</div>
             <div className="cs-jua" style={{ fontSize: 17, color: C.greenDk, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{myBook || "아직 없어요"}</div>
           </div>
           {myBook && (

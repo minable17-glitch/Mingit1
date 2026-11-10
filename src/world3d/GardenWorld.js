@@ -1,11 +1,13 @@
 // 정원 3D 장면 엔진 — 나무 표시, 내 캐릭터, 물주기 연출, 터치
-// 가까이 보기(내 나무 둘레)와 전체 보기를 오감. 화면을 끌어 옮기는 기능은 없음(페이지 스크롤을 막지 않기 위해).
+// 보는 방법: 위에서(전체·내 나무 가까이) / 내 캐릭터 뒤에서(3인칭) / 내 눈으로(1인칭). 캐릭터 시점에서는 조이스틱으로 걸어 다님.
 import * as THREE from 'three';
 import { Avatar, LOOKS } from './avatar.js';
 import { buildGarden, CENTER } from './garden.js';
 import { nameTag, lookOf } from './LibraryWorld.js';
+import { NavGrid, CameraRig, stepJoystick } from './roam.js';
 
-const PITCH = THREE.MathUtils.degToRad(50), FOV = 30;
+const PITCH = THREE.MathUtils.degToRad(50), FOV = 30, WALK_SPEED = 1.9, POS_EVERY = 1.2;
+const VIEW_FOV = { top: FOV, third: 55, first: 62 };
 const TAG_Y = [0.42, 0.52, 0.78, 1.12, 1.14, 1.2];     // 단계별 이름표 높이
 // 악세서리를 다는 자리(나무 기준, 단계별). 기존 2D 나무처럼 최대 4개: 왼쪽 위, 오른쪽 위, 왼쪽 아래, 오른쪽 아래
 const ACC_SLOTS = (stage) => {
@@ -40,7 +42,20 @@ export class GardenWorld {
     this.people = new Map();            // 정원에 있는 사람: id → { avatar, until }
     this.sparkles = [];
     this.near = !!opts.me; this.cam = { x: 0, z: 0.1, dist: 30 }; this._camInit = false;
-    this._bind(); this.resize();
+    // 걸을 수 있는 마당 지도
+    const g = this.garden;
+    this.nav = new NavGrid({ x0: -4.6, x1: 4.6, z0: -7.4, z1: 8.2 }, 0.1, g.inside);
+    for (const o of g.obstacles) { if (o.kind === 'rect') this.nav.rect(o.x, o.z, o.w, o.d, o.ry, 0.15); else this.nav.circle(o.x, o.z, o.r, 0.15); }
+    this.rig = new CameraRig(this.camera, { box: { x0: -6, x1: 6, z0: -9, z1: 10, y1: 4 }, solid: g.cameraSolid });
+    this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
+    if (opts.me) {
+      // 도서관 문 앞에서 나타나, 탁 트인 가운데 길까지 걸어 들어와 우리 반 나무를 바라봄
+      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest(0, 5.2);
+      me.avatar.root.position.set(d.x, 0, d.z); me.avatar.root.rotation.y = Math.atan2(st.x - d.x, st.z - d.z);
+      this._walk(me, this.nav.path(d, st) || [st], () => { me.avatar.root.rotation.y = Math.PI; this._announce(); });
+      this.me = me; me.goal = st; this.rig.snapTo(0);
+    }
+    this._bind(); this.setView(opts.me ? (opts.view || 'third') : 'top');
     this._raf = requestAnimationFrame(() => this._frame());
   }
 
@@ -72,44 +87,100 @@ export class GardenWorld {
       }
       if (grew) this._sparkle(p.x, TAG_Y[stage] - 0.15, p.z);
     }
-    // 내 캐릭터는 내 나무 옆에 서 있음
-    if (this.opts.me) {
-      const i = this.slots.findIndex((s) => s && s.me);
-      if (i >= 0) { const me = this._person(this.opts.me.id); this._standBy(me, i); }
-    }
     this._dirty = true;
   }
   setClassStage(stage) { if (this.garden.setClassStage(stage)) this._dirty = true; }
 
-  _person(id) {
+  _person(id, nick, mine = false) {
     let p = this.people.get(id);
-    if (!p) { const avatar = new Avatar(LOOKS[lookOf(id)]); avatar.lookUp = 0.3; avatar.setState('idle'); avatar.update(0); this.scene.add(avatar.root); p = { avatar, until: 0, slot: -1 }; this.people.set(id, p); }
+    if (!p) {
+      const avatar = new Avatar(LOOKS[lookOf(id)]); avatar.lookUp = this.view === 'top' ? 0.3 : 0.04; avatar.setState('idle'); avatar.update(0); this.scene.add(avatar.root);
+      avatar.root.userData.personId = id;
+      let tag = null; if (!mine && nick) { tag = nameTag(nick, false); tag.scale.multiplyScalar(0.8); tag.position.y = 1.15; avatar.root.add(tag); }
+      p = { id, nick, avatar, tag, until: 0, slot: -1, walk: null, goal: null, mine }; this.people.set(id, p);
+    }
     return p;
+  }
+  // 나무 앞에 서는 곳: 마당 가운데 쪽에서 나무를 바라봄(막혀 있으면 둘레에서 찾음)
+  _treeSpot(slot) {
+    const t = this.garden.trees[slot], side = t.x < 0 ? -1 : 1, base = Math.atan2(-side, 0.2);
+    for (const da of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.6, -2.6, 3.14]) { const a = base + da, x = t.x + Math.sin(a) * 0.62, z = t.z + Math.cos(a) * 0.62; if (this.nav.walkable(x, z)) return { x, z }; }
+    return this.nav.nearest(t.x, t.z);
   }
   _standBy(p, slot) {
     if (p.slot === slot) return; p.slot = slot;
-    const t = this.garden.trees[slot], side = t.x < 0 ? -1 : 1;      // 화면 가장자리 쪽이 아니라 바깥쪽에서 나무를 바라봄
-    p.avatar.root.position.set(t.x - side * 0.6, 0, t.z + 0.14); p.avatar.root.rotation.y = side * Math.PI / 2 * 0.86;
+    const t = this.garden.trees[slot], s = this._treeSpot(slot);
+    p.avatar.root.position.set(s.x, 0, s.z); p.avatar.root.rotation.y = Math.atan2(t.x - s.x, t.z - s.z);
   }
-  // 정원에 있는 친구들: [{ id, state }] — 자기 나무 옆에 서 있고, 물 주는 중이면 물주기 자세
+  _walk(p, pts, done) { if (!pts.length) { done?.(); return; } p.avatar.setState('walk'); p.walk = { points: pts, i: 0, done }; }
+  _stepWalk(p, dt) {
+    const w = p.walk, pos = p.avatar.root.position; let left = WALK_SPEED * dt;
+    while (left > 0 && w.i < w.points.length) {
+      const t = w.points[w.i], dx = t.x - pos.x, dz = t.z - pos.z, d = Math.hypot(dx, dz);
+      if (d > 1e-4) { let diff = Math.atan2(dx, dz) - p.avatar.root.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); p.avatar.root.rotation.y += diff * Math.min(1, dt * 14); }
+      if (d <= left) { pos.x = t.x; pos.z = t.z; left -= d; w.i += 1; } else { pos.x += (dx / d) * left; pos.z += (dz / d) * left; left = 0; }
+    }
+    p.avatar.update(dt);
+    if (w.i >= w.points.length) { p.walk = null; p.avatar.setState(p.until > performance.now() ? 'water' : 'idle'); p.avatar.update(0); w.done?.(); }
+  }
+  _route(p, to) { const q = p.avatar.root.position; return this.nav.path({ x: q.x, z: q.z }, to) || [to]; }
+  // 정원에 있는 친구들: [{ id, nick, state, x, z }] — 알려 준 곳으로 걸어감(위치가 없으면 자기 나무 옆), 물 주는 중이면 물주기 자세
   setOthers(list) {
     const ids = new Set(list.map((o) => o.id)); if (this.opts.me) ids.add(this.opts.me.id);
-    for (const [id, p] of [...this.people]) if (!ids.has(id)) { this.scene.remove(p.avatar.root); p.avatar.root.traverse((o) => o.geometry?.dispose?.()); this.people.delete(id); }
+    for (const [id, p] of [...this.people]) if (!ids.has(id)) { this.scene.remove(p.avatar.root); p.avatar.root.traverse((o) => o.geometry?.dispose?.()); if (p.tag) { p.tag.material.map.dispose(); p.tag.material.dispose(); } this.people.delete(id); }
     for (const o of list) {
       if (this.opts.me && o.id === this.opts.me.id) continue;
-      const slot = this.slots.findIndex((s) => s && s.id === o.id); if (slot < 0) continue;
-      const p = this._person(o.id); this._standBy(p, slot);
-      if (o.state === 'water' && p.avatar.state !== 'water') { p.avatar.setState('water'); p.until = performance.now() + 2200; }
+      const isNew = !this.people.has(o.id), p = this._person(o.id, o.nick);
+      if (typeof o.x === 'number' && typeof o.z === 'number') {
+        const to = this.nav.nearest(o.x, o.z);
+        if (isNew) { p.avatar.root.position.set(to.x, 0, to.z); p.goal = to; }
+        else if (!p.goal || Math.hypot(p.goal.x - to.x, p.goal.z - to.z) > 0.05) { p.goal = to; this._walk(p, this._route(p, to), () => this._faceTree(p)); }
+      } else {
+        const slot = this.slots.findIndex((s) => s && s.id === o.id); if (slot >= 0) this._standBy(p, slot);
+      }
+      if (o.state === 'water' && p.avatar.state !== 'water') { p.until = performance.now() + 2200; if (!p.walk) { this._faceTree(p); p.avatar.setState('water'); } }
     }
     this._dirty = true;
   }
-  // 내 캐릭터가 물 주는 연출(약 2초). 끝나면 resolve
-  water() {
-    const me = this.opts.me && this.people.get(this.opts.me.id);
-    if (!me) return Promise.resolve();
-    me.avatar.setState('water'); me.until = performance.now() + 2000;
-    return new Promise((res) => setTimeout(res, 2000));
+  // 가까운 나무가 있으면 그쪽을 봄
+  _faceTree(p) {
+    const q = p.avatar.root.position; let best = null, bd = 0.9;
+    for (const t of this.garden.trees) { const d = Math.hypot(t.x - q.x, t.z - q.z); if (d < bd) { bd = d; best = t; } }
+    if (best) p.avatar.root.rotation.y = Math.atan2(best.x - q.x, best.z - q.z);
   }
+  // 내 캐릭터가 내 나무 앞으로 걸어가서 물 주는 연출(물 주기 약 2초). 끝나면 resolve
+  async water() {
+    const me = this.me; if (!me) return;
+    this.busy = true; const was = this.view; if (was === 'first') this.setView('third');
+    const slot = this.slots.findIndex((s) => s && s.me);
+    if (slot >= 0) {
+      const spot = this._treeSpot(slot), t = this.garden.trees[slot];
+      this._announce(spot); this._moving = false;
+      await new Promise((res) => { const tm = setTimeout(res, 7000); this._walk(me, this._route(me, spot), () => { clearTimeout(tm); res(); }); });
+      me.walk = null; me.avatar.root.position.set(spot.x, 0, spot.z);
+      me.avatar.root.rotation.y = Math.atan2(t.x - spot.x, t.z - spot.z);
+      if (this.view !== 'top') this.rig.faceTo(me.avatar.root.rotation.y + Math.PI + 0.5);
+    }
+    me.avatar.setState('water'); me.until = performance.now() + 2000; this._dirty = true;
+    await new Promise((res) => setTimeout(res, 2000));
+    this.busy = false; if (was === 'first' && this.view === 'third') this.setView('first');
+  }
+  _announce(at) {
+    if (!this.me) return; this._posT = 0;
+    const q = at || this.me.goal || this.me.avatar.root.position, r = (v) => Math.round(v * 100) / 100;
+    this.emit('me', { x: r(q.x), z: r(q.z) });
+  }
+  setView(v) {
+    if (!this.me) v = 'top';
+    this.view = v; if (v !== 'top') this.rig.setMode(v);
+    this.camera.fov = VIEW_FOV[v]; this.camera.updateProjectionMatrix();
+    this.garden.faceBackdrop(v === 'top' ? THREE.MathUtils.degToRad(48) : 0);
+    this.garden.front.visible = v !== 'top';
+    for (const p of this.people.values()) { p.avatar.lookUp = v === 'top' ? 0.3 : 0.04; if (!p.walk) p.avatar.update(0); }
+    if (this.me) this.me.avatar.root.visible = v !== 'first';
+    this.rig._init = false; this._camInit = false; this.resize();
+  }
+  setMove(x, y) { this.input.x = x; this.input.y = y; }
   _sparkle(x, y, z) {
     for (let i = 0; i < 9; i++) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: i % 2 ? '#FFE58A' : '#FFFFFF', transparent: true }));
@@ -119,17 +190,60 @@ export class GardenWorld {
   }
 
   _bind() {
-    const el = this.canvas; let start = null;
-    this._down = (e) => { start = { x: e.clientX, y: e.clientY }; };
-    this._up = (e) => { if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 10) this._tap(e.clientX, e.clientY); start = null; };
-    el.addEventListener('pointerdown', this._down); el.addEventListener('pointerup', this._up);
+    const el = this.canvas, pts = new Map(); let start = null, moved = false, pinch = 0;
+    this._down = (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); moved = true; return; }
+      start = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY }; moved = false;
+    };
+    this._move = (e) => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch > 0 && d > 0 && this.view === 'third') { this.rig.zoom(pinch / d); this._dirty = true; } pinch = d; return; }
+      if (!start) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) moved = true;
+      if (moved && this.view !== 'top') { this.rig.drag(e.clientX - start.lx, e.clientY - start.ly); this._dirty = true; }
+      start.lx = e.clientX; start.ly = e.clientY;
+    };
+    this._up = (e) => {
+      const had = pts.delete(e.pointerId); if (pts.size < 2) pinch = 0;
+      if (had && start && !moved && pts.size === 0 && e.type === 'pointerup') this._tap(e.clientX, e.clientY);
+      if (pts.size === 0) start = null;
+    };
+    this._wheel = (e) => { if (this.view !== 'third') return; e.preventDefault(); this.rig.zoom(e.deltaY > 0 ? 1.1 : 0.9); this._dirty = true; };
+    el.addEventListener('pointerdown', this._down); el.addEventListener('pointermove', this._move);
+    el.addEventListener('pointerup', this._up); el.addEventListener('pointercancel', this._up); el.addEventListener('wheel', this._wheel, { passive: false });
+    const KEY = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
+    this._key = (e) => {
+      const k = KEY[e.code]; if (!k || this.view === 'top') return;
+      const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.type === 'keydown') this.keys.add(k); else this.keys.delete(k);
+      if (this.me) e.preventDefault();
+    };
+    this._blur = () => this.keys.clear();
+    window.addEventListener('keydown', this._key); window.addEventListener('keyup', this._key); window.addEventListener('blur', this._blur);
     this._resize = () => this.resize(); window.addEventListener('resize', this._resize);
-    this._vis = () => { if (document.visibilityState === 'visible') { this.clock.getDelta(); this._dirty = true; } };
+    this._vis = () => { if (document.visibilityState === 'visible') { this.clock.getDelta(); this._dirty = true; } else this.keys.clear(); };
     document.addEventListener('visibilitychange', this._vis);
   }
   _tap(cx, cy) {
     const r = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), this.camera);
+    const ray = this.raycaster.ray;
+    // 친구 캐릭터를 눌렀는지
+    for (const h of this.raycaster.intersectObjects([...this.people.values()].filter((p) => !p.mine).map((p) => p.avatar.root), true)) {
+      let o = h.object; while (o && o.userData.personId == null) o = o.parent;
+      const sl = o && this.slots.findIndex((s) => s && s.id === o.userData.personId); if (sl >= 0) { this.emit('tapTree', { id: this.slots[sl].id }); return; }
+    }
+    if (this.view !== 'top') {
+      // 옆에서 볼 때: 누른 방향에서 가장 가까운 나무(나무 가운데 높이 기준)
+      let bi = -1, bd = 0.32;
+      this.garden.trees.forEach((t, i) => { const s = this.slots[i]; if (!s || !s.id) return; const c = new THREE.Vector3(t.x, 0.3, t.z); if (c.clone().sub(ray.origin).dot(ray.direction) <= 0) return; const d = ray.distanceToPoint(c); if (d < bd) { bd = d; bi = i; } });
+      if (bi >= 0) { this.emit('tapTree', { id: this.slots[bi].id }); return; }
+      if (ray.distanceToPoint(new THREE.Vector3(CENTER[0], 0.9, CENTER[1])) < 1.0) { this.emit('tapClassTree'); return; }
+      const hit = new THREE.Vector3(); if (!ray.intersectPlane(this.ground, hit) || !this.me || this.busy) return;
+      const to = this.nav.nearest(hit.x, hit.z); if (Math.hypot(to.x - hit.x, to.z - hit.z) > 1.5) return;
+      this.me.goal = to; this._walk(this.me, this._route(this.me, to), () => { this.me.goal = null; }); this._announce(to); return;
+    }
     const hit = new THREE.Vector3(); if (!this.raycaster.ray.intersectPlane(this.ground, hit)) return;
     // 나무는 키가 있어서, 누른 곳이 나무 위쪽이면 바닥 좌표가 뒤로 밀림 → 화분 조금 뒤까지 넉넉히 인정
     let best = -1, bd = 0.55;
@@ -161,6 +275,28 @@ export class GardenWorld {
     return Math.abs(c.x + c.z + c.dist - before) > 1e-4;
   }
 
+  _stepMe(dt) {
+    const me = this.me; if (!me || this.busy) { this._moving = false; return false; }
+    const k = this.keys, ix = THREE.MathUtils.clamp(this.input.x + (k.has('r') ? 1 : 0) - (k.has('l') ? 1 : 0), -1, 1), iy = THREE.MathUtils.clamp(this.input.y + (k.has('d') ? 1 : 0) - (k.has('u') ? 1 : 0), -1, 1);
+    if (Math.hypot(ix, iy) < 0.12) {
+      if (this._moving) { this._moving = false; if (!me.walk) { me.avatar.setState('idle'); me.avatar.update(0); } this._announce(); }
+      return false;
+    }
+    me.walk = null; me.goal = null;
+    if (!this._moving) { this._moving = true; me.avatar.setState('walk'); }
+    stepJoystick(me.avatar.root, this.nav, { x: ix, y: iy }, this.view === 'top' ? 0 : this.rig.yaw, WALK_SPEED, dt);
+    me.avatar.update(dt);
+    this._posT += dt; if (this._posT >= POS_EVERY) this._announce();
+    return true;
+  }
+  // 도서관 문 앞까지 걸어가면 도서관으로
+  _checkDoor() {
+    const q = this.me.avatar.root.position, d = this.garden.doorSpot.door;
+    const at = Math.hypot(q.x - d.x, q.z - d.z) < 0.5;
+    if (at && !this._atDoor && !this.busy) this.emit('door', 'library');
+    this._atDoor = at;
+  }
+
   _frame() {
     if (this.disposed) return;
     this._raf = requestAnimationFrame(() => this._frame());
@@ -168,13 +304,17 @@ export class GardenWorld {
     const dt = Math.min(0.12, this.clock.getDelta()), now = performance.now();
     let active = false;
     for (const p of this.people.values()) {
+      if (p.walk) continue;
       if (p.avatar.state === 'water') { if (now > p.until) { p.avatar.setState('idle'); p.avatar.update(0); this._dirty = true; } else { p.avatar.update(dt); active = true; } }
     }
     for (let i = this.sparkles.length - 1; i >= 0; i--) {
       const m = this.sparkles[i], u = m.userData; u.t += dt; m.position.x += u.vx * dt; m.position.z += u.vz * dt; m.position.y += (u.vy - u.t * 1.6) * dt; m.material.opacity = Math.max(0, 1 - u.t / 1.1); active = true;
       if (u.t > 1.1) { this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); this.sparkles.splice(i, 1); }
     }
-    if (this._updateCamera(dt)) active = true;
+    if (this._stepMe(dt)) active = true;
+    for (const p of this.people.values()) if (p.walk) { this._stepWalk(p, dt); active = true; }
+    if (this.view === 'top' ? this._updateCamera(dt) : this.rig.update(dt, this.me.avatar.root.position)) active = true;
+    if (this.me) this._checkDoor();
     this._idle += dt;
     if (!active && this._idle >= 0.12 && this.people.size) { for (const p of this.people.values()) p.avatar.update(this._idle); this._dirty = true; }
     if (active || this._dirty) { this.renderer.render(this.scene, this.camera); this._dirty = false; this._idle = 0; }
@@ -182,11 +322,13 @@ export class GardenWorld {
 
   dispose() {
     this.disposed = true; cancelAnimationFrame(this._raf);
-    this.canvas.removeEventListener('pointerdown', this._down); this.canvas.removeEventListener('pointerup', this._up);
+    const el = this.canvas;
+    el.removeEventListener('pointerdown', this._down); el.removeEventListener('pointermove', this._move); el.removeEventListener('pointerup', this._up); el.removeEventListener('pointercancel', this._up); el.removeEventListener('wheel', this._wheel);
+    window.removeEventListener('keydown', this._key); window.removeEventListener('keyup', this._key); window.removeEventListener('blur', this._blur);
     window.removeEventListener('resize', this._resize); document.removeEventListener('visibilitychange', this._vis);
     for (const s of this.slots) if (s && s.tag) { s.tag.material.map.dispose(); s.tag.material.dispose(); }
     for (const m of EMOJI.values()) { m.map.dispose(); m.dispose(); } EMOJI.clear();
-    for (const p of this.people.values()) p.avatar.root.traverse((o) => o.geometry?.dispose?.());
+    for (const p of this.people.values()) { p.avatar.root.traverse((o) => o.geometry?.dispose?.()); if (p.tag) { p.tag.material.map.dispose(); p.tag.material.dispose(); } }
     this.garden.dispose(); this.renderer.dispose();
   }
 }

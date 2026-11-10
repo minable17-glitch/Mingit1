@@ -40,6 +40,37 @@ function bake(group, skip = []) {
   for (const [m, geos] of byMat) group.add(new THREE.Mesh(mergeGeometries(geos, false), m));
 }
 
+// 굳힌 모습: 지금 자세 그대로 모든 조각을 몇 덩어리로 합침(가만히 앉아 있는 친구용 — 그리기 횟수를 크게 줄임)
+// 일반 조각은 재질 색을 꼭짓점 색으로 넣어 하나로, 빛나는 피부 조각은 따로 하나로, 그림·반투명 조각은 재질별로.
+// 같은 생김새·같은 자세는 한 번만 만들어 함께 씀(key)
+const SNAPS = new Map(), SNAP_MATS = new Map();
+const snapMat = (emissive) => {
+  const k = emissive ? 'e' : 'p';
+  if (!SNAP_MATS.has(k)) SNAP_MATS.set(k, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, ...(emissive ? { emissive: '#FFA882', emissiveIntensity: 0.22 } : {}) }));
+  return SNAP_MATS.get(k);
+};
+export function snapshotParts(avatar, key) {
+  if (SNAPS.has(key)) return SNAPS.get(key);
+  const root = avatar.root; root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert(), m4 = new THREE.Matrix4();
+  const plain = [], emis = [], other = new Map();
+  root.traverseVisible((o) => {
+    if (!o.isMesh || o.userData.snap) return;
+    const m = o.material, g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(m4.multiplyMatrices(inv, o.matrixWorld));
+    if (m.map || m.isMeshBasicMaterial || m.transparent) { if (!other.has(m)) other.set(m, []); other.get(m).push(g); return; }
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const n = g.attributes.position.count, col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { col[i * 3] = m.color.r; col[i * 3 + 1] = m.color.g; col[i * 3 + 2] = m.color.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    (m.emissiveIntensity > 0 ? emis : plain).push(g);
+  });
+  const parts = [];
+  if (plain.length) parts.push({ geo: mergeGeometries(plain, false), mat: snapMat(false), order: 0 });
+  if (emis.length) parts.push({ geo: mergeGeometries(emis, false), mat: snapMat(true), order: 0 });
+  for (const [m, geos] of other) { const merged = geos.length > 1 ? mergeGeometries(geos, false) : geos[0]; if (merged) parts.push({ geo: merged, mat: m.clone(), order: m.transparent ? 2 : 0 }); }
+  SNAPS.set(key, parts); return parts;
+}
+
 // 얼굴 그림: 정면에서 본 좌표 그대로 그림 (x 오른쪽 +, y 위쪽 +, 머리 중심 기준)
 const FACES = new Map();
 export function drawFace(look, mood = 'smile') {
