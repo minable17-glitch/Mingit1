@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import forestBg from "./assets/forest-bg.jpg";
+// 3D 도서관(시험 기능): 켰을 때만 내려받음 — 평소 앱 용량에는 영향 없음
+const Library3D = React.lazy(() => import("./world3d/Library3D.jsx"));
 import {
   createClass, studentLogin, logout as apiLogout,
   getClassById, updateClassSettings, getClassProgress,
@@ -399,6 +401,15 @@ export default function App() {
   const [screen, setScreen] = useState("splash");
   const [enter, setEnter] = useState(false);
   const [tab, setTab] = useState("forest");
+  // 3D 도서관 시험 기능: 주소에 ?lab3d=1 을 붙여 들어오면 이 기기에서 켜지고, ?lab3d=0 이면 꺼짐. 기본은 꺼짐
+  const [lab3d, setLab3d] = useState(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("lab3d");
+      if (p === "1") localStorage.setItem("saesak_lab3d", "1");
+      if (p === "0") localStorage.removeItem("saesak_lab3d");
+      return localStorage.getItem("saesak_lab3d") === "1";
+    } catch { return false; }
+  });
 
   // ── 역할·학급·학생 세션 ──
   const [role, setRole] = useState(null); // 'teacher' | 'student'
@@ -1047,6 +1058,15 @@ export default function App() {
       setReflecting(true);
       if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: minutesRead });
     }
+  };
+
+  // 잠깐 멈추기: 읽던 시간을 저장해 두고 타이머를 닫음 (나중에 이어서 읽기 가능)
+  const pauseReading = () => {
+    clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
+    if (progressKey) setReadingProgress(progressKey, { mode: isBonusRead ? "bonus" : readMode, secs });
+    showToast(readMode === "target"
+      ? `잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`
+      : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
   };
 
   const handleCompleteBook = async () => {
@@ -2018,8 +2038,25 @@ export default function App() {
                 </div>
               )}
 
+              {/* ── 읽기 탭 (시험 기능을 켠 기기만): 3D 도서관 ── */}
+              {tab === "read" && lab3d && (
+                <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>도서관 문을 여는 중…</div>}>
+                  <Library3D
+                    classInfo={classInfo} studentInfo={studentInfo} role={role} reading={reading}
+                    myBook={myBook} doneToday={doneToday} dailyTargetMinutes={dailyTargetMinutes}
+                    resumeMinutes={Math.floor(getResumeElapsed(false) / 60)} bonusResumeMinutes={Math.floor(getResumeElapsed(true) / 60)}
+                    onStartTarget={() => startReading("target")} onStartFree={() => startReading("free")} onStartBonus={() => startReading("free", true)}
+                    onPickBook={() => setTab("search")} onCompleteBook={handleCompleteBook}
+                    onTapFriend={(f) => { const m = classmates.find((c) => c.id === f.id); if (m) setSelected(m); else showToast(`${f.nick || "친구"}${f.state === "read" ? " · 읽는 중 📖" : ""}`); }}
+                    onUnsupported={() => { setLab3d(false); showToast("이 기기에서는 3D 도서관을 열 수 없어서 기본 화면으로 보여드려요."); }}
+                    showToast={showToast}
+                    timer={reading ? { mm, ss, secs, readMode, isBonusRead, minRequired: isBonusRead ? 600 : dailyTargetMinutes * 60, onPause: pauseReading, onFinish: finishManual } : null}
+                  />
+                </React.Suspense>
+              )}
+
               {/* ── 읽기 탭 ── */}
-              {tab === "read" && (
+              {tab === "read" && !lab3d && (
                 <div style={{ padding: "40px 24px", display: "flex", flexDirection: "column", alignItems: "center", minHeight: "70vh", justifyContent: "center" }}>
                   <Tree stage={myStage} size={150} accessories={equippedAccessories} />
                   <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 10 }}>오늘 읽을 책</div>
@@ -2896,8 +2933,8 @@ export default function App() {
           </div>
         )}
 
-        {/* 타이머 */}
-        {reading && (
+        {/* 타이머 (3D 도서관 화면에서는 도서관이 보이도록 Library3D 안의 작은 타이머 카드를 대신 씀) */}
+        {reading && !(lab3d && tab === "read") && (
           <div style={{ position: "fixed", inset: 0, background: `linear-gradient(${C.skyTop}, ${C.skyBot})`, display: "flex",
             flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: Z.timer, padding: 24 }}>
             <div style={{ fontSize: 14, color: C.inkSoft }}>지금 읽는 책</div>
@@ -2908,13 +2945,7 @@ export default function App() {
               {readMode === "free" ? (isBonusRead ? "보너스로 자유롭게 읽는 중" : "자유롭게 읽는 중") : `목표 ${dailyTargetMinutes}분`}</div>
             <div style={{ fontSize: 13.5, color: C.inkSoft, marginTop: 6, textAlign: "center" }}>읽는 동안 나무에 물이 차올라요.<br />화면을 벗어나면 물주기가 멈춰요.</div>
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-              <button onClick={() => {
-                clearInterval(timerRef.current); setReading(false); syncReadingSession(false);
-                if (progressKey) setReadingProgress(progressKey, { mode: isBonusRead ? "bonus" : readMode, secs });
-                showToast(readMode === "target"
-                  ? `잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`
-                  : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
-              }} style={{ padding: "11px 20px", borderRadius: 14,
+              <button onClick={pauseReading} style={{ padding: "11px 20px", borderRadius: 14,
                 border: `1.5px solid ${C.inkSoft}55`, background: "transparent", color: C.inkSoft, fontSize: 14, cursor: "pointer" }}>⏸ 잠깐 멈추기</button>
               {readMode === "free" && (() => {
                 const minRequired = isBonusRead ? 600 : dailyTargetMinutes * 60;
