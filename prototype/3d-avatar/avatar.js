@@ -131,6 +131,30 @@ function lobe(parent, material, yaw, pitch, sx, sy, sz, roll = 0, r = HEAD_R * 0
   return m;
 }
 
+// 머리카락 한 가닥: 위는 둥글고 아래 끝은 뾰족한 물방울 모양. 머리 곡면을 따라 휘어 붙음
+function lock(parent, material, yaw, pitch, w, len, thick, roll = 0, r = HEAD_R * 1.0, tail = 1.2) {
+  const geo = new THREE.SphereGeometry(1, 22, 20);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    if (y < 0) {
+      const round = Math.sqrt(Math.max(1e-6, 1 - y * y)), taper = Math.pow(1 + y, 0.6);
+      x *= taper / round; z *= taper / round; y *= tail;
+    }
+    x *= w; y *= len; z *= thick;
+    z -= (x * x + y * y) / (2 * HEAD_R) * 0.9;   // 머리 곡면을 따라 휨
+    p.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, material);
+  const dir = new THREE.Vector3(Math.sin(deg(yaw)) * Math.cos(deg(pitch)), Math.sin(deg(pitch)), Math.cos(deg(yaw)) * Math.cos(deg(pitch)));
+  m.position.copy(dir).multiplyScalar(r);
+  m.lookAt(dir.clone().multiplyScalar(2));
+  m.rotateZ(deg(roll));
+  parent.add(m);
+  return m;
+}
+
 export class Avatar {
   constructor(lookIn = {}) {
     const look = (this.look = { ...DEFAULT_LOOK, ...lookIn });
@@ -161,6 +185,7 @@ export class Avatar {
     const torso = (this.torso = new THREE.Group()); body.add(torso);
     const shirtPts = [[0, 0.266], [0.12, 0.266], [0.146, 0.276], [0.15, 0.3], [0.142, 0.37], [0.124, 0.44], [0.098, 0.492], [0.06, 0.52], [0, 0.526]].map(([x, y]) => new THREE.Vector2(x, y));
     const shirt = new THREE.Mesh(new THREE.LatheGeometry(smooth(shirtPts), 32), M.shirt); shirt.scale.z = 0.8; torso.add(shirt);
+    const hem = new THREE.Mesh(new THREE.TorusGeometry(0.138, 0.015, 10, 32), M.shirt); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.8, 1); hem.position.y = 0.284; torso.add(hem);
     const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ map: sproutTexture('#E4EBA6'), transparent: true, depthWrite: false }));
     logo.position.set(0, 0.39, 0.116); logo.rotation.x = deg(-6); torso.add(logo);
     // 둥근 칼라(납작한 두 장 + 뒷목 띠)
@@ -174,9 +199,14 @@ export class Avatar {
     this.arms = [];
     for (const s of [-1, 1]) {
       const sh = new THREE.Group(); sh.position.set(s * 0.098, 0.472, 0); torso.add(sh);
-      const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.05, 6, 16), M.shirt); sleeve.position.y = -0.052; sh.add(sleeve);
-      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.07, 6, 14), M.skin); arm.position.y = -0.128; sh.add(arm);
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.049, 18, 14), M.skin); hand.position.y = -0.2; sh.add(hand);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), M.shirt); cap.position.y = -0.012; sh.add(cap);
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.049, 0.045, 0.078, 18), M.shirt); sleeve.position.y = -0.055; sh.add(sleeve);
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.039, 0.014, 10, 22), M.shirt); cuff.rotation.x = Math.PI / 2; cuff.position.y = -0.09; sh.add(cuff);
+      const armPts = [];
+      for (let i = 0; i <= 14; i++) { const u = i / 14, y = -0.05 - u * 0.15; armPts.push(new THREE.Vector2(0.037 + (0.053 - 0.037) * u * u * (3 - 2 * u), y)); }
+      for (let i = 1; i <= 12; i++) { const a = (i / 12) * Math.PI / 2; armPts.push(new THREE.Vector2(0.053 * Math.cos(a), -0.2 - 0.053 * Math.sin(a))); }
+      armPts.reverse();   // 아래에서 위 순서여야 겉면이 바깥을 향함
+      const hand = new THREE.Mesh(new THREE.LatheGeometry(armPts, 22), M.skin); hand.scale.z = 0.94; sh.add(hand);
       sh.rotation.z = s * deg(33);
       sh.userData = { side: s, hand };
       this.arms.push(sh);
@@ -210,14 +240,14 @@ export class Avatar {
     const hairSolid = mat(look.hair);
     const cap = new THREE.Mesh(new THREE.SphereGeometry(0.256, 56, 44), hairSolid);
     cap.scale.set(1.045, 0.94, 1.02); cap.position.set(0, 0.024, -0.04); head.add(cap);
-    lobe(head, hairSolid, -20, 33, 0.176, 0.108, 0.046, 16);   // 큰 앞머리(화면 왼쪽)
-    lobe(head, hairSolid, -57, 19, 0.108, 0.104, 0.046, 42);   // 왼쪽 끝자락
-    lobe(head, hairSolid, 8, 54, 0.135, 0.095, 0.046, 0);      // 정수리 앞
-    lobe(head, hairSolid, 43, 29, 0.118, 0.102, 0.046, -36);   // 오른쪽 앞머리
-    lobe(head, hairSolid, 68, 11, 0.078, 0.1, 0.042, -52);     // 오른쪽 끝자락
-    lobe(head, hairSolid, -72, 0, 0.05, 0.09, 0.036, 20, HEAD_R * 1.04);   // 귀 앞 옆머리
-    lobe(head, hairSolid, 72, 0, 0.05, 0.09, 0.036, -20, HEAD_R * 1.04);
-    lobe(head, hairSolid, 180, -36, 0.17, 0.085, 0.06, 0, HEAD_R * 0.94);     // 뒷목
+    lock(head, hairSolid, 10, 36, 0.102, 0.1, 0.05, -20);                 // 가운데 큰 앞머리(끝이 미간 위로)
+    lock(head, hairSolid, -28, 37, 0.088, 0.092, 0.048, -22);             // 왼쪽 가닥
+    lock(head, hairSolid, -58, 27, 0.09, 0.09, 0.046, -10);               // 왼쪽 관자놀이 가닥
+    lock(head, hairSolid, 46, 31, 0.1, 0.095, 0.048, 30);                 // 오른쪽 가닥
+    lock(head, hairSolid, 70, 19, 0.07, 0.078, 0.042, 12);                // 오른쪽 관자놀이 가닥
+    lock(head, hairSolid, -73, 3, 0.046, 0.06, 0.034, -4, HEAD_R * 1.03); // 귀 앞 옆머리(뾰족)
+    lock(head, hairSolid, 73, 3, 0.046, 0.06, 0.034, 4, HEAD_R * 1.03);
+    lobe(head, hairSolid, 180, -36, 0.17, 0.085, 0.06, 0, HEAD_R * 0.94); // 뒷목
 
     // 바닥 그림자(가벼운 원판)
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), new THREE.MeshBasicMaterial({ color: '#5a4630', transparent: true, opacity: 0.16, depthWrite: false }));
