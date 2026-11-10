@@ -10,7 +10,7 @@ export const PALETTE = {
   floor: '#F5DFC2', wall: '#F7DFC0', frame: '#DDA765', shelf: '#D7A064',
   books: ['#A9BC78', '#E7C96F', '#8FAEB5', '#DFA7A0', '#EAD9B5'],
   desk: '#E6B477', chair: '#ACC76C', rug: '#DDD8A5', shadow: '#B39473',
-  leaf: '#8FBF5A', leafDark: '#6FA64C', pot: '#F3E6CC', grass: '#BFE09A', grassDark: '#A8D282', sky: '#CDEBFA', path: '#F3E3C2', trunk: '#C79562',
+  leaf: '#8FBF5A', leafDark: '#6FA64C', pot: '#F3E6CC', grass: '#B8DE92', grassDark: '#A8D282', sky: '#CDEBFA', path: '#F3E3C2', trunk: '#C79562',
 };
 const gx = (c) => (c - GRID.w / 2) * CELL, gz = (c) => (c - GRID.d / 2) * CELL;
 const deg = THREE.MathUtils.degToRad;
@@ -59,22 +59,90 @@ class Batch {
   }
 }
 
-function sceneryTexture() {
-  // 창밖 풍경(뒤쪽 벽 창문용): 하늘, 구름, 언덕, 둥근 나무
-  const c = document.createElement('canvas'); c.width = 512; c.height = 320; const g = c.getContext('2d');
-  const sky = g.createLinearGradient(0, 0, 0, 320); sky.addColorStop(0, '#A9DBF6'); sky.addColorStop(1, '#E2F4FB'); g.fillStyle = sky; g.fillRect(0, 0, 512, 320);
-  g.fillStyle = '#ffffffcc'; for (const [x, y, r] of [[90, 60, 26], [120, 54, 32], [155, 62, 24], [380, 80, 22], [408, 74, 28], [436, 82, 20]]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
-  g.fillStyle = '#B9DE92'; g.beginPath(); g.ellipse(256, 330, 380, 120, 0, 0, 7); g.fill();
-  for (const [x, y, r] of [[110, 205, 52], [330, 190, 62], [450, 215, 44]]) {
-    g.fillStyle = '#C79562'; g.fillRect(x - 7, y + r * 0.5, 14, 60);
-    g.fillStyle = '#8CC562'; for (const [dx, dy, k] of [[0, 0, 1], [-0.55, 0.25, 0.7], [0.55, 0.25, 0.7], [0, -0.45, 0.72]]) { g.beginPath(); g.arc(x + dx * r, y + dy * r, r * k, 0, 7); g.fill(); }
+function landscapeTexture() {
+  const W = 4096, H = 320, k = H / 1024, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  // 하늘: 위는 맑은 하늘색, 산 쪽으로 갈수록 따뜻한 햇살색
+  const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
+  sky.addColorStop(0, '#9FD3F0'); sky.addColorStop(0.55, '#D8EEF2'); sky.addColorStop(1, '#FFE9C6');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  // 해와 햇무리(왼쪽 위)
+  const sun = g.createRadialGradient(W * 0.2, H * 0.14, 0, W * 0.2, H * 0.14, H * 0.9);
+  sun.addColorStop(0, '#FFF6D8ff'); sun.addColorStop(0.12, '#FFEBB8cc'); sun.addColorStop(0.45, '#FFE2A833'); sun.addColorStop(1, '#FFE2A800');
+  g.fillStyle = sun; g.fillRect(0, 0, W, H);
+  // 구름
+  g.fillStyle = '#ffffffd9';
+  for (const [x, y, ck] of [[0.42, 0.12, 1], [0.62, 0.2, 0.8], [0.8, 0.09, 0.65], [0.3, 0.24, 0.55], [0.12, 0.3, 0.6], [0.95, 0.22, 0.7]]) for (const [dx, dy, r] of [[0, 0, 46], [44, -12, 54], [92, 2, 42], [-36, 8, 34]]) { g.beginPath(); g.arc(x * W + dx * ck * 1.4 * k, y * H + dy * ck * k, r * ck * 1.3 * k, 0, 7); g.fill(); }
+  // 산 능선: 부드러운 봉우리를 겹침
+  const ridge = (base, amp, peaks, color, top = '#ffffff00') => {
+    const grd = g.createLinearGradient(0, base - amp, 0, H); grd.addColorStop(0, color); grd.addColorStop(1, color);
+    g.fillStyle = grd; g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      let y = base;
+      for (const [px, w, h] of peaks) y -= h * amp * Math.exp(-Math.pow((x / W - px) / w, 2));
+      g.lineTo(x, y);
+    }
+    g.lineTo(W, H); g.closePath(); g.fill();
+  };
+  const peaks = (n, wMin, wMax, hMin, hMax, off = 0) => Array.from({ length: n }, (_, i) => [(i + off + rnd() * 0.6) / n, wMin + rnd() * (wMax - wMin), hMin + rnd() * (hMax - hMin)]);
+  ridge(H * 0.6, H * 0.5, peaks(13, 0.022, 0.034, 0.55, 1), '#B7D0D8');    // 가장 먼 산(푸르스름)
+  ridge(H * 0.65, H * 0.36, peaks(11, 0.026, 0.04, 0.5, 1), '#9DC2B0');    // 중간 산
+  ridge(H * 0.71, H * 0.16, peaks(9, 0.04, 0.06, 0.6, 1), '#A6CF86');      // 가까운 언덕
+  // 산 위 햇살 번짐
+  const glow = g.createLinearGradient(0, H * 0.3, 0, H * 0.75); glow.addColorStop(0, '#FFE8B800'); glow.addColorStop(1, '#FFE8B840');
+  g.fillStyle = glow; g.fillRect(0, H * 0.3, W, H * 0.45);
+  // 들판
+  g.fillStyle = '#B8DE92'; g.fillRect(0, H * 0.74, W, H);
+  // 나무 숲(뒤 → 앞)
+  const tree = (x, y, r, leaf, leafDark) => {
+    g.fillStyle = '#C08A58'; g.fillRect(x - r * 0.12, y - r * 0.2, r * 0.24, r * 0.75);
+    g.fillStyle = leafDark; for (const [dx, dy, k] of [[-0.5, 0.05, 0.62], [0.5, 0.05, 0.62]]) { g.beginPath(); g.arc(x + dx * r, y - r * 0.55 + dy * r, r * k, 0, 7); g.fill(); }
+    g.fillStyle = leaf; g.beginPath(); g.arc(x, y - r * 0.85, r * 0.72, 0, 7); g.fill();
+    g.fillStyle = '#ffffff30'; g.beginPath(); g.arc(x - r * 0.25, y - r * 1.05, r * 0.3, 0, 7); g.fill();
+  };
+  for (let i = 0; i < 90; i++) tree(rnd() * W, H * (0.73 + rnd() * 0.04), (16 + rnd() * 14) * k, '#8CC56A', '#76B05A');
+  for (let i = 0; i < 60; i++) tree(rnd() * W, H * (0.8 + rnd() * 0.08), (34 + rnd() * 26) * k, '#93CB66', '#79B456');
+  for (let i = 0; i < 34; i++) tree(rnd() * W, H * (0.92 + rnd() * 0.06), (60 + rnd() * 34) * k, '#9ACF6A', '#7FB85A');
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+
+// 햇빛 자국: 가장자리가 부드럽게 번지는 따뜻한 빛 조각
+function softRectTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const img = g.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
+    const e = (v) => Math.min(1, Math.min(v, 127 - v) / 22);
+    const a = Math.pow(e(x) * e(y), 0.9) * (0.75 + 0.25 * (1 - y / 127));
+    const i = (y * 128 + x) * 4; img.data[i] = 255; img.data[i + 1] = 226; img.data[i + 2] = 168; img.data[i + 3] = a * 255;
   }
+  g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function beamTexture() {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 256; const g = c.getContext('2d');
+  const v = g.createLinearGradient(0, 0, 0, 256); v.addColorStop(0, '#FFE6B0cc'); v.addColorStop(0.6, '#FFE6B055'); v.addColorStop(1, '#FFE6B000');
+  g.fillStyle = v; g.fillRect(0, 0, 64, 256);
+  g.globalCompositeOperation = 'destination-in';
+  const h = g.createLinearGradient(0, 0, 64, 0); h.addColorStop(0, '#0000'); h.addColorStop(0.25, '#000f'); h.addColorStop(0.75, '#000f'); h.addColorStop(1, '#0000');
+  g.fillStyle = h; g.fillRect(0, 0, 64, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// 바닥에 놓이는 평행사변형(햇빛이 비스듬히 들어와 생기는 모양)
+function quadGeo(p) { // p: 4개의 [x,z] (반시계)
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute([p[0][0], 0, p[0][1], p[1][0], 0, p[1][1], p[2][0], 0, p[2][1], p[3][0], 0, p[3][1]], 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  g.setIndex([0, 2, 1, 0, 3, 2]); return g;
 }
 
 export function buildLibrary(scene) {
   const P = PALETTE, W = GRID.w * CELL, D = GRID.d * CELL, WALL_H = 3.4;
   const root = new THREE.Group(); scene.add(root);
+  scene.add(new THREE.AmbientLight('#FFF1E0', 0.5));
+  scene.add(new THREE.HemisphereLight('#FFF6E8', '#F6D2AE', 1.35));
+  const sunLight = new THREE.DirectionalLight('#FFDDA8', 1.45); sunLight.position.set(-7, 6.5, -4); scene.add(sunLight);
+  const bounce = new THREE.DirectionalLight('#FFE4CF', 0.28); bounce.position.set(5, 2, 4); scene.add(bounce);
+  scene.fog = new THREE.Fog('#F4EAD6', 60, 140);
   const solid = new Batch(), flat = new Batch();
   const box = new THREE.BoxGeometry(1, 1, 1), cyl = new THREE.CylinderGeometry(1, 1, 1, 14), ball = new THREE.SphereGeometry(1, 16, 12);
   const rbox = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 3, r);
@@ -152,15 +220,10 @@ export function buildLibrary(scene) {
 
   // ── 벽: 뒤쪽은 살구색 벽 + 창문 2개, 양옆은 나무 틀 통유리
   const zBack = gz(0), xL = gx(0), xR = gx(GRID.w), zFront = gz(GRID.d);
-  solid.add(P.wall, box, 0, WALL_H / 2, zBack - 0.06, 0, W + 0.3, WALL_H, 0.12);
-  const view = sceneryTexture();
-  for (const [a, b] of [[6, 16], [24, 34]]) {
-    const wx = gx((a + b) / 2), ww = (b - a) * CELL * 0.62, wh = 1.05, wy = 1.75;
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), new THREE.MeshBasicMaterial({ map: view })); pane.position.set(wx, wy, zBack + 0.012); root.add(pane);
-    solid.add(P.frame, box, wx, wy + wh / 2, zBack + 0.03, 0, ww + 0.16, 0.08, 0.08); solid.add(P.frame, box, wx, wy - wh / 2, zBack + 0.03, 0, ww + 0.16, 0.08, 0.08);
-    solid.add(P.frame, box, wx - ww / 2, wy, zBack + 0.03, 0, 0.08, wh + 0.08, 0.08); solid.add(P.frame, box, wx + ww / 2, wy, zBack + 0.03, 0, 0.08, wh + 0.08, 0.08);
-    solid.add(P.frame, box, wx, wy, zBack + 0.03, 0, 0.05, wh, 0.05); solid.add(P.frame, box, wx, wy, zBack + 0.03, 0, ww, 0.05, 0.05);
-  }
+  // 뒤쪽 통창: 나무 기둥 + 가로 창살
+  for (let c = 0; c <= GRID.w; c += 8) solid.add(P.frame, box, gx(c), WALL_H / 2, zBack, 0, 0.1, WALL_H, 0.1);
+  solid.add(P.frame, box, 0, WALL_H, zBack, 0, W + 0.1, 0.12, 0.12); solid.add(P.frame, box, 0, 0.05, zBack, 0, W + 0.1, 0.1, 0.1);
+  solid.add(P.frame, box, 0, 2.05, zBack, 0, W, 0.06, 0.06);
   const doorGarden = { z0: gz(4), z1: gz(7) }, doorEntry = { z0: gz(43), z1: gz(46) };
   for (const [x, door] of [[xL, doorGarden], [xR, doorEntry]]) {
     for (let c = 0; c <= GRID.d; c += 8) {                                   // 세로 기둥
@@ -176,6 +239,40 @@ export function buildLibrary(scene) {
   }
   const glass = new THREE.MeshBasicMaterial({ color: '#EAF7FF', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
   for (const x of [xL, xR]) { const g = new THREE.Mesh(new THREE.PlaneGeometry(D, WALL_H), glass); g.rotation.y = Math.PI / 2; g.position.set(x, WALL_H / 2, 0); root.add(g); }
+  { const g = new THREE.Mesh(new THREE.PlaneGeometry(W, WALL_H), glass); g.position.set(0, WALL_H / 2, zBack); root.add(g); }
+
+  // ── 햇빛: 왼쪽·뒤쪽 통창으로 비스듬히 들어와 바닥에 생기는 따뜻한 빛 자국 + 은은한 빛줄기
+  const sunMat = new THREE.MeshBasicMaterial({ map: softRectTexture(), transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const beamMat = new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const SUN_DX = 2.6, SUN_DZ = 1.1;              // 창 아래 기준으로 빛이 바닥에 닿는 거리(오른쪽 앞 방향)
+  const addPatch = (pts) => { const m = new THREE.Mesh(quadGeo(pts), sunMat); m.position.y = 0.015; m.renderOrder = 2; root.add(m); };
+  const addBeam = (a, b, c, d) => {  // a,b: 창 위 두 점, c,d: 바닥 두 점
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...d], 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2)); geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const m = new THREE.Mesh(geo, beamMat); m.renderOrder = 3; root.add(m);
+  };
+  for (let c = 0; c < GRID.d; c += 8) {           // 왼쪽 통창 칸마다
+    const z0 = gz(c) + 0.12, z1 = Math.min(gz(c + 8), zFront) - 0.12;
+    if (z1 - z0 < 0.5) continue;
+    addPatch([[xL, z0], [xL, z1], [xL + SUN_DX, Math.min(z1 + SUN_DZ, zFront)], [xL + SUN_DX, Math.min(z0 + SUN_DZ, zFront - 0.2)]]);
+    if ((c / 8) % 2 === 0) addBeam([xL, 2.9, z0 + 0.3], [xL, 2.9, z1 - 0.3], [xL + SUN_DX, 0.02, z1 + SUN_DZ - 0.3], [xL + SUN_DX, 0.02, z0 + SUN_DZ + 0.3]);
+  }
+  for (let c = 0; c < GRID.w; c += 8) {           // 뒤쪽 통창 칸마다
+    const x0 = gx(c) + 0.12, x1 = gx(c + 8) - 0.12;
+    addPatch([[x0, zBack], [x0 + SUN_DZ * 0.8, zBack + SUN_DX * 0.8], [x1 + SUN_DZ * 0.8, zBack + SUN_DX * 0.8], [x1, zBack]]);
+  }
+
+  // ── 창밖 풍경판: 카메라를 똑바로 바라보도록 기울여 세운 큰 그림(산·나무·하늘)
+  const BD_H = 2.3;
+  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(W + 26, BD_H), new THREE.MeshBasicMaterial({ map: landscapeTexture(), fog: false }));
+  backdrop.position.set(0, 0, zBack - 0.8); root.add(backdrop);
+  const faceBackdrop = (pitchRad) => {
+    backdrop.rotation.set(-pitchRad, 0, 0);
+    // 아래 끝이 땅에 닿도록: 판 중심을 판 높이의 절반만큼 판 방향으로 올림
+    backdrop.position.set(0, Math.cos(pitchRad) * BD_H / 2 - 0.15, zBack - 0.8 - Math.sin(pitchRad) * BD_H / 2);
+  };
+  faceBackdrop(deg(44));
 
   // ── 바깥 정원: 둥근 나무와 길
   const tree = (x, z, k) => {
@@ -196,5 +293,5 @@ export function buildLibrary(scene) {
       : new THREE.MeshStandardMaterial({ color, roughness: 1 }));
     mesh.renderOrder = isShadow ? 1 : 0; root.add(mesh);
   }
-  return { root, seats, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(17), x1: gx(23) } };
+  return { root, seats, faceBackdrop, doors: { garden: [xL, (doorGarden.z0 + doorGarden.z1) / 2], entry: [xR, (doorEntry.z0 + doorEntry.z1) / 2] }, aisle: { x0: gx(17), x1: gx(23) } };
 }

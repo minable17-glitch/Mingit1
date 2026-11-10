@@ -8,12 +8,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDraw
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight, false);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#CDEBFA');
-scene.add(new THREE.AmbientLight('#fff4ea', 0.6));
-scene.add(new THREE.HemisphereLight('#fffaf2', '#ffdcc2', 1.45));
-const sun = new THREE.DirectionalLight('#fff1dc', 1.1); sun.position.set(-3, 6, 4); scene.add(sun);
-const fill = new THREE.DirectionalLight('#ffe6d6', 0.3); fill.position.set(4, 2, 3); scene.add(fill);
-
+scene.background = new THREE.Color('#9FD3F0');
 const lib = buildLibrary(scene);
 const avatars = [];
 const SIT_Y = 0.05;
@@ -45,8 +40,9 @@ if (view === 'lib') {
   // 실제 게임 화면: 내 캐릭터를 따라가는 카메라. 폭 약 6.5칸이 보이고 세로로는 도서관 대부분이 보임
   camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 300);
   const p = me.root.position;
-  aim(camera, new THREE.Vector3(p.x * 0.5, 0.4, p.z - 2.6), 23);
+  aim(camera, new THREE.Vector3(p.x * 0.5, 0.4, p.z - 3.3), 23);
 }
+lib.faceBackdrop(pitch);
 avatars.forEach((a, i) => { a.t = 0.4 + i * 0.37; a.update(0); });
 renderer.render(scene, camera);
 window.__ready = true;
