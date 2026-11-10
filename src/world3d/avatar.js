@@ -99,7 +99,6 @@ export function drawFace(look, mood = 'smile') {
   return t;
 }
 
-function smooth(pts) { return new THREE.SplineCurve(pts).getPoints(36); }
 
 function sproutTexture(color) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -150,7 +149,7 @@ function decal(parent, geo, material, x, y, sx, sy, sz, lift, order) {
 
 // 머리 표면의 한 방향(yaw, pitch)에 납작한 타원체(머리카락 덩어리)를 붙임
 function lobe(parent, material, yaw, pitch, sx, sy, sz, roll = 0, r = HEAD_R * 0.985) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), material);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), material);
   const dir = new THREE.Vector3(Math.sin(deg(yaw)) * Math.cos(deg(pitch)), Math.sin(deg(pitch)), Math.cos(deg(yaw)) * Math.cos(deg(pitch)));
   m.position.copy(dir).multiplyScalar(r);
   m.quaternion.copy(surfaceQuat(dir, roll));
@@ -161,7 +160,7 @@ function lobe(parent, material, yaw, pitch, sx, sy, sz, roll = 0, r = HEAD_R * 0
 
 // 머리카락 한 가닥: 위는 둥글고 아래 끝은 뾰족한 물방울 모양. 머리 곡면을 따라 휘어 붙음
 function lock(parent, material, yaw, pitch, w, len, thick, roll = 0, r = HEAD_R * 1.0, tail = 1.2) {
-  const geo = new THREE.SphereGeometry(1, 22, 20);
+  const geo = new THREE.SphereGeometry(1, 14, 12);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -198,46 +197,46 @@ export class Avatar {
     this.legs = [];
     for (const s of [-1, 1]) {
       const hip = new THREE.Group(); hip.position.set(s * 0.066, 0.215, 0); body.add(hip);
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.041, 0.039, 0.13, 16), M.skin); leg.position.y = -0.075; hip.add(leg);
-      const sole = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), M.sole); sole.scale.set(0.071, 0.03, 0.106); sole.position.set(s * 0.006, -0.187, 0.03); hip.add(sole);
-      const up = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), M.shoe); up.scale.set(0.066, 0.068, 0.098); up.position.set(s * 0.006, -0.182, 0.03); hip.add(up);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.041, 0.039, 0.13, 10), M.skin); leg.position.y = -0.075; hip.add(leg);
+      const sole = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), M.sole); sole.scale.set(0.071, 0.03, 0.106); sole.position.set(s * 0.006, -0.187, 0.03); hip.add(sole);
+      const up = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), M.shoe); up.scale.set(0.066, 0.068, 0.098); up.position.set(s * 0.006, -0.182, 0.03); hip.add(up);
       this.legs.push(hip);
     }
 
     // ── 반바지: 골반 덩어리 + 양쪽 통(통은 다리 관절에 붙어 걷기·앉기 때 함께 움직임)
-    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), M.shorts); pelvis.scale.set(0.118, 0.03, 0.094); pelvis.position.y = 0.29; body.add(pelvis);
+    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), M.shorts); pelvis.scale.set(0.118, 0.03, 0.094); pelvis.position.y = 0.29; body.add(pelvis);
     for (const hip of this.legs) {
       const s = Math.sign(hip.position.x);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.07, 0.112, 20), M.shorts); tube.scale.z = 0.94; tube.position.set(s * 0.002, 0.022, 0); hip.add(tube);
-      const hem = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.011, 10, 22), M.shorts); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.94, 1); hem.position.set(s * 0.002, -0.032, 0); hip.add(hem);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.07, 0.112, 14), M.shorts); tube.scale.z = 0.94; tube.position.set(s * 0.002, 0.022, 0); hip.add(tube);
+      const hem = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.011, 6, 16), M.shorts); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.94, 1); hem.position.set(s * 0.002, -0.032, 0); hip.add(hem);
     }
 
     // ── 상체(티셔츠)
     const torso = (this.torso = new THREE.Group()); body.add(torso);
     const shirtPts = [[0, 0.266], [0.12, 0.266], [0.146, 0.276], [0.15, 0.3], [0.142, 0.37], [0.124, 0.44], [0.098, 0.492], [0.06, 0.52], [0, 0.526]].map(([x, y]) => new THREE.Vector2(x, y));
-    const shirt = new THREE.Mesh(new THREE.LatheGeometry(smooth(shirtPts), 32), M.shirt); shirt.scale.z = 0.8; torso.add(shirt);
-    const hem = new THREE.Mesh(new THREE.TorusGeometry(0.138, 0.015, 10, 32), M.shirt); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.8, 1); hem.position.y = 0.284; torso.add(hem);
+    const shirt = new THREE.Mesh(new THREE.LatheGeometry(new THREE.SplineCurve(shirtPts).getPoints(16), 20), M.shirt); shirt.scale.z = 0.8; torso.add(shirt);
+    const hem = new THREE.Mesh(new THREE.TorusGeometry(0.138, 0.015, 6, 22), M.shirt); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.8, 1); hem.position.y = 0.284; torso.add(hem);
     const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ map: sproutTexture('#E4EBA6'), transparent: true, depthWrite: false }));
     logo.position.set(0, 0.39, 0.116); logo.rotation.x = deg(-6); torso.add(logo);
     // 둥근 칼라(납작한 두 장 + 뒷목 띠)
     for (const s of [-1, 1]) {
-      const col = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), M.collar);
+      const col = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), M.collar);
       col.scale.set(0.066, 0.013, 0.05); col.position.set(s * 0.05, 0.512, 0.052); col.rotation.set(deg(30), 0, s * deg(-16)); torso.add(col);
     }
-    const colBack = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.014, 10, 28), M.collar); colBack.rotation.x = Math.PI / 2; colBack.scale.set(1.05, 0.86, 1); colBack.position.set(0, 0.516, -0.008); torso.add(colBack);
+    const colBack = new THREE.Mesh(new THREE.TorusGeometry(0.072, 0.014, 6, 18), M.collar); colBack.rotation.x = Math.PI / 2; colBack.scale.set(1.05, 0.86, 1); colBack.position.set(0, 0.516, -0.008); torso.add(colBack);
 
     // ── 팔(어깨 관절): 소매 + 팔 + 손
     this.arms = [];
     for (const s of [-1, 1]) {
       const sh = new THREE.Group(); sh.position.set(s * 0.098, 0.472, 0); torso.add(sh);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), M.shirt); cap.position.y = -0.012; sh.add(cap);
-      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.049, 0.045, 0.078, 18), M.shirt); sleeve.position.y = -0.055; sh.add(sleeve);
-      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.039, 0.014, 10, 22), M.shirt); cuff.rotation.x = Math.PI / 2; cuff.position.y = -0.09; sh.add(cuff);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), M.shirt); cap.position.y = -0.012; sh.add(cap);
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.049, 0.045, 0.078, 12), M.shirt); sleeve.position.y = -0.055; sh.add(sleeve);
+      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.039, 0.014, 6, 14), M.shirt); cuff.rotation.x = Math.PI / 2; cuff.position.y = -0.09; sh.add(cuff);
       const armPts = [];
       for (let i = 0; i <= 14; i++) { const u = i / 14, y = -0.05 - u * 0.15; armPts.push(new THREE.Vector2(0.037 + (0.053 - 0.037) * u * u * (3 - 2 * u), y)); }
       for (let i = 1; i <= 12; i++) { const a = (i / 12) * Math.PI / 2; armPts.push(new THREE.Vector2(0.053 * Math.cos(a), -0.2 - 0.053 * Math.sin(a))); }
       armPts.reverse();   // 아래에서 위 순서여야 겉면이 바깥을 향함
-      const hand = new THREE.Mesh(new THREE.LatheGeometry(armPts, 22), M.skin); hand.scale.z = 0.94; sh.add(hand);
+      const hand = new THREE.Mesh(new THREE.LatheGeometry(armPts.filter((_, i) => i % 2 === 0 || i === armPts.length - 1), 14), M.skin); hand.scale.z = 0.94; sh.add(hand);
       sh.rotation.z = s * deg(33);
       sh.userData = { side: s, hand };
       this.arms.push(sh);
@@ -246,25 +245,25 @@ export class Avatar {
     // ── 머리
     const head = (this.head = new THREE.Group()); head.position.set(0, 0.762, 0); torso.add(head);
     head.scale.set(1.0, 0.985, 1);
-    head.add(new THREE.Mesh(puffGeometry(new THREE.SphereGeometry(HEAD_R, 56, 44)), M.skin));
+    head.add(new THREE.Mesh(puffGeometry(new THREE.SphereGeometry(HEAD_R, 36, 26)), M.skin));
     for (const s of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.043, 16, 12), M.skin); ear.scale.z = 0.62; ear.position.set(s * 0.236, -0.112, -0.02); head.add(ear);
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.043, 10, 8), M.skin); ear.scale.z = 0.62; ear.position.set(s * 0.236, -0.112, -0.02); head.add(ear);
     }
     // 얼굴 그림(표정 교체 가능)
     this.faceMat = new THREE.MeshBasicMaterial({ map: drawFace(look, 'smile'), transparent: true, depthWrite: false });
-    const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.006, 40, 30, Math.PI / 2 - FACE.alpha, FACE.alpha * 2, FACE.t0, FACE.tLen);
+    const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.006, 26, 18, Math.PI / 2 - FACE.alpha, FACE.alpha * 2, FACE.t0, FACE.tLen);
     { const p = faceGeo.attributes.position, uv = faceGeo.attributes.uv;
       for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / FACE.span + 0.5, p.getY(i) / FACE.span + 0.5); }
     puffGeometry(faceGeo);
     const face = new THREE.Mesh(faceGeo, this.faceMat);
     face.renderOrder = 0; head.add(face);
     // 눈·볼터치: 머리 표면에 붙인 납작한 조각(옆에서 봐도 모양 유지)
-    const ball = new THREE.SphereGeometry(1, 24, 18);
+    const ball = new THREE.SphereGeometry(1, 14, 10);
     // 코: 살짝 튀어나온 둥근 코
     decal(head, ball, mat('#F9A88E', { emissive: '#F58F78', emissiveIntensity: 0.25 }), 0, -0.134, 0.0185, 0.0165, 0.014, 1.0, 0);
     // 머리카락: 머리보다 조금 큰 공을 뒤·위로 물려 씌우면 얼굴만 둥글게 드러남 + 앞머리 덩어리
     const hairSolid = mat(look.hair);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.256, 56, 44), hairSolid);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.256, 32, 22), hairSolid);
     cap.scale.set(1.045, 0.94, 1.02); cap.position.set(0, 0.024, -0.04); head.add(cap);
     lock(head, hairSolid, -60, 28, 0.085, 0.11, 0.046, -2);               // 왼쪽 관자놀이 가닥
     lock(head, hairSolid, -28, 38, 0.095, 0.13, 0.048, -8);               // 왼쪽 가닥

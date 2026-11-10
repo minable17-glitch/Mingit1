@@ -187,8 +187,9 @@ export function buildLibrary(scene) {
   const bounce = new THREE.DirectionalLight('#FFE4CF', 0.28); bounce.position.set(5, 2, 4); scene.add(bounce);
   scene.fog = new THREE.Fog('#F4EAD6', 60, 140);
   const solid = new Batch(), flat = new Batch();
-  const box = new THREE.BoxGeometry(1, 1, 1), cyl = new THREE.CylinderGeometry(1, 1, 1, 14), ball = new THREE.SphereGeometry(1, 16, 12);
-  const rbox = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 3, r);
+  const box = new THREE.BoxGeometry(1, 1, 1), cyl = new THREE.CylinderGeometry(1, 1, 1, 10), ball = new THREE.SphereGeometry(1, 14, 10);
+  const ballFar = new THREE.SphereGeometry(1, 8, 6);   // 창밖 숲처럼 멀리 있는 것은 거칠게 (삼각형 수를 크게 줄임)
+  const rbox = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 2, r);
 
   // ── 바닥과 바깥 정원
   const floorTex = woodFloorTexture(P); floorTex.center.set(0.5, 0.5); floorTex.rotation = Math.PI / 2; floorTex.repeat.set(D / 2.4, W / 2.4);
@@ -198,11 +199,11 @@ export function buildLibrary(scene) {
   // ── 가구 부품: 둥근 나무 책상 + 폭신한 소파 의자(연두·크림 섞어서)
   const deskTop = rbox(3 * CELL - 0.06, 0.075, 2 * CELL - 0.06, 0.035);
   const DESK_Y = 0.385, shadowDisc = new THREE.CircleGeometry(1, 20);
-  const cushion = new THREE.CylinderGeometry(1, 0.94, 1, 28);
+  const cushion = new THREE.CylinderGeometry(1, 0.94, 1, 18);
   // 앞쪽(+z)만 트인 등받이 벽과, 그 위를 두르는 도톰한 테두리
-  const backShell = new THREE.CylinderGeometry(1, 0.9, 1, 28, 1, true, Math.PI * 0.14, Math.PI * 1.72);
-  const rim = new THREE.TorusGeometry(0.235, 0.068, 14, 32, Math.PI * 1.72); rim.rotateZ(Math.PI * 0.64); rim.rotateX(Math.PI / 2);
-  const rimEnd = new THREE.SphereGeometry(0.068, 14, 10);
+  const backShell = new THREE.CylinderGeometry(1, 0.9, 1, 18, 1, true, Math.PI * 0.14, Math.PI * 1.72);
+  const rim = new THREE.TorusGeometry(0.235, 0.068, 8, 20, Math.PI * 1.72); rim.rotateZ(Math.PI * 0.64); rim.rotateX(Math.PI / 2);
+  const rimEnd = new THREE.SphereGeometry(0.068, 8, 6);
   const seats = seatLayout();
   const sofa = (x, z, ry, i) => {
     const sage = i % 3 !== 1, main = sage ? P.sofaSage : P.sofaCream, dark = sage ? P.sofaSageDk : P.sofaCreamDk;
@@ -347,7 +348,7 @@ export function buildLibrary(scene) {
   // ── 바깥 정원: 둥근 나무와 길
   const tree = (x, z, k) => {
     solid.add(P.trunk, cyl, x, 0.55 * k, z, 0, 0.13 * k, 1.1 * k, 0.13 * k);
-    for (const [dx, dy, dz, r] of [[0, 1.75, 0, 0.75], [-0.5, 1.45, 0.1, 0.52], [0.5, 1.45, -0.1, 0.52], [0, 1.4, 0.45, 0.48]]) solid.add(dy > 1.6 ? P.leaf : P.leafDark, ball, x + dx * k, dy * k, z + dz * k, 0, r * k, r * k, r * k);
+    for (const [dx, dy, dz, r] of [[0, 1.75, 0, 0.75], [-0.5, 1.45, 0.1, 0.52], [0.5, 1.45, -0.1, 0.52], [0, 1.4, 0.45, 0.48]]) solid.add(dy > 1.6 ? P.leaf : P.leafDark, ballFar, x + dx * k, dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
   for (let z = -D / 2 - 2; z < D / 2 + 3; z += 1.7) {
     for (const side of [-1, 1]) {
@@ -358,12 +359,12 @@ export function buildLibrary(scene) {
         if (tz > zFront - 3 && dist < 3) continue;              // 앞쪽 모서리는 화면을 가리지 않게 비움
         tree(tx, tz, tk);
       }
-      solid.add(rnd() > 0.5 ? P.leafDark : P.leaf, ball, side * (W / 2 + 0.75 + rnd() * 0.35), 0.22, z + rnd(), 0, 0.34, 0.28, 0.34);
+      solid.add(rnd() > 0.5 ? P.leafDark : P.leaf, ballFar, side * (W / 2 + 0.75 + rnd() * 0.35), 0.22, z + rnd(), 0, 0.34, 0.28, 0.34);
     }
   }
   // 앞쪽 숲: 입구 쪽 화면을 가리지 않도록 멀리, 그리고 가까운 줄은 낮은 덤불로
   for (let x = -W / 2 - 9; x < W / 2 + 9; x += 1.8) for (const dz of [6.5, 8.5]) tree(x + rnd(), zFront + dz + rnd(), 1.0 + rnd() * 0.5);
-  for (let x = -W / 2 - 3; x < W / 2 + 3; x += 0.9) solid.add(rnd() > 0.5 ? P.leafDark : P.leaf, ball, x + rnd() * 0.4, 0.2, zFront + 0.8 + rnd() * 1.2, 0, 0.34, 0.26, 0.34);
+  for (let x = -W / 2 - 3; x < W / 2 + 3; x += 0.9) solid.add(rnd() > 0.5 ? P.leafDark : P.leaf, ballFar, x + rnd() * 0.4, 0.2, zFront + 0.8 + rnd() * 1.2, 0, 0.34, 0.26, 0.34);
   flat.add(P.path, new THREE.CircleGeometry(1, 40), xL - 1.6, -0.02, gz(5.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
   flat.add(P.path, new THREE.CircleGeometry(1, 40), xR + 1.6, -0.02, gz(69.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
 
