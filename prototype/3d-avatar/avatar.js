@@ -278,6 +278,19 @@ export class Avatar {
     }
     book.visible = false; torso.add(book);
 
+    // 물조리개(물 줄 때만 보임): 몸통 + 앞으로 뻗은 주둥이 + 손잡이, 그리고 떨어지는 물방울
+    const can = (this.can = new THREE.Group());
+    const teal = mat('#63B792'), tealD = mat('#4FA27F');
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.075, 0.11, 18), teal); can.add(cb);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 8, 18), tealD); lip.rotation.x = Math.PI / 2; lip.position.y = 0.055; can.add(lip);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.022, 0.16, 10), teal); spout.position.set(0, 0.03, 0.13); spout.rotation.x = deg(62); can.add(spout);
+    const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.016, 0.03, 12), tealD); rose.position.set(0, 0.068, 0.2); rose.rotation.x = deg(62); can.add(rose);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 16, Math.PI), tealD); handle.position.set(0, 0.02, -0.07); handle.rotation.set(0, Math.PI / 2, -Math.PI / 2); can.add(handle);
+    can.visible = false; torso.add(can);
+    this.drops = [];
+    const dropMat = new THREE.MeshBasicMaterial({ color: '#CFF1F5', transparent: true, opacity: 0.9 });
+    for (let i = 0; i < 7; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), dropMat); d.visible = false; torso.add(d); this.drops.push(d); }
+
     this.t = Math.random() * 10;
     this.state = 'idle';
     this.lookUp = 0;   // 고개 드는 각도(라디안). 내려다보는 카메라에서는 0.25 정도
@@ -288,6 +301,8 @@ export class Avatar {
   setState(state) {
     this.state = state;
     this.book.visible = state === 'read';
+    this.can.visible = state === 'water';
+    this.drops.forEach((d) => { d.visible = state === 'water'; });
     this.eyes.forEach((e) => { e.visible = state !== 'read'; });
     this.setMood(state === 'read' ? 'read' : 'smile');
   }
@@ -319,6 +334,13 @@ export class Avatar {
         la.rotation.set(deg(-30), 0, deg(-12)); ra.rotation.set(deg(-30), 0, deg(12));
         this.head.rotation.z = Math.sin(t * 1.1) * 0.03;
       }
+    } else if (this.state === 'water') {
+      // 두 손으로 물조리개를 앞으로 기울여 물을 줌
+      la.rotation.set(deg(-52), 0, deg(20)); ra.rotation.set(deg(-52), 0, deg(-20));
+      this.torso.rotation.x = deg(7); this.head.rotation.x = deg(8) - this.lookUp * 0.6;
+      const tilt = deg(34) + Math.sin(t * 2.2) * 0.05;
+      this.can.position.set(0, 0.34, 0.24); this.can.rotation.set(tilt, 0, 0);
+      this.drops.forEach((d, i) => { const u = ((t * 1.6 + i / this.drops.length) % 1); d.position.set((i % 3 - 1) * 0.012, 0.3 - u * u * 0.3, 0.44 + u * 0.1); d.scale.setScalar(1 - u * 0.4); });
     } else if (this.state === 'wave') {
       ra.rotation.set(0, 0, deg(112) + Math.sin(t * 8) * 0.28);
       this.head.rotation.z = deg(5);

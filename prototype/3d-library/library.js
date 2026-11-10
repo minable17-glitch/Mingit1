@@ -43,7 +43,7 @@ export function seatLayout() {
 }
 
 // 같은 색 도형을 모아 한 번에 그리기 위한 수집기
-class Batch {
+export class Batch {
   constructor() { this.bins = new Map(); }
   add(color, geo, x = 0, y = 0, z = 0, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0) {
     const g = geo.clone();
@@ -54,6 +54,14 @@ class Batch {
     if (!this.bins.has(color)) this.bins.set(color, []);
     this.bins.get(color).push(gi);
   }
+  addM(color, geo, matrix) {   // 행렬을 직접 줘서 추가
+    const g = geo.clone(); g.applyMatrix4(matrix);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const gi = g.index ? g.toNonIndexed() : g;
+    if (!this.bins.has(color)) this.bins.set(color, []);
+    this.bins.get(color).push(gi);
+  }
+  merged() { const out = new Map(); for (const [c, geos] of this.bins) out.set(c, mergeGeometries(geos, false)); return out; }
   build(parent, matOpts = {}) {
     for (const [color, geos] of this.bins) {
       const mesh = new THREE.Mesh(mergeGeometries(geos, false), new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0, side: THREE.DoubleSide, ...matOpts }));
@@ -63,7 +71,7 @@ class Batch {
 }
 
 // 창밖 숲 풍경: 아래쪽 띠(LAND_FRAC)가 통창 너머로 보이는 부분. 큰 나무는 그 위 하늘까지 솟음
-function landscapeTexture(aspect) {
+export function landscapeTexture(aspect) {
   const W = 4096, H = Math.round(W / aspect), c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const strip = H * LAND_FRAC, y0 = H - strip;       // y0: 보이는 띠의 위쪽 끝
   let sd = 23; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
@@ -113,7 +121,7 @@ function landscapeTexture(aspect) {
   for (let i = 0; i < 160; i++) { g.fillStyle = ['#FFFFFF', '#FFD6E0', '#FFE58A'][i % 3]; g.beginPath(); g.arc(rnd() * W, H - strip * (0.02 + rnd() * 0.1), strip * 0.012, 0, 7); g.fill(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
-const LAND_FRAC = 0.26;   // 풍경판에서 통창 너머로 보이는 아래쪽 띠의 비율
+export const LAND_FRAC = 0.26;   // 풍경판에서 통창 너머로 보이는 아래쪽 띠의 비율
 
 // 나무 마루: 따뜻한 밝은 나무 판자 (판자마다 살짝 다른 색 + 가는 이음선)
 function woodFloorTexture(P) {
@@ -134,7 +142,7 @@ function woodFloorTexture(P) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
 }
 // 둥근 조명 주변의 따뜻한 빛 번짐
-function glowTexture() {
+export function glowTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, '#FFE9B8ff'); gr.addColorStop(0.3, '#FFE2A888'); gr.addColorStop(1, '#FFE2A800');
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
@@ -142,7 +150,7 @@ function glowTexture() {
 }
 
 // 햇빛 자국: 가장자리가 부드럽게 번지는 따뜻한 빛 조각
-function softRectTexture() {
+export function softRectTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   const img = g.createImageData(128, 128);
   for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
