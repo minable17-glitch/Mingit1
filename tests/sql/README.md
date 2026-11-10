@@ -10,3 +10,8 @@
 
 확인하는 것: 기존 나무 일수 유지, 예전 앱 저장 = 즉시 물 준 것, 새 앱 저장 = 물은 나중에, 같은 기록에 두 번 못 줌,
 남의 기록에 못 줌, 모두 주기, 읽은 날 수, 기록 삭제 시 일수 처리, 새 챌린지에서 안 준 물 자동 처리, 반 참여율 전체 학생 기준.
+
+## 실시간 채널 보안 점검 (`supabase/realtime_library.sql`)
+
+`00-local-stubs.sql` → `supabase/schema.sql` → `10-realtime-stub.sql`(Supabase Realtime 흉내) → `supabase/realtime_library.sql` → `11-realtime-access.sql`.
+기대 결과: 그 반 학생·담당 선생님은 "들어갈 수 있음", 다른 반 학생·로그인 안 한 사람·다른 이름 채널은 "막힘".

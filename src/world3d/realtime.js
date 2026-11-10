@@ -6,25 +6,35 @@ import { supabase } from '../lib/supabaseClient';
 
 export function connectRoom({ classId, key, meta, onSync, onStatus, forceLocal = false }) {
   if (forceLocal || !import.meta.env.VITE_SUPABASE_URL) return connectLocal({ classId, key, meta, onSync, onStatus });
-  let current = meta, ready = false, closed = false;
-  const channel = supabase.channel(`saesak-library-${classId}`, { config: { presence: { key } } });
+  let current = meta, ready = false, closed = false, channel = null;
   const emit = () => {
     const st = channel.presenceState();
     onSync(Object.entries(st).map(([id, arr]) => ({ id, ...(arr[arr.length - 1] || {}) })));
   };
-  channel
-    .on('presence', { event: 'sync' }, emit)
-    .subscribe(async (status) => {
-      if (closed) return;
-      if (status === 'SUBSCRIBED') { ready = true; onStatus?.('online'); try { await channel.track(current); } catch { /* 다음 갱신 때 다시 시도 */ } }
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') { ready = false; onStatus?.('offline'); }
-    });
+  // 비공개 채널(반 학생·선생님만, supabase/realtime_library.sql 적용 시)을 먼저 시도하고,
+  // 한 번도 연결되지 못하고 실패하면 공개 채널로 대신 연결함(SQL 적용 전에도 동작하도록)
+  const open = (isPrivate) => {
+    let joined = false;
+    channel = supabase.channel(`saesak-library-${classId}`, { config: { private: isPrivate, presence: { key } } });
+    channel
+      .on('presence', { event: 'sync' }, emit)
+      .subscribe(async (status) => {
+        if (closed) return;
+        if (status === 'SUBSCRIBED') { joined = true; ready = true; onStatus?.('online'); try { await channel.track(current); } catch { /* 다음 갱신 때 다시 시도 */ } }
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          ready = false;
+          if (isPrivate && !joined && status !== 'CLOSED') { const old = channel; channel = null; supabase.removeChannel(old); open(false); return; }
+          onStatus?.('offline');
+        }
+      });
+  };
+  open(true);
   // 화면이 다시 보이면 내 상태를 한 번 더 알림(백그라운드에서 연결이 끊겼다 돌아온 경우)
-  const onVisible = () => { if (document.visibilityState === 'visible' && ready) channel.track(current).catch(() => {}); };
+  const onVisible = () => { if (document.visibilityState === 'visible' && ready && channel) channel.track(current).catch(() => {}); };
   document.addEventListener('visibilitychange', onVisible);
   return {
-    update(next) { current = next; if (ready) channel.track(current).catch(() => {}); },
-    close() { closed = true; document.removeEventListener('visibilitychange', onVisible); supabase.removeChannel(channel); },
+    update(next) { current = next; if (ready && channel) channel.track(current).catch(() => {}); },
+    close() { closed = true; document.removeEventListener('visibilitychange', onVisible); if (channel) supabase.removeChannel(channel); },
   };
 }
 
