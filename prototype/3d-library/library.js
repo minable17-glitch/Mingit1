@@ -10,7 +10,7 @@ export const PALETTE = {
   floor: '#F5DFC2', wall: '#F7DFC0', frame: '#DDA765', shelf: '#D7A064',
   books: ['#A9BC78', '#E7C96F', '#8FAEB5', '#DFA7A0', '#EAD9B5'],
   desk: '#E6B477', chair: '#ACC76C', rug: '#DDD8A5', shadow: '#B39473',
-  leaf: '#8FBF5A', leafDark: '#6FA64C', pot: '#F3E6CC', grass: '#B8DE92', grassDark: '#A8D282', sky: '#CDEBFA', path: '#F3E3C2', trunk: '#C79562',
+  leaf: '#8FBF5A', leafDark: '#6FA64C', pot: '#F3E6CC', grass: '#A6D27C', grassDark: '#A8D282', sky: '#CDEBFA', path: '#F3E3C2', trunk: '#C79562',
 };
 const gx = (c) => (c - GRID.w / 2) * CELL, gz = (c) => (c - GRID.d / 2) * CELL;
 const deg = THREE.MathUtils.degToRad;
@@ -67,56 +67,58 @@ class Batch {
   }
 }
 
-function landscapeTexture() {
-  const W = 4096, H = 320, k = H / 1024, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
-  let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  // 하늘: 위는 맑은 하늘색, 산 쪽으로 갈수록 따뜻한 햇살색
-  const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
-  sky.addColorStop(0, '#9FD3F0'); sky.addColorStop(0.55, '#D8EEF2'); sky.addColorStop(1, '#FFE9C6');
+// 창밖 숲 풍경: 아래쪽 띠(LAND_FRAC)가 통창 너머로 보이는 부분. 큰 나무는 그 위 하늘까지 솟음
+function landscapeTexture(aspect) {
+  const W = 4096, H = Math.round(W / aspect), c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const strip = H * LAND_FRAC, y0 = H - strip;       // y0: 보이는 띠의 위쪽 끝
+  let sd = 23; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  // 하늘
+  const sky = g.createLinearGradient(0, 0, 0, y0 + strip * 0.3);
+  sky.addColorStop(0, '#9FD3F0'); sky.addColorStop(0.7, '#D4EDF2'); sky.addColorStop(1, '#FFEBC8');
   g.fillStyle = sky; g.fillRect(0, 0, W, H);
-  // 해와 햇무리(왼쪽 위)
-  const sun = g.createRadialGradient(W * 0.2, H * 0.14, 0, W * 0.2, H * 0.14, H * 0.9);
-  sun.addColorStop(0, '#FFF6D8ff'); sun.addColorStop(0.12, '#FFEBB8cc'); sun.addColorStop(0.45, '#FFE2A833'); sun.addColorStop(1, '#FFE2A800');
+  const sun = g.createRadialGradient(W * 0.14, y0 - strip * 0.2, 0, W * 0.14, y0 - strip * 0.2, strip * 1.6);
+  sun.addColorStop(0, '#FFF7DCff'); sun.addColorStop(0.15, '#FFECBBcc'); sun.addColorStop(0.5, '#FFE3A833'); sun.addColorStop(1, '#FFE3A800');
   g.fillStyle = sun; g.fillRect(0, 0, W, H);
-  // 구름
   g.fillStyle = '#ffffffd9';
-  for (const [x, y, ck] of [[0.42, 0.12, 1], [0.62, 0.2, 0.8], [0.8, 0.09, 0.65], [0.3, 0.24, 0.55], [0.12, 0.3, 0.6], [0.95, 0.22, 0.7]]) for (const [dx, dy, r] of [[0, 0, 46], [44, -12, 54], [92, 2, 42], [-36, 8, 34]]) { g.beginPath(); g.arc(x * W + dx * ck * 1.4 * k, y * H + dy * ck * k, r * ck * 1.3 * k, 0, 7); g.fill(); }
-  // 산 능선: 부드러운 봉우리를 겹침
-  const ridge = (base, amp, peaks, color, top = '#ffffff00') => {
-    const grd = g.createLinearGradient(0, base - amp, 0, H); grd.addColorStop(0, color); grd.addColorStop(1, color);
-    g.fillStyle = grd; g.beginPath(); g.moveTo(0, H);
-    for (let x = 0; x <= W; x += 8) {
-      let y = base;
-      for (const [px, w, h] of peaks) y -= h * amp * Math.exp(-Math.pow((x / W - px) / w, 2));
-      g.lineTo(x, y);
-    }
+  for (const [x, y, k] of [[0.4, -0.55, 1], [0.66, -0.35, 0.8], [0.86, -0.7, 0.7], [0.27, -0.25, 0.55]]) for (const [dx, dy, r] of [[0, 0, 0.1], [0.09, -0.03, 0.12], [0.19, 0, 0.09], [-0.08, 0.02, 0.075]]) { g.beginPath(); g.arc(x * W + dx * strip * k * 1.6, y0 + y * strip + dy * strip * k, r * strip * k * 1.3, 0, 7); g.fill(); }
+  // 숲 위로 살짝 보이는 먼 산
+  const ridge = (base, amp, n, wMin, wMax, color) => {
+    const pk = Array.from({ length: n }, (_, i) => [(i + rnd() * 0.7) / n, wMin + rnd() * (wMax - wMin), 0.55 + rnd() * 0.45]);
+    g.fillStyle = color; g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) { let y = base; for (const [px, w, h] of pk) y -= h * amp * Math.exp(-Math.pow((x / W - px) / w, 2)); g.lineTo(x, y); }
     g.lineTo(W, H); g.closePath(); g.fill();
   };
-  const peaks = (n, wMin, wMax, hMin, hMax, off = 0) => Array.from({ length: n }, (_, i) => [(i + off + rnd() * 0.6) / n, wMin + rnd() * (wMax - wMin), hMin + rnd() * (hMax - hMin)]);
-  ridge(H * 0.6, H * 0.5, peaks(13, 0.022, 0.034, 0.55, 1), '#B7D0D8');    // 가장 먼 산(푸르스름)
-  ridge(H * 0.65, H * 0.36, peaks(11, 0.026, 0.04, 0.5, 1), '#9DC2B0');    // 중간 산
-  ridge(H * 0.71, H * 0.16, peaks(9, 0.04, 0.06, 0.6, 1), '#A6CF86');      // 가까운 언덕
-  // 산 위 햇살 번짐
-  const glow = g.createLinearGradient(0, H * 0.3, 0, H * 0.75); glow.addColorStop(0, '#FFE8B800'); glow.addColorStop(1, '#FFE8B840');
-  g.fillStyle = glow; g.fillRect(0, H * 0.3, W, H * 0.45);
-  // 들판
-  g.fillStyle = '#B8DE92'; g.fillRect(0, H * 0.74, W, H);
-  // 나무 숲(뒤 → 앞)
-  const tree = (x, y, r, leaf, leafDark) => {
-    g.fillStyle = '#C08A58'; g.fillRect(x - r * 0.12, y - r * 0.2, r * 0.24, r * 0.75);
-    g.fillStyle = leafDark; for (const [dx, dy, k] of [[-0.5, 0.05, 0.62], [0.5, 0.05, 0.62]]) { g.beginPath(); g.arc(x + dx * r, y - r * 0.55 + dy * r, r * k, 0, 7); g.fill(); }
-    g.fillStyle = leaf; g.beginPath(); g.arc(x, y - r * 0.85, r * 0.72, 0, 7); g.fill();
-    g.fillStyle = '#ffffff30'; g.beginPath(); g.arc(x - r * 0.25, y - r * 1.05, r * 0.3, 0, 7); g.fill();
+  ridge(y0 + strip * 0.32, strip * 0.55, 12, 0.025, 0.04, '#B8D2D8');
+  ridge(y0 + strip * 0.38, strip * 0.38, 10, 0.03, 0.045, '#A5C9B8');
+  // 둥근 나무 한 그루 (줄기 + 뭉게뭉게 잎)
+  const tree = (x, base, r, leaf, dark, light, trunkH = 1.1) => {
+    g.fillStyle = '#B98455'; g.fillRect(x - r * 0.11, base - r * trunkH, r * 0.22, r * trunkH + 2);
+    const cy = base - r * trunkH - r * 0.55;
+    g.fillStyle = dark; for (const [dx, dy, k] of [[-0.55, 0.25, 0.62], [0.55, 0.25, 0.62], [0, 0.35, 0.7]]) { g.beginPath(); g.arc(x + dx * r, cy + dy * r, r * k, 0, 7); g.fill(); }
+    g.fillStyle = leaf; for (const [dx, dy, k] of [[0, -0.1, 0.78], [-0.38, 0.05, 0.55], [0.4, 0.02, 0.55]]) { g.beginPath(); g.arc(x + dx * r, cy + dy * r, r * k, 0, 7); g.fill(); }
+    g.fillStyle = light; g.beginPath(); g.arc(x - r * 0.28, cy - r * 0.38, r * 0.3, 0, 7); g.fill();
   };
-  for (let i = 0; i < 90; i++) tree(rnd() * W, H * (0.73 + rnd() * 0.04), (16 + rnd() * 14) * k, '#8CC56A', '#76B05A');
-  for (let i = 0; i < 60; i++) tree(rnd() * W, H * (0.8 + rnd() * 0.08), (34 + rnd() * 26) * k, '#93CB66', '#79B456');
-  for (let i = 0; i < 34; i++) tree(rnd() * W, H * (0.92 + rnd() * 0.06), (60 + rnd() * 34) * k, '#9ACF6A', '#7FB85A');
-  // 위로 하늘을 넉넉히 이어 붙임(풍경은 아래 SKY_FRAC 부분만 차지)
-  const big = document.createElement('canvas'); big.width = W; big.height = Math.round(H / LAND_FRAC); const bg = big.getContext('2d');
-  bg.fillStyle = '#9FD3F0'; bg.fillRect(0, 0, W, big.height); bg.drawImage(c, 0, big.height - H);
-  const t = new THREE.CanvasTexture(big); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  // 먼 숲 → 중간 숲 → 가까운 큰 나무 순서로 겹침
+  g.fillStyle = '#8DB98A'; g.fillRect(0, y0 + strip * 0.42, W, H);
+  for (let x = -20; x < W + 40; x += strip * (0.06 + rnd() * 0.04)) { const r = strip * (0.07 + rnd() * 0.04); g.fillStyle = rnd() > 0.5 ? '#8DB98A' : '#82B080'; g.beginPath(); g.arc(x, y0 + strip * (0.4 + rnd() * 0.05), r, 0, 7); g.fill(); }
+  for (let x = -40; x < W + 80; x += strip * (0.13 + rnd() * 0.08)) tree(x, y0 + strip * (0.72 + rnd() * 0.06), strip * (0.13 + rnd() * 0.05), '#86BE62', '#70A852', '#A2D27A', 0.9);
+  // 나무 사이로 비스듬히 내려오는 햇살
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 9; i++) {
+    const x = W * (0.02 + i * 0.12 + rnd() * 0.04), w = strip * (0.12 + rnd() * 0.12);
+    const gr = g.createLinearGradient(0, y0 - strip * 0.2, 0, H); gr.addColorStop(0, '#FFE6A800'); gr.addColorStop(0.35, '#FFE6A838'); gr.addColorStop(1, '#FFE6A800');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(x, y0 - strip * 0.2); g.lineTo(x + w, y0 - strip * 0.2); g.lineTo(x + w + strip * 0.7, H); g.lineTo(x + strip * 0.7, H); g.closePath(); g.fill();
+  }
+  g.restore();
+  // 가까운 큰 나무(위로 하늘까지 솟음, 사이사이 틈으로 뒤 숲이 보임)
+  for (let x = strip * 0.1; x < W; x += strip * (0.55 + rnd() * 0.35)) tree(x, H - strip * (0.06 + rnd() * 0.08), strip * (0.32 + rnd() * 0.14), '#93C964', '#7CB556', '#B2DC88', 1.5);
+  // 앞쪽 덤불과 풀밭, 작은 꽃
+  g.fillStyle = '#A6D27C'; g.fillRect(0, H - strip * 0.12, W, strip * 0.12);
+  for (let x = -20; x < W + 40; x += strip * (0.1 + rnd() * 0.06)) { const r = strip * (0.06 + rnd() * 0.05); g.fillStyle = rnd() > 0.5 ? '#8BC463' : '#7AB656'; g.beginPath(); g.arc(x, H - strip * 0.08, r, Math.PI, 0); g.fill(); }
+  for (let i = 0; i < 160; i++) { g.fillStyle = ['#FFFFFF', '#FFD6E0', '#FFE58A'][i % 3]; g.beginPath(); g.arc(rnd() * W, H - strip * (0.02 + rnd() * 0.1), strip * 0.012, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
-const LAND_FRAC = 0.26;   // 풍경판에서 산·숲 그림이 차지하는 아래쪽 비율
+const LAND_FRAC = 0.26;   // 풍경판에서 통창 너머로 보이는 아래쪽 띠의 비율
 
 // 햇빛 자국: 가장자리가 부드럽게 번지는 따뜻한 빛 조각
 function softRectTexture() {
@@ -274,7 +276,7 @@ export function buildLibrary(scene) {
 
   // ── 창밖 풍경판: 카메라를 똑바로 바라보도록 기울여 세운 큰 그림(산·나무·하늘)
   const BD_H = 2.3 / LAND_FRAC;
-  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(W + 26, BD_H), new THREE.MeshBasicMaterial({ map: landscapeTexture(), fog: false }));
+  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(W + 26, BD_H), new THREE.MeshBasicMaterial({ map: landscapeTexture((W + 26) / BD_H), fog: false }));
   backdrop.position.set(0, 0, zBack - 0.8); root.add(backdrop);
   const faceBackdrop = (pitchRad) => {
     backdrop.rotation.set(-pitchRad, 0, 0);
@@ -288,10 +290,18 @@ export function buildLibrary(scene) {
     solid.add(P.trunk, cyl, x, 0.55 * k, z, 0, 0.13 * k, 1.1 * k, 0.13 * k);
     for (const [dx, dy, dz, r] of [[0, 1.75, 0, 0.75], [-0.5, 1.45, 0.1, 0.52], [0.5, 1.45, -0.1, 0.52], [0, 1.4, 0.45, 0.48]]) solid.add(dy > 1.6 ? P.leaf : P.leafDark, ball, x + dx * k, dy * k, z + dz * k, 0, r * k, r * k, r * k);
   };
-  for (let z = -D / 2 + 1; z < D / 2; z += 3.2) {
-    for (const side of [-1, 1]) { const x = side * (W / 2 + 2.2 + rnd() * 1.6); tree(x, z + rnd() * 1.4, 0.95 + rnd() * 0.5); }
-    for (const side of [-1, 1]) solid.add(P.leafDark, ball, side * (W / 2 + 0.9 + rnd() * 0.5), 0.24, z + 1.6, 0, 0.36, 0.3, 0.36);
+  for (let z = -D / 2 - 2; z < D / 2 + 3; z += 1.7) {
+    for (const side of [-1, 1]) {
+      for (const [dist, kMin, kMax] of [[1.9, 0.85, 1.2], [3.6, 1.0, 1.5], [5.6, 1.2, 1.8], [8, 1.3, 2.0]]) {
+        const tz = z + rnd() * 1.5, tx = side * (W / 2 + dist + rnd() * 1.1), tk = kMin + rnd() * (kMax - kMin);
+        const doorZ = side < 0 ? (doorGarden.z0 + doorGarden.z1) / 2 : (doorEntry.z0 + doorEntry.z1) / 2;
+        if (Math.abs(tz - doorZ) < 1.6 && dist < 5) continue;   // 문 앞 길은 비워 둠
+        tree(tx, tz, tk);
+      }
+      solid.add(rnd() > 0.5 ? P.leafDark : P.leaf, ball, side * (W / 2 + 0.75 + rnd() * 0.35), 0.22, z + rnd(), 0, 0.34, 0.28, 0.34);
+    }
   }
+  for (let x = -W / 2 - 9; x < W / 2 + 9; x += 1.8) for (const dz of [2.2, 4.2]) tree(x + rnd(), zFront + dz + rnd(), 1.1 + rnd() * 0.6);   // 앞쪽 숲
   flat.add(P.path, new THREE.CircleGeometry(1, 40), xL - 1.6, -0.02, gz(5.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
   flat.add(P.path, new THREE.CircleGeometry(1, 40), xR + 1.6, -0.02, gz(69.5), 0, 1.8, 0.55, 1, -Math.PI / 2);
 
