@@ -4,8 +4,8 @@ import * as THREE from 'three';
 
 const deg = THREE.MathUtils.degToRad;
 export const DEFAULT_LOOK = {
-  skin: '#FFDDC2', hair: '#96563A', shirt: '#AAC45E', collar: '#FBEBC6',
-  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#43281A', cheek: '#FF9BA0', eyeScale: 1.22, cheekScale: 1.25,
+  skin: '#FFD9B8', hair: '#96563A', shirt: '#AAC45E', collar: '#FBEBC6',
+  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#4A2B1B', cheek: '#FBA69B', eyeScale: 1.18, cheekScale: 1.0,
 };
 export const LOOKS = [
   {},
@@ -29,20 +29,26 @@ export function drawFace(look, mood = 'smile') {
   const k = FACE.W / FACE.span;
   const X = (x) => (x / FACE.span + 0.5) * FACE.W, Y = (y) => (0.5 - y / FACE.span) * FACE.H;
   const ell = (x, y, rx, ry, fill) => { g.beginPath(); g.ellipse(X(x), Y(y), rx * k, ry * k, 0, 0, Math.PI * 2); g.fillStyle = fill; g.fill(); };
+  for (const s of [-1, 1]) {
+    const px = X(s * 0.102), py = Y(-0.168), rx = 0.033 * k * look.cheekScale, ry = 0.037 * k * look.cheekScale;
+    g.save(); g.translate(px, py); g.scale(rx, ry);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gr.addColorStop(0, look.cheek + 'f5'); gr.addColorStop(0.78, look.cheek + 'e8'); gr.addColorStop(1, look.cheek + '00');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
+  }
   g.lineCap = 'round';
   for (const s of [-1, 1]) {
     if (mood === 'read') {
       g.strokeStyle = look.eye; g.lineWidth = 0.011 * k;
       g.beginPath(); g.ellipse(X(s * 0.086), Y(-0.085), 0.03 * k, 0.022 * k, 0, 0.12 * Math.PI, 0.88 * Math.PI); g.stroke();
     }
-    g.strokeStyle = look.hair; g.lineWidth = 0.0075 * k;
-    g.beginPath(); g.ellipse(X(s * 0.096), Y(-0.024 + (look.eyeScale - 1) * 0.02), 0.028 * k, 0.018 * k, 0, Math.PI * 1.25, Math.PI * 1.75); g.stroke();
+    g.strokeStyle = '#5A3320'; g.lineWidth = 0.0095 * k;
+    g.beginPath(); g.ellipse(X(s * 0.1), Y(-0.002), 0.032 * k, 0.019 * k, s * -0.12, Math.PI * 1.22, Math.PI * 1.78); g.stroke();
   }
-  ell(0, -0.132, 0.012, 0.009, '#FF9F8E');
-  g.lineWidth = 0.0085 * k; g.strokeStyle = '#8A5238';
+  g.lineWidth = 0.0088 * k; g.strokeStyle = '#6B3A22';
   g.beginPath();
-  if (mood === 'read') g.ellipse(X(0), Y(-0.168), 0.011 * k, 0.006 * k, 0, 0.1 * Math.PI, 0.9 * Math.PI);
-  else g.ellipse(X(0), Y(-0.156), 0.026 * k, 0.02 * k, 0, 0.16 * Math.PI, 0.84 * Math.PI);
+  if (mood === 'read') g.ellipse(X(0), Y(-0.168), 0.012 * k, 0.006 * k, 0, 0.1 * Math.PI, 0.9 * Math.PI);
+  else g.ellipse(X(0), Y(-0.16), 0.036 * k, 0.018 * k, 0, 0.1 * Math.PI, 0.9 * Math.PI);
   g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
@@ -52,7 +58,7 @@ export function drawFace(look, mood = 'smile') {
 function blushTexture(color) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, color + 'e6'); gr.addColorStop(0.45, color + 'b8'); gr.addColorStop(1, color + '00');
+  gr.addColorStop(0, color + 'f0'); gr.addColorStop(0.72, color + 'e0'); gr.addColorStop(1, color + '00');
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
@@ -66,6 +72,34 @@ function sproutTexture(color) {
   g.beginPath(); g.ellipse(86, 52, 26, 17, 0.5, 0, Math.PI * 2); g.fill();
   g.fillRect(59, 56, 10, 52); g.beginPath(); g.arc(64, 108, 5, 0, Math.PI * 2); g.fill();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+// 볼살: 머리 아래쪽 절반을 옆으로 통통하게 부풀림 (원본 그림의 넓적한 볼)
+function puff(v) {
+  const t = v.y / HEAD_R;
+  const w = Math.exp(-Math.pow((t + 0.58) / 0.5, 2));
+  const f = THREE.MathUtils.smoothstep(v.z / HEAD_R, -0.3, 0.3);   // 얼굴 쪽(앞)만 부풀림, 뒤통수는 그대로
+  v.x *= 1 + 0.12 * w * f;
+  v.z *= 1 + 0.05 * w * f;             // 볼과 입가를 앞으로 도톰하게(옆모습이 평평한 얼굴)
+  if (t < 0) v.y *= 1 - 0.1 * t * t;   // 턱을 살짝 올려 납작하고 넓은 턱선
+  return v;
+}
+function puffGeometry(geo) {
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); puff(v); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals();
+  return geo;
+}
+// 얼굴 위 (x, y) 지점에 납작한 조각을 붙임. 정면에서 봤을 때 기울지 않도록 세로축을 화면 세로에 맞춤
+function decal(parent, geo, material, x, y, sx, sy, sz, lift, order) {
+  const z = Math.sqrt(Math.max(0, HEAD_R * HEAD_R - x * x - y * y));
+  const n = new THREE.Vector3(x, y, z).normalize();
+  const m = new THREE.Mesh(geo, material);
+  m.position.copy(puff(n.clone().multiplyScalar(HEAD_R * lift)));
+  const yA = new THREE.Vector3(0, n.z, -n.y).normalize(), xA = new THREE.Vector3().crossVectors(yA, n);
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xA, yA, n));
+  m.scale.set(sx, sy, sz); m.renderOrder = order; parent.add(m);
+  return m;
 }
 
 // 머리 표면의 한 방향(yaw, pitch)에 납작한 타원체(머리카락 덩어리)를 붙임
@@ -133,54 +167,48 @@ export class Avatar {
 
     // ── 머리
     const head = (this.head = new THREE.Group()); head.position.set(0, 0.762, 0); torso.add(head);
-    head.scale.set(1.04, 0.985, 1);
-    head.add(new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 56, 44), M.skin));
+    head.scale.set(1.0, 0.985, 1);
+    head.add(new THREE.Mesh(puffGeometry(new THREE.SphereGeometry(HEAD_R, 56, 44)), M.skin));
     for (const s of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.043, 16, 12), M.skin); ear.scale.z = 0.62; ear.position.set(s * 0.226, -0.118, -0.005); head.add(ear);
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.043, 16, 12), M.skin); ear.scale.z = 0.62; ear.position.set(s * 0.236, -0.112, -0.02); head.add(ear);
     }
     // 얼굴 그림(표정 교체 가능)
     this.faceMat = new THREE.MeshBasicMaterial({ map: drawFace(look, 'smile'), transparent: true, depthWrite: false });
     const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.006, 40, 30, Math.PI / 2 - FACE.alpha, FACE.alpha * 2, FACE.t0, FACE.tLen);
     { const p = faceGeo.attributes.position, uv = faceGeo.attributes.uv;
       for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / FACE.span + 0.5, p.getY(i) / FACE.span + 0.5); }
+    puffGeometry(faceGeo);
     const face = new THREE.Mesh(faceGeo, this.faceMat);
-    face.renderOrder = 3; head.add(face);
+    face.renderOrder = 0; head.add(face);
     // 눈·볼터치: 머리 표면에 붙인 납작한 조각(옆에서 봐도 모양 유지)
     const flat = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
     const onFace = (x, y) => { const z = Math.sqrt(Math.max(0, HEAD_R * HEAD_R - x * x - y * y)); return [THREE.MathUtils.radToDeg(Math.atan2(x, z)), THREE.MathUtils.radToDeg(Math.asin(y / HEAD_R))]; };
+    // 원본 그림의 눈 구조: 둥근 크림색 흰자 + 안쪽·아래로 붙은 눈동자 + 위·바깥쪽을 감싸는 짙은 속눈썹 선
     this.eyes = [];
     const es = look.eyeScale, cs = look.cheekScale;
-    const cheekTex = blushTexture(look.cheek);
+    const ball = new THREE.SphereGeometry(1, 24, 18), disc = new THREE.CircleGeometry(1, 28);
     for (const s of [-1, 1]) {
-      const ex = s * (0.088 + (es - 1) * 0.012), ey = -0.094 - (es - 1) * 0.012;
-      const [yw, pt] = onFace(ex, ey);
-      const white = lobe(head, flat('#FFF4E0'), yw + s * 1.0, pt - 1.0, 0.0365 * es, 0.0505 * es, 0.006, 0, HEAD_R * 1.002); white.renderOrder = 1;
-      const pupil = lobe(head, flat(look.eye), yw, pt, 0.031 * es, 0.047 * es, 0.008, 0, HEAD_R * 1.004); pupil.renderOrder = 2;
-      // 눈동자 아래쪽 밝은 갈색(촉촉한 느낌)
-      const [iy, ip] = onFace(ex, ey - 0.02 * es);
-      const iris = lobe(head, flat('#8A5636', 0.75), iy, ip, 0.021 * es, 0.02 * es, 0.004, 0, HEAD_R * 1.012); iris.renderOrder = 3;
-      const [hy, hp] = onFace(ex + 0.011 * es, ey + 0.02 * es);
-      const glint = lobe(head, flat('#ffffff'), hy, hp, 0.0115 * es, 0.0125 * es, 0.004, 0, HEAD_R * 1.02); glint.renderOrder = 4;
-      const [gy, gp] = onFace(ex - 0.012 * es, ey - 0.014 * es);
-      const glint2 = lobe(head, flat('#ffffff', 0.9), gy, gp, 0.005 * es, 0.0055 * es, 0.003, 0, HEAD_R * 1.022); glint2.renderOrder = 4;
-      this.eyes.push(white, pupil, iris, glint, glint2);
-      // 볼터치: 가장자리가 부드럽게 번지는 원
-      const [cy, cp] = onFace(s * 0.135, -0.158 - (es - 1) * 0.02);
-      const dirc = new THREE.Vector3(Math.sin(deg(cy)) * Math.cos(deg(cp)), Math.sin(deg(cp)), Math.cos(deg(cy)) * Math.cos(deg(cp)));
-      const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.05 * cs, 28), new THREE.MeshBasicMaterial({ map: cheekTex, transparent: true, depthWrite: false }));
-      cheek.position.copy(dirc).multiplyScalar(HEAD_R * 1.004); cheek.lookAt(dirc.clone().multiplyScalar(2)); cheek.scale.y = 0.86; cheek.renderOrder = 1; head.add(cheek);
+      const ex = s * 0.098, ey = -0.09;
+      const lash = decal(head, ball, flat(look.eye), ex + s * 0.0045 * es, ey + 0.0065 * es, 0.047 * es, 0.0515 * es, 0.004, 1.003, 1);
+      const white = decal(head, ball, flat('#FFF3DA'), ex, ey, 0.044 * es, 0.049 * es, 0.005, 1.005, 2);
+      const pupil = decal(head, ball, flat(look.eye), ex - s * 0.0135 * es, ey - 0.0075 * es, 0.0305 * es, 0.0405 * es, 0.006, 1.008, 3);
+      const glint = decal(head, ball, flat('#FFF6E2'), ex - s * 0.0135 * es + 0.006 * es, ey + 0.013 * es, 0.0092 * es, 0.0098 * es, 0.003, 1.02, 4);
+      this.eyes.push(lash, white, pupil, glint);
     }
+    // 코: 살짝 튀어나온 둥근 코
+    decal(head, ball, mat('#F9A88E', { emissive: '#F58F78', emissiveIntensity: 0.25 }), 0, -0.134, 0.0185, 0.0165, 0.014, 1.0, 0);
     // 머리카락: 머리보다 조금 큰 공을 뒤·위로 물려 씌우면 얼굴만 둥글게 드러남 + 앞머리 덩어리
     const hairSolid = mat(look.hair);
     const cap = new THREE.Mesh(new THREE.SphereGeometry(0.256, 56, 44), hairSolid);
-    cap.scale.set(1.03, 0.94, 1.0); cap.position.set(0, 0.022, -0.045); head.add(cap);
-    lobe(head, hairSolid, -20, 38, 0.172, 0.104, 0.046, 16);   // 큰 앞머리(화면 왼쪽)
-    lobe(head, hairSolid, -58, 23, 0.104, 0.1, 0.046, 42);     // 왼쪽 끝자락
-    lobe(head, hairSolid, 8, 56, 0.13, 0.09, 0.046, 0);        // 정수리 앞
-    lobe(head, hairSolid, 43, 33, 0.114, 0.098, 0.046, -36);   // 오른쪽 앞머리
-    lobe(head, hairSolid, 69, 15, 0.074, 0.096, 0.042, -52);   // 오른쪽 끝자락
-    lobe(head, hairSolid, -86, -6, 0.048, 0.088, 0.034, 6);    // 귀 앞 옆머리
-    lobe(head, hairSolid, 86, -6, 0.048, 0.088, 0.034, -6);
+    cap.scale.set(1.045, 0.94, 1.02); cap.position.set(0, 0.024, -0.04); head.add(cap);
+    lobe(head, hairSolid, -20, 33, 0.176, 0.108, 0.046, 16);   // 큰 앞머리(화면 왼쪽)
+    lobe(head, hairSolid, -57, 19, 0.108, 0.104, 0.046, 42);   // 왼쪽 끝자락
+    lobe(head, hairSolid, 8, 54, 0.135, 0.095, 0.046, 0);      // 정수리 앞
+    lobe(head, hairSolid, 43, 29, 0.118, 0.102, 0.046, -36);   // 오른쪽 앞머리
+    lobe(head, hairSolid, 68, 11, 0.078, 0.1, 0.042, -52);     // 오른쪽 끝자락
+    lobe(head, hairSolid, -72, 0, 0.05, 0.09, 0.036, 20, HEAD_R * 1.04);   // 귀 앞 옆머리
+    lobe(head, hairSolid, 72, 0, 0.05, 0.09, 0.036, -20, HEAD_R * 1.04);
+    lobe(head, hairSolid, 180, -36, 0.17, 0.085, 0.06, 0, HEAD_R * 0.94);     // 뒷목
 
     // 바닥 그림자(가벼운 원판)
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), new THREE.MeshBasicMaterial({ color: '#5a4630', transparent: true, opacity: 0.16, depthWrite: false }));
