@@ -7,6 +7,22 @@ import { nameTag, lookOf } from './LibraryWorld.js';
 
 const PITCH = THREE.MathUtils.degToRad(50), FOV = 30;
 const TAG_Y = [0.42, 0.52, 0.78, 1.12, 1.14, 1.2];     // 단계별 이름표 높이
+// 악세서리를 다는 자리(나무 기준, 단계별). 기존 2D 나무처럼 최대 4개: 왼쪽 위, 오른쪽 위, 왼쪽 아래, 오른쪽 아래
+const ACC_SLOTS = (stage) => {
+  if (stage <= 0) return [[-0.13, 0.12], [0.13, 0.12], [-0.17, 0.03], [0.17, 0.03]];
+  if (stage === 1) return [[-0.17, 0.3], [0.17, 0.3], [-0.12, 0.13], [0.12, 0.13]];
+  if (stage === 2) return [[-0.19, 0.5], [0.19, 0.5], [-0.19, 0.28], [0.19, 0.28]];
+  return [[-0.23, 0.82], [0.23, 0.82], [-0.27, 0.55], [0.27, 0.55]];
+};
+// 이모지 악세서리 그림(같은 이모지는 한 번만 그림)
+const EMOJI = new Map();
+function emojiMat(e) {
+  if (EMOJI.has(e)) return EMOJI.get(e);
+  const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
+  g.font = "70px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 48, 54);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }); EMOJI.set(e, m); return m;
+}
 
 export class GardenWorld {
   // opts: { students, me: { id, nick } | null, onEvent(type, payload) }
@@ -36,14 +52,24 @@ export class GardenWorld {
       const stage = t ? Math.max(0, Math.min(5, t.stage)) : -1;
       const grew = cur && t && cur.id === t.id && stage > cur.stage;
       if (this.garden.setStage(i, stage)) this._dirty = true;
+      const accKey = t && t.acc ? t.acc.join('') : '';
       if (!cur || cur.id !== (t && t.id) || cur.nick !== (t && t.nick) || cur.me !== !!(t && t.me)) {
         if (cur && cur.tag) { this.scene.remove(cur.tag); cur.tag.material.map.dispose(); cur.tag.material.dispose(); }
         let tag = null;
         if (t) { tag = nameTag(t.nick || '', !!t.me); tag.scale.multiplyScalar(0.8); this.scene.add(tag); }
-        this.slots[i] = { id: t && t.id, nick: t && t.nick, me: !!(t && t.me), stage, tag };
+        this.slots[i] = { id: t && t.id, nick: t && t.nick, me: !!(t && t.me), stage, tag, accKey: null, accs: [] };
       } else cur.stage = stage;
       const s = this.slots[i], p = this.garden.trees[i];
       if (s.tag) s.tag.position.set(p.x, TAG_Y[Math.max(0, stage)], p.z);
+      // 악세서리: 바뀌었거나 단계가 바뀌면 다시 담
+      if (s.accKey !== accKey + '|' + stage) {
+        for (const a of s.accs) this.scene.remove(a); s.accs = [];
+        if (t && t.acc && stage >= 0) {
+          const slots = ACC_SLOTS(stage), size = stage <= 1 ? 0.17 : 0.22;
+          t.acc.slice(0, 4).forEach((e, k) => { const sp = new THREE.Sprite(emojiMat(e)); sp.scale.set(size, size, 1); sp.position.set(p.x + slots[k][0], 0.07 + slots[k][1], p.z + 0.2); sp.renderOrder = 6; this.scene.add(sp); s.accs.push(sp); });
+        }
+        s.accKey = accKey + '|' + stage; this._dirty = true;
+      }
       if (grew) this._sparkle(p.x, TAG_Y[stage] - 0.15, p.z);
     }
     // 내 캐릭터는 내 나무 옆에 서 있음
@@ -159,6 +185,7 @@ export class GardenWorld {
     this.canvas.removeEventListener('pointerdown', this._down); this.canvas.removeEventListener('pointerup', this._up);
     window.removeEventListener('resize', this._resize); document.removeEventListener('visibilitychange', this._vis);
     for (const s of this.slots) if (s && s.tag) { s.tag.material.map.dispose(); s.tag.material.dispose(); }
+    for (const m of EMOJI.values()) { m.map.dispose(); m.dispose(); } EMOJI.clear();
     for (const p of this.people.values()) p.avatar.root.traverse((o) => o.geometry?.dispose?.());
     this.garden.dispose(); this.renderer.dispose();
   }

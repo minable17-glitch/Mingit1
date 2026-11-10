@@ -1989,7 +1989,7 @@ export default function App() {
                     <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}>
                       <Garden3D
                         classInfo={classInfo} studentInfo={studentInfo} role={role}
-                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me }))}
+                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
                         onTapClassTree={() => setShowCommunalDetail(true)}
