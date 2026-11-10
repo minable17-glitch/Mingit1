@@ -10,7 +10,7 @@ const seatKey = (classId, studentId) => `saesak_seat_${classId}_${studentId}`;
 export default function Library3D({
   classInfo, studentInfo, role, reading, myBook, doneToday, dailyTargetMinutes,
   resumeMinutes, bonusResumeMinutes, onStartTarget, onStartFree, onStartBonus,
-  onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer, waterLeft = 0,
+  onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer, waterLeft = 0, onGoGarden,
 }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null), metaRef = useRef(null);
   const [net, setNet] = useState("connecting");       // connecting | online | local | offline
@@ -18,6 +18,7 @@ export default function Library3D({
   const [mySeat, setMySeat] = useState(null);
   const [loading, setLoading] = useState(true);
   const [near, setNear] = useState(true);            // 가까이 보기 / 전체 보기
+  const [leaving, setLeaving] = useState(false);
   const isStudent = role === "student" && !!studentInfo?.id;
   const classId = classInfo?.id;
 
@@ -103,6 +104,11 @@ export default function Library3D({
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", pointerEvents: "auto" }}>
           <button onClick={() => { const n = !near; setNear(n); worldRef.current?.setZoom(n); }} style={{ ...pill, border: "none", cursor: "pointer" }}>{near ? "🔭 전체 보기" : "🔍 가까이 보기"}</button>
           {isStudent && near && <button onClick={() => worldRef.current?.focusMe()} style={{ ...pill, border: "none", cursor: "pointer" }}>📍 내 위치</button>}
+          {onGoGarden && !timer && (
+            <button disabled={leaving} onClick={() => { setLeaving(true); const w = worldRef.current; if (w) w.goGarden(onGoGarden); else onGoGarden(); }}
+              style={{ ...pill, border: "none", cursor: leaving ? "default" : "pointer", color: "#fff", background: leaving ? "#a8c49a" : `linear-gradient(${C.green}, ${C.greenDk})` }}>
+              {leaving ? "정원으로 가는 중…" : waterLeft > 0 ? `🌳 정원 가기 · 💧${waterLeft}` : "🌳 정원 가기"}</button>
+          )}
         </div>
       </div>
 

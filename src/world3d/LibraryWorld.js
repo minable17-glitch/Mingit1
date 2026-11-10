@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { Avatar, LOOKS } from './avatar.js';
 import { buildLibrary, GRID, CELL } from './library.js';
-import { planPath, clampToAisle, entryPoint } from './paths.js';
+import { planPath, clampToAisle, entryPoint, GARDEN_DOOR_CELL } from './paths.js';
+import { gx, gz } from './library.js';
 
 const SIT_Y = 0.05, WALK_SPEED = 1.9, PITCH = THREE.MathUtils.degToRad(44), FOV = 30;
 const lookOf = (id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % LOOKS.length; };
@@ -162,6 +163,17 @@ export class LibraryWorld {
     this.me.state = this.me.seat ? (on ? 'read' : 'sit') : 'stand';
     if (this.me.seat && !this.me.walk) this._placeSeated(this.me);
     this._announce();
+  }
+  // 정원 문으로 걸어가서 나감. 다 걸으면(또는 길어도 5초 뒤) done()
+  goGarden(done) {
+    if (!this.me || this.reading) { done?.(); return; }
+    let fired = false; const finish = () => { if (!fired) { fired = true; done?.(); } };
+    const door = { x: gx(GARDEN_DOOR_CELL[0]) - 0.35, z: gz(GARDEN_DOOR_CELL[1]) };
+    const from = this.me.seat && this.seats.get(this.me.seat) ? { seat: this.seats.get(this.me.seat) } : (this.me.anchor || { x: 0, z: this.me.avatar.root.position.z });
+    this.me.seat = null; this.me.seatAt = 0; this.seatRing.visible = false; this._announce();
+    this.setZoom(false);
+    this._walk(this.me, planPath(from, door), finish);
+    setTimeout(finish, 5000);
   }
   focusMe() { this.panZ = 0; this.panX = 0; this._dirty = true; }
   // 가까이 보기(내 캐릭터를 따라감) ↔ 전체 보기(방 폭이 화면에 꼭 맞음)

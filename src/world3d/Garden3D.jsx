@@ -7,7 +7,7 @@ import { connectRoom } from "./realtime.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
 
-export default function Garden3D({ classInfo, studentInfo, role, trees, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast }) {
+export default function Garden3D({ classInfo, studentInfo, role, trees, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -63,6 +63,10 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
     <div style={{ position: "relative", width: "100%", aspectRatio: "10 / 13", marginTop: 4, overflow: "hidden", background: "#CFE9F5" }}>
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} />
       {!ready && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}
+      {onGoLibrary && ready && (
+        <button onClick={onGoLibrary} style={{ position: "absolute", top: 10, left: 12, border: "none", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, borderRadius: 20,
+          padding: "5px 12px", fontSize: 12.5, color: "#fff", boxShadow: "0 2px 6px #0000001a" }}>📚 도서관 가기</button>
+      )}
       {isStudent && ready && (
         <button onClick={() => setNear((n) => !n)} style={{ position: "absolute", top: 10, right: 12, border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
           padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>

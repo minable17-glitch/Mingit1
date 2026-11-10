@@ -1993,6 +1993,7 @@ export default function App() {
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
                         onTapClassTree={() => setShowCommunalDetail(true)}
+                        onGoLibrary={() => { setTab("read"); window.scrollTo(0, 0); }}
                         onUnsupported={() => { setLab3d(false); showToast("이 기기에서는 3D 정원을 열 수 없어서 기본 화면으로 보여드려요."); }}
                         showToast={showToast}
                       />
@@ -2111,7 +2112,7 @@ export default function App() {
                     onPickBook={() => setTab("search")} onCompleteBook={handleCompleteBook}
                     onTapFriend={(f) => { const m = classmates.find((c) => c.id === f.id); if (m) setSelected(m); else showToast(`${f.nick || "친구"}${f.state === "read" ? " · 읽는 중 📖" : ""}`); }}
                     onUnsupported={() => { setLab3d(false); showToast("이 기기에서는 3D 도서관을 열 수 없어서 기본 화면으로 보여드려요."); }}
-                    showToast={showToast} waterLeft={waterLeft}
+                    showToast={showToast} waterLeft={waterLeft} onGoGarden={() => { setTab("forest"); window.scrollTo(0, 0); }}
                     timer={reading ? { mm, ss, secs, readMode, isBonusRead, minRequired: isBonusRead ? 600 : dailyTargetMinutes * 60, onPause: pauseReading, onFinish: finishManual } : null}
                   />
                 </React.Suspense>

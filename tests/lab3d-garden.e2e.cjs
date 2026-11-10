@@ -1,10 +1,10 @@
-// 3D 정원 자동 점검: 나무 단계 표시 → 물 주기(오래된 물부터) → 나무 성장 → 전체 보기 → 나무 눌러 상세 열기 → SQL 적용 전 기기에서는 예전 방식 유지
+// 3D 정원 자동 점검: 나무 단계·악세서리 표시 → 물 주기 → 성장 → 전체 보기 → 나무 눌러 상세 → SQL 적용 전 기기는 예전 방식
 // 실행: VITE_SUPABASE_URL=https://x.supabase.co VITE_SUPABASE_ANON_KEY=x npx vite --port 4321  (다른 창에서) node tests/lab3d-garden.e2e.cjs
 const { chromium } = require('playwright');
 const OUT = require('path').join(__dirname, 'out'); require('fs').mkdirSync(OUT, { recursive: true });
 const session = JSON.stringify({ role: 'student', classInfo: { id: 'class-demo', name: '3학년 2반', code: '숲123456', start_date: '2026-11-01', goal_pct: 80, daily_target_minutes: 10, challenge_days: 30 }, studentInfo: { id: 'stu-03', nickname: '민수' } });
 const NAMES = ['지우', '서연', '민수', '하준', '도윤', '수아', '예준', '지호', '시우', '유나'], DAYS = [0, 2, 3, 5, 11, 19, 27, 1, 8, 4];
-const roster = NAMES.map((n, i) => ({ id: `stu-${String(i + 1).padStart(2, '0')}`, nickname: n, total_days: DAYS[i], communal_minutes: i * 3, total_pages: i * 10, equipped_accessories: [], created_at: `2026-10-0${1 + (i % 9)}T00:00:0${i}Z` }));
+const roster = NAMES.map((n, i) => ({ id: `stu-${String(i + 1).padStart(2, '0')}`, nickname: n, total_days: DAYS[i], communal_minutes: i * 3, total_pages: i * 10, equipped_accessories: i === 6 ? ['crown', 'butterfly', 'apple', 'star'] : i === 2 ? ['ribbon', 'heart'] : [], created_at: `2026-10-0${1 + (i % 9)}T00:00:0${i}Z` }));
 const logs = [3, 4, 5, 6, 7].map((d, i) => ({ id: `log-${d}`, log_date: `2026-11-0${d}`, minutes: 10, pages: 5, note: '재미있게 읽었어요 열 글자', ocr_excerpt: null, book_id: 'b1', books: { title: '어린 왕자' }, watered_at: i < 3 ? `2026-11-0${d}T08:00:00Z` : null })).reverse();
 async function run(supportsWater) {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -22,7 +22,7 @@ async function run(supportsWater) {
       return json(logs.map((l) => { const c = { ...l }; if (!wet) delete c.watered_at; else if (calls.includes('water:' + l.id) || calls.includes('water:all')) c.watered_at = 'x'; return c; }));
     }
     if (/rest\/v1\/students/.test(url) && /total_days/.test(url)) return json(roster.map((r) => (r.id === 'stu-03' ? { ...r, total_days: 3 + calls.filter((c) => c.startsWith('water:')).length } : r)));
-    if (/rest\/v1\/students/.test(url)) return obj ? json({ accessory_counts: {}, equipped_accessories: [] }) : json([]);
+    if (/rest\/v1\/students/.test(url)) return obj ? json({ accessory_counts: { ribbon: 1, heart: 1 }, equipped_accessories: ['ribbon', 'heart'] }) : json([]);
     if (/rest\/v1\/books/.test(url) && /is_completed=eq\.false/.test(url)) { const book = { id: 'b1', student_id: 'stu-03', title: '어린 왕자', author: '생텍쥐페리', cover_url: null, is_completed: false, started_at: 'x' }; return json(obj ? book : [book]); }
     if (/rpc\/get_class_progress/.test(url)) return json([{ joined_today: 3, total_students: 10, class_pct: 27, communal_minutes: 40 }]);
     if (/rpc\/water_tree/.test(url)) { const body = JSON.parse(req.postData() || '{}'); calls.push('water:' + (body.p_log_id || 'all')); return json(body.p_log_id ? 1 : 2); }
@@ -41,6 +41,7 @@ async function run(supportsWater) {
   console.log(tag, '처음:', JSON.stringify(await state()));
   if (!supportsWater) { await p.screenshot({ path: `${OUT}/g0-legacy.png` }); console.log(tag, 'errors:', errs.length ? errs.slice(0, 5) : 'none'); await b.close(); return; }
   await p.locator('canvas').scrollIntoViewIfNeeded(); await p.screenshot({ path: `${OUT}/g1-before.png` });
+  console.log(tag, '악세서리:', await p.evaluate(() => window.__garden3d.slots.filter((s) => s && s.accs && s.accs.length).map((s) => s.nick + ' ' + s.accs.length + '개').join(', ')));
   await p.getByText(/💧 물 주기/).click();
   const during = await p.evaluate(() => [...window.__garden3d.people.values()][0].avatar.state + ', 버튼: ' + (document.body.innerText.match(/물 주는 중…/) || ['?'])[0]);
   await p.screenshot({ path: `${OUT}/g2-watering.png` });
