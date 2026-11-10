@@ -10,7 +10,7 @@ const seatKey = (classId, studentId) => `saesak_seat_${classId}_${studentId}`;
 export default function Library3D({
   classInfo, studentInfo, role, reading, myBook, doneToday, dailyTargetMinutes,
   resumeMinutes, bonusResumeMinutes, onStartTarget, onStartFree, onStartBonus,
-  onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer,
+  onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer, waterLeft = 0,
 }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null), metaRef = useRef(null);
   const [net, setNet] = useState("connecting");       // connecting | online | local | offline
@@ -32,7 +32,7 @@ export default function Library3D({
     const meId = isStudent ? studentInfo.id : null;
     let lastSeat = null;
     try { lastSeat = isStudent ? Number(localStorage.getItem(seatKey(classId, meId))) || null : null; } catch { /* 저장소를 못 써도 계속 */ }
-    const baseMeta = isStudent ? { nick: studentInfo.nickname, seat: null, state: "stand", seatAt: 0 } : { observer: true };
+    const baseMeta = isStudent ? { nick: studentInfo.nickname, place: "library", seat: null, state: "stand", seatAt: 0 } : { observer: true };
     metaRef.current = baseMeta;
     try {
       world = new LibraryWorld(canvasRef.current, {
@@ -57,7 +57,7 @@ export default function Library3D({
       forceLocal: params.get("rtlocal") === "1",
       onStatus: setNet,
       onSync: (list) => {
-        const students = list.filter((o) => !o.observer);
+        const students = list.filter((o) => !o.observer && (o.place || "library") === "library");   // 정원에 있는 친구는 도서관에 안 보임
         setPeople(students); world.setOthers(students);
       },
     });
@@ -157,7 +157,7 @@ export default function Library3D({
         <div style={{ marginTop: 10 }}>
           {doneToday ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div className="cs-jua" style={{ flex: 1, fontSize: 14, color: C.greenDk }}>오늘 물주기 완료 🌸</div>
+              <div className="cs-jua" style={{ flex: 1, fontSize: 14, color: C.greenDk }}>{waterLeft > 0 ? `오늘 기록 완료 🌸 정원에 줄 물이 ${waterLeft}번 있어요 💧` : "오늘 물주기 완료 🌸"}</div>
               {isStudent && myBook && (
                 <button onClick={() => start(onStartBonus)} className="cs-jua" style={{ padding: "11px 14px", borderRadius: 14, fontSize: 13.5, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                   {bonusResumeMinutes > 0 ? `▶ 보너스 이어 읽기 (${bonusResumeMinutes}분)` : "⏱ 더 읽기 (보너스)"}</button>

@@ -8,11 +8,12 @@ import { planPath, clampToAisle, entryPoint } from './paths.js';
 const SIT_Y = 0.05, WALK_SPEED = 1.9, PITCH = THREE.MathUtils.degToRad(44), FOV = 30;
 const lookOf = (id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % LOOKS.length; };
 
+export { lookOf };
 export function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch { return false; }
 }
 
-function nameTag(text, mine) {
+export function nameTag(text, mine) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d');
   g.font = "600 34px 'Jua', 'Gowun Dodum', sans-serif"; g.textAlign = 'center'; g.textBaseline = 'middle';
   const label = text.length > 7 ? text.slice(0, 6) + '…' : text, w = Math.min(240, g.measureText(label).width + 44);

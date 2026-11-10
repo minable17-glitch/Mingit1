@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import forestBg from "./assets/forest-bg.jpg";
 // 3D 도서관(시험 기능): 켰을 때만 내려받음 — 평소 앱 용량에는 영향 없음
 const Library3D = React.lazy(() => import("./world3d/Library3D.jsx"));
+const Garden3D = React.lazy(() => import("./world3d/Garden3D.jsx"));
 import {
   createClass, studentLogin, logout as apiLogout,
   getClassById, updateClassSettings, getClassProgress,
@@ -15,6 +16,7 @@ import {
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
+  probeWatering, waterTree, getClassReadDays,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -118,6 +120,12 @@ async function preprocessImageForOcr(file) {
   } catch {
     return file; // 전처리에 실패해도 원본 사진으로 계속 진행
   }
+}
+
+// DB의 기록 한 줄을 화면에서 쓰는 모양으로 바꿈. watered: 물을 줬는지(정원 물주기를 안 쓰는 경우엔 항상 true)
+function mapLog(l) {
+  return { id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt,
+    minutes: l.minutes, pages: l.pages, watered: l.watered_at === undefined ? true : !!l.watered_at };
 }
 
 function formatDotDate(isoDate) {
@@ -410,6 +418,11 @@ export default function App() {
       return localStorage.getItem("saesak_lab3d") === "1";
     } catch { return false; }
   });
+  // 정원 물주기(시험 기능): DB에 물주기 SQL이 적용돼 있고 이 기기에서 3D를 켰을 때만 true. 아니면 예전처럼 저장하면 바로 자람
+  const [waterReady, setWaterReady] = useState(false);
+  const [gardenOrder, setGardenOrder] = useState([]);   // 정원 화분 순서(학생 id, 가입한 순서)
+  const waterReadyRef = useRef(false);
+  useEffect(() => { waterReadyRef.current = waterReady; }, [waterReady]);
 
   // ── 역할·학급·학생 세션 ──
   const [role, setRole] = useState(null); // 'teacher' | 'student'
@@ -512,7 +525,10 @@ export default function App() {
   const progressKey = studentInfo?.id || classInfo?.id || null;
   // 새 챌린지를 시작하면 그날부터의 기록만 지금 나무에 반영됨 (그 전 기록은 지난 숲 앨범으로 넘어감)
   const roundStart = albums[0]?.next_start_date || null;
-  const myDays = roundStart ? myLog.filter((l) => l.log_date >= roundStart).length : myLog.length;
+  const myDays = myLog.filter((l) => l.watered !== false && (!roundStart || l.log_date >= roundStart)).length;
+  // 아직 안 준 물: 지금 챌린지 기간의 기록 중 물을 안 준 것(오래된 것부터 줌)
+  const unwatered = waterReady ? myLog.filter((l) => l.watered === false && (!classInfo?.start_date || l.log_date >= classInfo.start_date)) : [];
+  const waterLeft = unwatered.length;
   const myStage = stageFromDays(myDays, challengeDays);
   const timerRef = useRef(null);
   const pageVisibleRef = useRef(true);
@@ -546,7 +562,7 @@ export default function App() {
         }
       }).catch(() => {});
       getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+        if (!waterReadyRef.current) setMyLog(logs.map(mapLog));
       }).catch(() => {});
       getCurrentBook(studentInfo.id).then((b) => { setCurrentBook(b); setMyBook(b?.title ?? null); }).catch(() => {});
       getCompletedBooks(studentInfo.id).then(setMyCompletedBooks).catch(() => {});
@@ -563,6 +579,17 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  useEffect(() => {
+    if (screen !== "main" || !lab3d || role !== "student" || !studentInfo?.id) { setWaterReady(false); return; }
+    let alive = true;
+    probeWatering().then((ok) => {
+      if (!alive || !ok) return;
+      setWaterReady(true); waterReadyRef.current = true;
+      getMyLogs(studentInfo.id, true).then((logs) => { if (alive) setMyLog(logs.map(mapLog)); }).catch(() => {});
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [screen, lab3d, role, studentInfo?.id]);
 
   // 화면을 계속 켜둔 채로(또는 백그라운드에 있다가 다시 열었을 때) 자정을 넘기면
   // "오늘의 반 목표"·오늘 완료 여부·D-day가 그대로 멈춰있던 문제 — 날짜가 바뀐 걸
@@ -632,13 +659,16 @@ export default function App() {
     try {
       const roster = await getClassRoster(classId);
       const allIds = roster.map((s) => s.id);
+      setGardenOrder([...roster].sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).map((s) => s.id));
       const others = roster.filter((s) => s.id !== myStudentId);
       const otherIds = others.map((s) => s.id);
-      const [books, sessions, completedCounts, cheerCounts] = await Promise.all([
+      const [books, sessions, completedCounts, cheerCounts, readDays] = await Promise.all([
         getClassCurrentBooks(otherIds),
         getClassReadingSessions(otherIds),
         getClassCompletedBookCounts(allIds),
         getClassCheersSentCounts(allIds),
+        // 읽은 날 수(개근 배지용): 물주기를 쓰는 경우에만. 실패하면 예전처럼 나무 일수를 씀
+        waterReady ? getClassReadDays(classId).catch(() => null) : Promise.resolve(null),
       ]);
       setClassmatesError("");
       setClassmates(
@@ -658,6 +688,7 @@ export default function App() {
           id: s.id,
           nick: s.nickname,
           totalDays: s.total_days,
+          attendDays: readDays?.[s.id] ?? s.total_days,
           communalMinutes: s.communal_minutes || 0,
           totalPages: s.total_pages || 0,
           completedBooks: completedCounts[s.id] || 0,
@@ -686,7 +717,7 @@ export default function App() {
     const t = setInterval(() => refreshClassmates(classInfo.id, studentInfo?.id), 12000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, tab, role, classInfo?.id, studentInfo?.id]);
+  }, [screen, tab, role, classInfo?.id, studentInfo?.id, waterReady]);
 
   useEffect(() => {
     if (tab !== "search") return;
@@ -1032,8 +1063,8 @@ export default function App() {
       getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
-      getMyLogs(studentInfo.id).then((logs) => {
-        setMyLog(logs.map((l) => ({ id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt, minutes: l.minutes, pages: l.pages })));
+      getMyLogs(studentInfo.id, waterReady).then((logs) => {
+        setMyLog(logs.map(mapLog));
       }).catch(() => {});
     } catch (e) {
       showToast(e.message || "저장에 실패했어요.");
@@ -1067,6 +1098,21 @@ export default function App() {
     showToast(readMode === "target"
       ? `잠깐 멈췄어요. 다음에 이어서 읽으면 남은 ${Math.ceil(secs / 60)}분부터 시작해요 ⏱️`
       : `잠깐 멈췄어요. 다음에 이어서 읽으면 ${Math.floor(secs / 60)}분부터 이어서 시작해요 ⏱️`);
+  };
+
+  // 정원에서 물 주기: all 이 true 면 남은 물 전부, 아니면 가장 오래된 물 1번. 서버가 확인해 준 횟수만큼만 나무가 자람
+  const handleWater = async (all) => {
+    if (!waterReady || unwatered.length === 0) return 0;
+    const oldest = unwatered[unwatered.length - 1];
+    const ids = new Set(all ? unwatered.map((l) => l.id) : [oldest.id]);
+    const before = myStage;
+    const n = await waterTree(all ? null : oldest.id);
+    if (n > 0) {
+      setMyLog((list) => list.map((l) => (ids.has(l.id) ? { ...l, watered: true } : l)));
+      const after = stageFromDays(myDays + n, challengeDays);
+      showToast(after > before ? `물을 줬어요! 나무가 "${STAGE_NAME[after]}" 단계로 자랐어요 🎉` : `물을 ${n}번 줬어요! 나무가 쑥쑥 자라요 🌱💧`);
+    }
+    return n;
   };
 
   const handleCompleteBook = async () => {
@@ -1201,14 +1247,16 @@ export default function App() {
         ocrExcerpt: savedQuote,
         overflowMinutes,
         pages: savedPages,
+        deferWater: waterReady,
       });
       clearPendingReflection(studentInfo.id);
       setReflecting(false); setNote(""); setQuote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ id: saved.id, log_date: saved.log_date, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages }, ...l]);
+      setMyLog((l) => [{ id: saved.id, log_date: saved.log_date, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages, watered: !waterReady }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
-      showToast(overflowMinutes > 0
+      if (waterReady) showToast(`기록을 저장했어요! 정원에서 나무에 물을 주세요 💧${earnedAccessories > 0 ? ` (악세서리 ${earnedAccessories}개 획득 🎁)` : ""}`);
+      else showToast(overflowMinutes > 0
         ? `물을 줬어요! 오늘 ${sessionMinutes}분 읽고 우리 반 나무에 ${overflowMinutes}분 더 기여했어요 🌱💧${earnedAccessories > 0 ? ` (악세서리 ${earnedAccessories}개 획득 🎁)` : ""}`
         : `물을 줬어요! 오늘 ${sessionMinutes}분 읽었어요 🌱`);
       setTimeout(() => setBloomPulse(false), 1400);
@@ -1535,7 +1583,7 @@ export default function App() {
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
   const allTrees = role === "student"
-    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...classmates]
+    ? [{ me: true, id: studentInfo?.id, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...classmates]
     : classmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
@@ -1558,7 +1606,7 @@ export default function App() {
     return top && top[key] > 0 ? top : null;
   };
   const realBadges = [
-    { icon: "🐿️", title: "개근 다람쥐", holder: topByKey("totalDays"), detail: (s) => `누적 ${s.totalDays}일 참여` },
+    { icon: "🐿️", title: "개근 다람쥐", holder: topByKey("attendDays"), detail: (s) => `누적 ${s.attendDays}일 참여` },
     { icon: "☀️", title: "햇살 요정", holder: topByKey("cheersSent"), detail: (s) => `응원 ${s.cheersSent}번 보냄` },
     { icon: "💧", title: "물조리개 대장", holder: topByKey("communalMinutes"), detail: (s) => `우리 반 나무 +${s.communalMinutes}분` },
     { icon: "🍎", title: "열매 부자", holder: topByKey("completedBooks"), detail: (s) => `${s.completedBooks}권 완독` },
@@ -1937,6 +1985,19 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
+                  {lab3d ? (
+                    <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}>
+                      <Garden3D
+                        classInfo={classInfo} studentInfo={studentInfo} role={role}
+                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me }))}
+                        classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
+                        onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
+                        onTapClassTree={() => setShowCommunalDetail(true)}
+                        onUnsupported={() => { setLab3d(false); showToast("이 기기에서는 3D 정원을 열 수 없어서 기본 화면으로 보여드려요."); }}
+                        showToast={showToast}
+                      />
+                    </React.Suspense>
+                  ) : (
                   <div style={{ position: "relative", width: "100%", aspectRatio: "941 / 1672", marginTop: 4, overflow: "hidden",
                     backgroundImage: `url(${forestBg})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}>
                     <div style={{ position: "absolute", left: "14%", top: "18%", fontSize: 20, zIndex: 40, animation: "cs-float 6s ease-in-out infinite" }}>🦋</div>
@@ -1973,6 +2034,7 @@ export default function App() {
                       });
                     })}
                   </div>
+                  )}
                   <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿
                     {albums.length > 0 && (
                       <div>
@@ -2049,7 +2111,7 @@ export default function App() {
                     onPickBook={() => setTab("search")} onCompleteBook={handleCompleteBook}
                     onTapFriend={(f) => { const m = classmates.find((c) => c.id === f.id); if (m) setSelected(m); else showToast(`${f.nick || "친구"}${f.state === "read" ? " · 읽는 중 📖" : ""}`); }}
                     onUnsupported={() => { setLab3d(false); showToast("이 기기에서는 3D 도서관을 열 수 없어서 기본 화면으로 보여드려요."); }}
-                    showToast={showToast}
+                    showToast={showToast} waterLeft={waterLeft}
                     timer={reading ? { mm, ss, secs, readMode, isBonusRead, minRequired: isBonusRead ? 600 : dailyTargetMinutes * 60, onPause: pauseReading, onFinish: finishManual } : null}
                   />
                 </React.Suspense>
@@ -2981,7 +3043,7 @@ export default function App() {
                 <div className="cs-jua" style={{ fontSize: 20, color: C.greenDk }}>오늘의 한 줄 🌱</div>
                 <button onClick={() => setReflecting(false)} style={{ border: "none", background: "transparent", color: C.inkSoft, fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 4 }}>✕</button>
               </div>
-              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>느낀점을 남겨야 나무에 물이 가요. (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, margin: "3px 0 14px" }}>{waterReady ? "느낀점을 남기면 정원에서 줄 수 있는 물이 생겨요." : "느낀점을 남겨야 나무에 물이 가요."} (필수, 최소 {MIN_NOTE_LENGTH}자)</div>
 
               <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 6 }}>📖 인상 깊은 구절 (선택)</div>
               <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleOcrFileSelected} />
@@ -3023,7 +3085,7 @@ export default function App() {
                 border: "none", fontSize: 17, color: "#fff", cursor: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? "pointer" : "not-allowed",
                 background: note.trim().length >= MIN_NOTE_LENGTH && !submitBusy ? `linear-gradient(${C.green}, ${C.greenDk})` : "#c3ccbe",
                 boxShadow: note.trim().length >= MIN_NOTE_LENGTH ? "0 5px 14px #3f7e4e44" : "none" }}>
-                {submitBusy ? "저장 중..." : "💧 물 주기"}</button>
+                {submitBusy ? "저장 중..." : waterReady ? "📔 기록 저장" : "💧 물 주기"}</button>
             </div>
           </div>
         )}
