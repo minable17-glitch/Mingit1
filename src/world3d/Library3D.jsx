@@ -19,9 +19,11 @@ export default function Library3D({
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const isStudent = role === "student" && !!studentInfo?.id;
+  // 선생님도 캐릭터로 걸어 다니며 둘러볼 수 있음(학생 화면에는 보이지 않음, 자리 기록·실시간 상태는 남기지 않음)
+  const canWalk = isStudent || role === "teacher";
   const classId = classInfo?.id;
   // 보는 방법: 뒤에서(3인칭) / 내 눈으로(1인칭) / 전체(위에서). 학생만 걸어 다님
-  const [view, setViewState] = useState(() => (isStudent ? loadView() : "top"));
+  const [view, setViewState] = useState(() => (canWalk ? loadView() : "top"));
   const [cardH, setCardH] = useState(130);
   const [tip, setTip] = useState(false);
   const cardRef = useRef(null);
@@ -47,13 +49,14 @@ export default function Library3D({
     metaRef.current = baseMeta;
     try {
       world = new LibraryWorld(canvasRef.current, {
-        me: isStudent ? { id: meId, nick: studentInfo.nickname } : null,
+        me: isStudent ? { id: meId, nick: studentInfo.nickname } : canWalk ? { id: "teacher-me", nick: "선생님" } : null,
         lastSeat, view,
         onEvent: (type, payload) => {
           if (type === "me") {
+            setMySeat(payload.seat);
+            if (!isStudent) return;      // 선생님 캐릭터는 내 화면에만 있음
             metaRef.current = { ...metaRef.current, ...payload };
             roomRef.current?.update(metaRef.current);
-            setMySeat(payload.seat);
             try { if (payload.seat) localStorage.setItem(seatKey(classId, meId), String(payload.seat)); } catch { /* 무시 */ }
           } else if (type === "tapFriend") cb.current.onTapFriend?.(payload);
           else if (type === "bumped") cb.current.showToast?.("친구가 먼저 앉았어요. 다른 자리를 골라 주세요 🙂");
@@ -63,7 +66,7 @@ export default function Library3D({
       });
     } catch (err) { console.error("3D 도서관을 열지 못했어요:", err); onUnsupported?.(); return undefined; }
     worldRef.current = world; setLoading(false);
-    if (isStudent) { let seen = false; try { seen = !!localStorage.getItem("saesak_lib_tip"); localStorage.setItem("saesak_lib_tip", "1"); } catch { /* 무시 */ } if (!seen) setTip(true); }
+    if (canWalk) { let seen = false; try { seen = !!localStorage.getItem("saesak_lib_tip"); localStorage.setItem("saesak_lib_tip", "1"); } catch { /* 무시 */ } if (!seen) setTip(true); }
     if (params.get("debug") === "1") window.__lib3d = world;   // 자동 점검용
     const room = connectRoom({
       classId, key: meId || `teacher-${Math.random().toString(36).slice(2, 8)}`, meta: baseMeta,
@@ -113,7 +116,7 @@ export default function Library3D({
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", pointerEvents: "auto" }}>
-          {isStudent && !reading && (
+          {canWalk && !reading && (
             <ViewPicker view={view} onChange={chooseView} />
           )}
           {view === "top" && !reading && <button onClick={() => worldRef.current?.focusMe()} style={{ ...pill, border: "none", cursor: "pointer" }}>📍 처음 위치로</button>}
@@ -126,7 +129,7 @@ export default function Library3D({
       </div>
 
       {/* 걷기 조이스틱(학생, 읽지 않을 때) */}
-      {isStudent && !timer && !reading && !loading && <Joystick bottom={cardH + 24} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {canWalk && !timer && !reading && !loading && <Joystick bottom={cardH + 24} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {tip && !timer && (
         <div onClick={() => setTip(false)} style={{ position: "absolute", left: "50%", top: "42%", transform: "translate(-50%, -50%)", background: "#35503Fd9", color: "#fff",
           borderRadius: 16, padding: "12px 16px", fontSize: 13.5, lineHeight: 1.6, textAlign: "center", maxWidth: 280, zIndex: 6 }}>
