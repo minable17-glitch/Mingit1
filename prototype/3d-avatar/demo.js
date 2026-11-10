@@ -7,9 +7,11 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDraw
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight, false);
 const scene = new THREE.Scene();
-scene.add(new THREE.AmbientLight('#fff6ec', 0.75));
-scene.add(new THREE.HemisphereLight('#ffffff', '#ffe3d2', 1.6));
-const sun = new THREE.DirectionalLight('#fff6ea', 0.7); sun.position.set(-2.5, 4, 3.5); scene.add(sun);
+// 점토 인형 같은 부드러운 명암: 주변광은 낮추고, 왼쪽 위 앞에서 오는 따뜻한 빛 + 아래에서 올라오는 살구색 반사광
+scene.add(new THREE.AmbientLight('#fff4ea', 0.55));
+scene.add(new THREE.HemisphereLight('#fffaf2', '#ffdcc2', 1.5));
+const sun = new THREE.DirectionalLight('#fff1dc', 1.15); sun.position.set(-2.2, 3.6, 4.2); scene.add(sun);
+const fill = new THREE.DirectionalLight('#ffe6d6', 0.35); fill.position.set(3, 1.5, 2.5); scene.add(fill);
 const avatars = [];
 let camera;
 if (view === 'faces') {
