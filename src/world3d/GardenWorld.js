@@ -50,7 +50,7 @@ export class GardenWorld {
     this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
     if (opts.me) {
       // 도서관 문 앞에서 나타나, 탁 트인 가운데 길까지 걸어 들어와 우리 반 나무를 바라봄
-      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest(0, 5.2);
+      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 5.0 + Math.random() * 0.5);
       me.avatar.root.position.set(d.x, 0, d.z); me.avatar.root.rotation.y = Math.atan2(st.x - d.x, st.z - d.z);
       this._walk(me, this.nav.path(d, st) || [st], () => { me.avatar.root.rotation.y = Math.PI; this._announce(); });
       this.me = me; me.goal = st; this.rig.snapTo(0);

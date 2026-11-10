@@ -75,7 +75,7 @@ export class LibraryWorld {
       const e = entryPoint();
       this.me = this._addPerson(opts.me.id, opts.me.nick, true);
       // 입구로 들어와서 도서관 안쪽(뒤쪽 통창)을 바라보며 시작
-      const st = this.nav.nearest(0, e.z - 2.4);       // 가운데 통로에서 시작(앞이 탁 트여 있음)
+      const st = this.nav.nearest((Math.random() - 0.5) * 0.7, e.z - 2.2 - Math.random() * 0.8);   // 여럿이 같은 곳에 겹쳐 서지 않게 조금씩 흩어짐       // 가운데 통로에서 시작(앞이 탁 트여 있음)
       this.me.avatar.root.position.set(st.x, 0, st.z); this.me.avatar.root.rotation.y = Math.PI; this.me.anchor = { x: st.x, z: st.z };
       this.rig.snapTo(0);
     }
@@ -104,6 +104,9 @@ export class LibraryWorld {
       const st = p.avatar.state, q = p.avatar.root.position;
       const want = !p.walk && (st === 'sit' || st === 'idle' || (st === 'read' && cam.distanceTo(q) > 5));
       this._setSnap(p, want);
+      // 카메라 바로 앞을 막는 친구는 잠깐 숨김(캐릭터 시점에서만)
+      const block = this.view !== 'top' && Math.hypot(cam.x - q.x, cam.z - q.z) < 0.55 && cam.y < q.y + 1.4;
+      if (p.avatar.root.visible === block) { p.avatar.root.visible = !block; this._dirty = true; }
     }
   }
   _setSnap(p, on) {

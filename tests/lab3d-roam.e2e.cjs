@@ -104,6 +104,17 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
   await A.evaluate(() => { const w = window.__garden3d, s = w.garden.doorSpot, d = s.door; w.me.avatar.root.position.set(s.x, 0, s.z); w.rig.snapTo(Math.atan2(-(d.x - s.x), -(d.z - s.z))); });
   await A.waitForTimeout(300); await stick(A, 0, -40, 1500); await A.waitForTimeout(2500);
   check('정원 문으로 걸어가면 도서관', (await A.getByText('정원 가기').count()) > 0 || (await A.evaluate(() => !!document.querySelector('[data-joystick]') && /도서관/.test(document.body.innerText))));
+  // 선생님으로 들어와도 보는 방법 버튼과 조이스틱이 있고 걸을 수 있음(학생 화면에는 안 보임)
+  const T = await ctx.newPage();
+  await T.route(/supabase\.co/, (route) => { const obj = (route.request().headers()['accept'] || '').includes('vnd.pgrst.object'); if (/get_class_progress/.test(route.request().url())) return route.fulfill({ status: 200, contentType: 'application/json', body: '[{"joined_today":0,"total_students":2,"class_pct":0,"communal_minutes":0}]' }); return route.fulfill({ status: obj ? 406 : 200, contentType: 'application/json', body: obj ? '{}' : '[]' }); });
+  await T.addInitScript(() => { localStorage.setItem('saesak_session', JSON.stringify({ role: 'teacher', classInfo: { id: 'class-demo', name: '3학년 2반', code: '숲123456', start_date: '2026-11-01', goal_pct: 80, daily_target_minutes: 10, challenge_days: 30 } })); localStorage.setItem('saesak_lab3d', '1'); });
+  await T.goto('http://localhost:4321/?lab3d=1&rtlocal=1&debug=1'); await T.waitForTimeout(600); await T.mouse.click(195, 400); await T.waitForTimeout(800);
+  await T.getByText('읽기', { exact: true }).click(); await T.waitForFunction('window.__lib3d && window.__lib3d.me', null, { timeout: 15000 }); await T.waitForTimeout(1200);
+  await T.mouse.click(195, 300); const t0 = await me(T); await stick(T, 0, -40, 1200); const t1 = await me(T);
+  check('선생님도 보는 방법 버튼·조이스틱으로 걷기', (await T.locator('[data-view]').count()) === 3 && Math.hypot(t1.x - t0.x, t1.z - t0.z) > 0.8);
+  await T.screenshot({ path: `${OUT}/roam-13-teacher.png` });
+  await B.bringToFront(); await B.waitForTimeout(3500);
+  check('학생 화면에는 선생님 캐릭터가 안 보임', !(await B.evaluate(() => [...window.__lib3d.people.values()].some((q) => q.nick === '선생님'))));
   console.log(ok.join('\n'));
   console.log('errors:', log.length ? log.slice(0, 8) : 'none');
   await b.close();

@@ -14,8 +14,9 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
   const [ready, setReady] = useState(false);
   const [near, setNear] = useState(true);            // 가까이 보기(내 나무 둘레) / 전체 보기
   const isStudent = role === "student" && !!studentInfo?.id;
+  const canWalk = isStudent || role === "teacher";     // 선생님도 걸어 다니며 둘러봄(학생 화면에는 안 보임)
   const classId = classInfo?.id;
-  const [view, setViewState] = useState(() => (isStudent ? loadView() : "top"));
+  const [view, setViewState] = useState(() => (canWalk ? loadView() : "top"));
   const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); saveView(v); };
   const metaRef = useRef(null), leavingRef = useRef(false);
   const cb = useRef({}); cb.current = { onTapTree, onTapClassTree, onGoLibrary };
@@ -28,11 +29,11 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
     let world;
     try {
       world = new GardenWorld(canvasRef.current, {
-        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname } : null, view,
+        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname } : canWalk ? { id: "teacher-me", nick: "선생님" } : null, view,
         onEvent: (type, payload) => {
           if (type === "tapTree") cb.current.onTapTree?.(payload.id);
           else if (type === "tapClassTree") cb.current.onTapClassTree?.();
-          else if (type === "me") { metaRef.current = { ...metaRef.current, ...payload }; roomRef.current?.update(metaRef.current); }
+          else if (type === "me" && isStudent) { metaRef.current = { ...metaRef.current, ...payload }; roomRef.current?.update(metaRef.current); }
           else if (type === "door" && cb.current.onGoLibrary && !leavingRef.current) { leavingRef.current = true; cb.current.onGoLibrary(); }
         },
       });
@@ -79,16 +80,16 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
         <button onClick={() => { leavingRef.current = true; onGoLibrary(); }} style={{ position: "absolute", top: 10, left: 12, border: "none", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, borderRadius: 20,
           padding: "5px 12px", fontSize: 12.5, color: "#fff", boxShadow: "0 2px 6px #0000001a" }}>📚 도서관 가기</button>
       )}
-      {isStudent && ready && (
+      {canWalk && ready && (
         <div style={{ position: "absolute", top: 10, right: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <ViewPicker view={view} onChange={chooseView} />
-          {view === "top" && (
+          {view === "top" && isStudent && (
             <button onClick={() => setNear((n) => !n)} style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
               padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
           )}
         </div>
       )}
-      {isStudent && ready && !busy && <Joystick bottom={waterReady ? 76 : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {canWalk && ready && !busy && <Joystick bottom={waterReady ? 76 : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {isStudent && waterReady && (
         <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", gap: 8, justifyContent: "center", pointerEvents: "none" }}>
           {waterLeft > 0 ? (
