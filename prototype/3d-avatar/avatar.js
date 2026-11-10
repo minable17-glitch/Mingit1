@@ -4,8 +4,8 @@ import * as THREE from 'three';
 
 const deg = THREE.MathUtils.degToRad;
 export const DEFAULT_LOOK = {
-  skin: '#FFD0A6', hair: '#96563A', shirt: '#AAC45E', collar: '#FBEBC6',
-  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#4A2C1A', cheek: '#FFA98C',
+  skin: '#FFDDC2', hair: '#96563A', shirt: '#AAC45E', collar: '#FBEBC6',
+  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#43281A', cheek: '#FF9BA0', eyeScale: 1.22, cheekScale: 1.25,
 };
 export const LOOKS = [
   {},
@@ -35,18 +35,26 @@ export function drawFace(look, mood = 'smile') {
       g.strokeStyle = look.eye; g.lineWidth = 0.011 * k;
       g.beginPath(); g.ellipse(X(s * 0.086), Y(-0.085), 0.03 * k, 0.022 * k, 0, 0.12 * Math.PI, 0.88 * Math.PI); g.stroke();
     }
-    g.strokeStyle = look.eye; g.lineWidth = 0.008 * k;
-    g.beginPath(); g.ellipse(X(s * 0.094), Y(-0.03), 0.034 * k, 0.022 * k, 0, Math.PI * 1.2, Math.PI * 1.8); g.stroke();
+    g.strokeStyle = look.hair; g.lineWidth = 0.0075 * k;
+    g.beginPath(); g.ellipse(X(s * 0.096), Y(-0.024 + (look.eyeScale - 1) * 0.02), 0.028 * k, 0.018 * k, 0, Math.PI * 1.25, Math.PI * 1.75); g.stroke();
   }
-  ell(0, -0.127, 0.015, 0.011, '#FFA78E');
-  g.lineWidth = 0.009 * k; g.strokeStyle = '#7A4A32';
+  ell(0, -0.132, 0.012, 0.009, '#FF9F8E');
+  g.lineWidth = 0.0085 * k; g.strokeStyle = '#8A5238';
   g.beginPath();
   if (mood === 'read') g.ellipse(X(0), Y(-0.168), 0.011 * k, 0.006 * k, 0, 0.1 * Math.PI, 0.9 * Math.PI);
-  else g.ellipse(X(0), Y(-0.148), 0.032 * k, 0.022 * k, 0, 0.14 * Math.PI, 0.86 * Math.PI);
+  else g.ellipse(X(0), Y(-0.156), 0.026 * k, 0.02 * k, 0, 0.16 * Math.PI, 0.84 * Math.PI);
   g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
+}
+
+function blushTexture(color) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, color + 'e6'); gr.addColorStop(0.45, color + 'b8'); gr.addColorStop(1, color + '00');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 function smooth(pts) { return new THREE.SplineCurve(pts).getPoints(36); }
@@ -77,7 +85,7 @@ export class Avatar {
     const look = (this.look = { ...DEFAULT_LOOK, ...lookIn });
     const root = (this.root = new THREE.Group());
     const M = {
-      skin: mat(look.skin), shirt: mat(look.shirt),
+      skin: mat(look.skin, { emissive: '#FFB493', emissiveIntensity: 0.2 }), shirt: mat(look.shirt),
       collar: mat(look.collar), shorts: mat(look.shorts), shoe: mat(look.shoe), sole: mat(look.sole),
     };
 
@@ -141,15 +149,26 @@ export class Avatar {
     const flat = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
     const onFace = (x, y) => { const z = Math.sqrt(Math.max(0, HEAD_R * HEAD_R - x * x - y * y)); return [THREE.MathUtils.radToDeg(Math.atan2(x, z)), THREE.MathUtils.radToDeg(Math.asin(y / HEAD_R))]; };
     this.eyes = [];
+    const es = look.eyeScale, cs = look.cheekScale;
+    const cheekTex = blushTexture(look.cheek);
     for (const s of [-1, 1]) {
-      const [yw, pt] = onFace(s * 0.086, -0.092);
-      const white = lobe(head, flat('#FFF1D8'), yw + s * 1.2, pt - 1.2, 0.036, 0.05, 0.006, 0, HEAD_R * 1.002); white.renderOrder = 1;
-      const pupil = lobe(head, flat(look.eye), yw, pt, 0.031, 0.047, 0.008, 0, HEAD_R * 1.004); pupil.renderOrder = 2;
-      const [hy, hp] = onFace(s * 0.086 + 0.011, -0.073);
-      const glint = lobe(head, flat('#ffffff'), hy, hp, 0.009, 0.01, 0.004, 0, HEAD_R * 1.012); glint.renderOrder = 3;
-      this.eyes.push(white, pupil, glint);
-      const [cy, cp] = onFace(s * 0.132, -0.158);
-      const cheek = lobe(head, flat(look.cheek, 0.78), cy, cp, 0.04, 0.036, 0.004, 0, HEAD_R * 1.003); cheek.renderOrder = 1;
+      const ex = s * (0.088 + (es - 1) * 0.012), ey = -0.094 - (es - 1) * 0.012;
+      const [yw, pt] = onFace(ex, ey);
+      const white = lobe(head, flat('#FFF4E0'), yw + s * 1.0, pt - 1.0, 0.0365 * es, 0.0505 * es, 0.006, 0, HEAD_R * 1.002); white.renderOrder = 1;
+      const pupil = lobe(head, flat(look.eye), yw, pt, 0.031 * es, 0.047 * es, 0.008, 0, HEAD_R * 1.004); pupil.renderOrder = 2;
+      // 눈동자 아래쪽 밝은 갈색(촉촉한 느낌)
+      const [iy, ip] = onFace(ex, ey - 0.02 * es);
+      const iris = lobe(head, flat('#8A5636', 0.75), iy, ip, 0.021 * es, 0.02 * es, 0.004, 0, HEAD_R * 1.012); iris.renderOrder = 3;
+      const [hy, hp] = onFace(ex + 0.011 * es, ey + 0.02 * es);
+      const glint = lobe(head, flat('#ffffff'), hy, hp, 0.0115 * es, 0.0125 * es, 0.004, 0, HEAD_R * 1.02); glint.renderOrder = 4;
+      const [gy, gp] = onFace(ex - 0.012 * es, ey - 0.014 * es);
+      const glint2 = lobe(head, flat('#ffffff', 0.9), gy, gp, 0.005 * es, 0.0055 * es, 0.003, 0, HEAD_R * 1.022); glint2.renderOrder = 4;
+      this.eyes.push(white, pupil, iris, glint, glint2);
+      // 볼터치: 가장자리가 부드럽게 번지는 원
+      const [cy, cp] = onFace(s * 0.135, -0.158 - (es - 1) * 0.02);
+      const dirc = new THREE.Vector3(Math.sin(deg(cy)) * Math.cos(deg(cp)), Math.sin(deg(cp)), Math.cos(deg(cy)) * Math.cos(deg(cp)));
+      const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.05 * cs, 28), new THREE.MeshBasicMaterial({ map: cheekTex, transparent: true, depthWrite: false }));
+      cheek.position.copy(dirc).multiplyScalar(HEAD_R * 1.004); cheek.lookAt(dirc.clone().multiplyScalar(2)); cheek.scale.y = 0.86; cheek.renderOrder = 1; head.add(cheek);
     }
     // 머리카락: 머리보다 조금 큰 공을 뒤·위로 물려 씌우면 얼굴만 둥글게 드러남 + 앞머리 덩어리
     const hairSolid = mat(look.hair);

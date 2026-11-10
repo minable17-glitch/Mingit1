@@ -8,11 +8,22 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight, false);
 const scene = new THREE.Scene();
 scene.add(new THREE.AmbientLight('#fff6ec', 0.75));
-scene.add(new THREE.HemisphereLight('#ffffff', '#ffeede', 1.6));
+scene.add(new THREE.HemisphereLight('#ffffff', '#ffe3d2', 1.6));
 const sun = new THREE.DirectionalLight('#fff6ea', 0.7); sun.position.set(-2.5, 4, 3.5); scene.add(sun);
 const avatars = [];
 let camera;
-if (view === 'turn') {
+if (view === 'faces') {
+  scene.background = new THREE.Color('#ffffff');
+  const a = innerWidth / innerHeight, h = 0.62;
+  camera = new THREE.OrthographicCamera(-h * a / 2, h * a / 2, h / 2, -h / 2, 0.1, 20);
+  camera.position.set(0, 0.74, 5); camera.lookAt(0, 0.74, 0);
+  const opts = [
+    { skin: '#FFD0A6', cheek: '#FFA98C', eyeScale: 1.0, cheekScale: 0.82, _old: true },
+    {},
+    { eyeScale: 1.42, cheekScale: 1.45, skin: '#FFE2CB' },
+  ];
+  opts.forEach((o, i) => { const av = new Avatar(o); av.root.position.x = (i - 1) * 0.6; av.shadow.visible = false; scene.add(av.root); avatars.push(av); });
+} else if (view === 'turn') {
   scene.background = new THREE.Color('#ffffff');
   const a = innerWidth / innerHeight, h = 1.13;
   camera = new THREE.OrthographicCamera(-h * a / 2, h * a / 2, h / 2, -h / 2, 0.1, 20);
