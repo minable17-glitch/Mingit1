@@ -223,10 +223,11 @@ export async function getClassProgress(classId) {
   return data[0];
 }
 
-export async function getMyLogs(studentId) {
+// withWater: 물 준 시각(watered_at)까지 함께 불러옴 — DB에 정원 물주기 SQL이 적용된 경우에만 true 로 부름
+export async function getMyLogs(studentId, withWater = false) {
   const { data, error } = await supabase
     .from('logs')
-    .select('id, log_date, minutes, pages, note, ocr_excerpt, book_id, books(title)')
+    .select(`id, log_date, minutes, pages, note, ocr_excerpt, book_id, books(title)${withWater ? ', watered_at' : ''}`)
     .eq('student_id', studentId)
     .order('log_date', { ascending: false });
   if (error) throw error;
@@ -279,11 +280,14 @@ export async function getCompletedBooks(studentId) {
   return data;
 }
 
-export async function submitLog({ studentId, bookId, minutes, note, ocrExcerpt = null, overflowMinutes = 0, pages = null }) {
+// deferWater: 물은 나중에 정원에서 줌(watered_at 을 비워서 저장). false 면 예전처럼 저장과 동시에 물을 준 것으로 처리
+export async function submitLog({ studentId, bookId, minutes, note, ocrExcerpt = null, overflowMinutes = 0, pages = null, deferWater = false }) {
   const today = todayKST();
+  const row = { student_id: studentId, book_id: bookId, log_date: today, minutes, note, ocr_excerpt: ocrExcerpt, overflow_minutes: overflowMinutes, pages };
+  if (deferWater) row.watered_at = null;
   const { data, error } = await supabase
     .from('logs')
-    .insert({ student_id: studentId, book_id: bookId, log_date: today, minutes, note, ocr_excerpt: ocrExcerpt, overflow_minutes: overflowMinutes, pages })
+    .insert(row)
     .select('id, log_date, minutes, note, ocr_excerpt, pages')
     .single();
   if (error) throw error;
@@ -311,7 +315,7 @@ export async function getClassLogsForTeacher(classId) {
 export async function getClassRoster(classId) {
   const { data, error } = await supabase
     .from('students')
-    .select('id, nickname, total_days, communal_minutes, total_pages, equipped_accessories')
+    .select('id, nickname, total_days, communal_minutes, total_pages, equipped_accessories, created_at')
     .eq('class_id', classId);
   if (error) throw error;
   return data;
@@ -431,4 +435,28 @@ export async function getForestAlbums(classId) {
   const { data, error } = await supabase.rpc('get_forest_albums', { p_class_id: classId });
   if (error) throw error;
   return data || [];
+}
+
+// ── 정원 물주기 (supabase/garden_watering.sql 을 적용한 DB에서만 동작) ──
+
+// DB에 물주기 기능이 준비돼 있는지 확인. 준비 안 됐으면 예전 방식(저장하면 바로 자람)으로 동작함
+export async function probeWatering() {
+  const { error } = await supabase.from('logs').select('watered_at').limit(1);
+  return !error;
+}
+
+// 물 주기: logId 를 주면 그 기록의 물 1번, 비우면 남은 물 전부. 실제로 준 횟수를 돌려줌
+export async function waterTree(logId = null) {
+  const { data, error } = await supabase.rpc('water_tree', { p_log_id: logId });
+  if (error) throw error;
+  return Number(data) || 0;
+}
+
+// 학생별 읽은 날 수(개근 배지용). 물을 늦게 줘도 개근은 인정되도록 물주기와 별개로 셈
+export async function getClassReadDays(classId) {
+  const { data, error } = await supabase.rpc('get_class_read_days', { p_class_id: classId });
+  if (error) throw error;
+  const by = {};
+  for (const r of data || []) by[r.student_id] = r.days;
+  return by;
 }
