@@ -45,7 +45,7 @@ if (view === 'faces') {
     for (const sx of [-0.17, 0.17]) for (const sz of [-0.2, 0.1]) { const l = rb(0.04, 0.2, 0.04, woodD); l.position.set(sx, 0.1, sz); g.add(l); }
     scene.add(g); return g;
   };
-  const place = (look, x, z, ry, state, sitY = 0) => { const av = new Avatar(look); av.root.position.set(x, sitY, z); av.root.rotation.y = THREE.MathUtils.degToRad(ry); av.setState(state); scene.add(av.root); avatars.push(av); return av; };
+  const place = (look, x, z, ry, state, sitY = 0) => { const av = new Avatar(look); av.root.position.set(x, sitY, z); av.root.rotation.y = THREE.MathUtils.degToRad(ry); av.setState(state); av.lookUp = 0.27; scene.add(av.root); avatars.push(av); return av; };
   desk(-0.75, -0.9); desk(0.75, -0.9); desk(-0.75, 0.5);
   place(LOOKS[0], -0.75, -0.9, 0, 'read', 0.05);
   place(LOOKS[2], 0.75, -0.9, 0, 'sit', 0.05);

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 const deg = THREE.MathUtils.degToRad;
 export const DEFAULT_LOOK = {
   skin: '#FFD9B8', hair: '#96563A', shirt: '#AAC45E', collar: '#FBEBC6',
-  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#4A2B1B', cheek: '#FBA69B', eyeScale: 1.18, cheekScale: 1.0,
+  shorts: '#FBE8C0', shoe: '#B9703F', sole: '#FBE9C4', eye: '#4A2B1B', cheek: '#FBA69B', eyeScale: 1.1, cheekScale: 1.0,
 };
 export const LOOKS = [
   {},
@@ -15,7 +15,7 @@ export const LOOKS = [
 ];
 
 const HEAD_R = 0.24;
-const FACE = { span: 0.46, W: 512, H: 512, alpha: deg(66), t0: deg(40), tLen: deg(108) };
+const FACE = { span: 0.46, W: 1024, H: 1024, alpha: deg(66), t0: deg(40), tLen: deg(108) };
 
 function mat(color, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, ...extra });
@@ -38,9 +38,26 @@ export function drawFace(look, mood = 'smile') {
   }
   g.lineCap = 'round';
   for (const s of [-1, 1]) {
+    const es = look.eyeScale, ex = s * 0.09, ey = -0.09;
+    const nx = 1 / 1.1;   // 볼살 변형으로 가로가 10% 늘어나므로 미리 좁혀 그림(정면에서 원본 비율이 되게)
     if (mood === 'read') {
       g.strokeStyle = look.eye; g.lineWidth = 0.011 * k;
-      g.beginPath(); g.ellipse(X(s * 0.086), Y(-0.085), 0.03 * k, 0.022 * k, 0, 0.12 * Math.PI, 0.88 * Math.PI); g.stroke();
+      g.beginPath(); g.ellipse(X(ex), Y(ey + 0.008), 0.034 * es * k, 0.022 * es * k, 0, 0.12 * Math.PI, 0.88 * Math.PI); g.stroke();
+    } else {
+      const rx = 0.044 * es * k * nx, ry = 0.049 * es * k, cx = X(ex), cy = Y(ey);
+      // 흰자(둥근 타원)
+      g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fillStyle = '#FFF3DA'; g.fill();
+      // 눈동자: 코 쪽·아래로 붙은 큰 타원, 눈 모양 밖으로는 나가지 않게 잘라냄
+      g.save(); g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.clip();
+      const pcx = X(ex - s * 0.0125 * es * nx), pcy = Y(ey - 0.008 * es);
+      g.beginPath(); g.ellipse(pcx, pcy, 0.0315 * es * k * nx, 0.0415 * es * k, 0, 0, Math.PI * 2); g.fillStyle = look.eye; g.fill();
+      g.restore();
+      // 속눈썹 선: 굵기가 일정하고 끝이 둥근 선으로 위쪽과 바깥쪽을 감쌈
+      g.strokeStyle = look.eye; g.lineWidth = 0.0105 * es * k;
+      const d2r = Math.PI / 180, a0 = (s < 0 ? 158 : 212) * d2r, a1 = (s < 0 ? 328 : 382) * d2r;
+      g.beginPath(); g.ellipse(cx, cy, rx + 0.002 * k, ry + 0.002 * k, 0, a0, a1); g.stroke();
+      // 반짝임
+      g.beginPath(); g.ellipse(X(ex - s * 0.0125 * es * nx + 0.006 * es), Y(ey - 0.008 * es + 0.019 * es), 0.0098 * es * k * nx, 0.0098 * es * k, 0, 0, Math.PI * 2); g.fillStyle = '#FFF6E2'; g.fill();
     }
     g.strokeStyle = '#5A3320'; g.lineWidth = 0.0095 * k;
     g.beginPath(); g.ellipse(X(s * 0.1), Y(-0.002), 0.032 * k, 0.019 * k, s * -0.12, Math.PI * 1.22, Math.PI * 1.78); g.stroke();
@@ -186,15 +203,7 @@ export class Avatar {
     // 원본 그림의 눈 구조: 둥근 크림색 흰자 + 안쪽·아래로 붙은 눈동자 + 위·바깥쪽을 감싸는 짙은 속눈썹 선
     this.eyes = [];
     const es = look.eyeScale, cs = look.cheekScale;
-    const ball = new THREE.SphereGeometry(1, 24, 18), disc = new THREE.CircleGeometry(1, 28);
-    for (const s of [-1, 1]) {
-      const ex = s * 0.098, ey = -0.09;
-      const lash = decal(head, ball, flat(look.eye), ex + s * 0.0045 * es, ey + 0.0065 * es, 0.047 * es, 0.0515 * es, 0.004, 1.003, 1);
-      const white = decal(head, ball, flat('#FFF3DA'), ex, ey, 0.044 * es, 0.049 * es, 0.005, 1.005, 2);
-      const pupil = decal(head, ball, flat(look.eye), ex - s * 0.0135 * es, ey - 0.0075 * es, 0.0305 * es, 0.0405 * es, 0.006, 1.008, 3);
-      const glint = decal(head, ball, flat('#FFF6E2'), ex - s * 0.0135 * es + 0.006 * es, ey + 0.013 * es, 0.0092 * es, 0.0098 * es, 0.003, 1.02, 4);
-      this.eyes.push(lash, white, pupil, glint);
-    }
+    const ball = new THREE.SphereGeometry(1, 24, 18);
     // 코: 살짝 튀어나온 둥근 코
     decal(head, ball, mat('#F9A88E', { emissive: '#F58F78', emissiveIntensity: 0.25 }), 0, -0.134, 0.0185, 0.0165, 0.014, 1.0, 0);
     // 머리카락: 머리보다 조금 큰 공을 뒤·위로 물려 씌우면 얼굴만 둥글게 드러남 + 앞머리 덩어리
@@ -224,6 +233,7 @@ export class Avatar {
 
     this.t = Math.random() * 10;
     this.state = 'idle';
+    this.lookUp = 0;   // 고개 드는 각도(라디안). 내려다보는 카메라에서는 0.25 정도
   }
 
   setMood(mood) { this.faceMat.map.dispose(); this.faceMat.map = drawFace(this.look, mood); }
@@ -239,7 +249,7 @@ export class Avatar {
     this.t += dt;
     const t = this.t, [la, ra] = this.arms, [ll, rl] = this.legs;
     const rest = (a) => { a.rotation.set(0, 0, a.userData.side * deg(33)); };
-    this.body.position.y = 0; this.torso.rotation.set(0, 0, 0); this.head.rotation.set(0, 0, 0);
+    this.body.position.y = 0; this.torso.rotation.set(0, 0, 0); this.head.rotation.set(-this.lookUp, 0, 0);
     ll.rotation.set(0, 0, 0); rl.rotation.set(0, 0, 0); rest(la); rest(ra);
     this.torso.position.set(0, 0, 0);
     if (this.state === 'idle') {
@@ -255,7 +265,7 @@ export class Avatar {
       ll.rotation.x = deg(-86); rl.rotation.x = deg(-86);
       if (this.state === 'read') {
         la.rotation.set(deg(-58), 0, deg(14)); ra.rotation.set(deg(-58), 0, deg(-14));
-        this.head.rotation.x = deg(9) + Math.sin(t * 0.9) * 0.02;
+        this.head.rotation.x = deg(9) - this.lookUp * 0.5 + Math.sin(t * 0.9) * 0.02;
         this.torso.rotation.x = deg(5);
         this.book.position.set(0, 0.385, 0.2); this.book.rotation.set(deg(38), 0, 0);
       } else {
