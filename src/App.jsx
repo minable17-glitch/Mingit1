@@ -12,7 +12,7 @@ import {
   requestPasswordReset, resetTeacherPassword, resetStudentPin, requestUsernameReminder,
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
-  pauseChallenge, resumeChallenge,
+  pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -118,6 +118,10 @@ async function preprocessImageForOcr(file) {
   }
 }
 
+function formatDotDate(isoDate) {
+  return isoDate ? isoDate.replaceAll("-", ".") : "";
+}
+
 function formatLogDate(isoDate) {
   if (!isoDate) return "";
   const d = new Date(isoDate + "T00:00:00");
@@ -147,7 +151,7 @@ const GUIDE_TEACHER = [
   { title: "3. 학생에게 반 코드 알려주기", body: "학생들은 이 반 코드로 접속해서 닉네임을 등록해요.\n처음 로그인할 때 PIN은 기본 0000이고, 이후 학생이 직접 바꿀 수 있어요." },
   { title: "4. 반 관리 화면에서 확인하기", body: "우측 상단(또는 하단 탭)의 '반 관리'에서 학생별 참여일수·시간·기록을 확인할 수 있어요.\n닉네임을 누르면 그 학생의 날짜별 기록을 보고, 필요하면 하나씩 삭제할 수 있어요.\nPIN을 잊은 학생은 여기서 초기화(0000)해줄 수 있어요." },
   { title: "5. 참여율·목표 시간 설정 바꾸기", body: "반 관리 화면에서 목표 참여율, 하루 읽기 목표 시간, 챌린지 기간(일수)을 언제든 수정할 수 있어요." },
-  { title: "6. 챌린지 다시 시작하기", body: "새 학기나 새 챌린지를 시작할 때 '챌린지 오늘부터 다시 시작' 버튼을 누르면\n반 전체 진행률과 D-day만 초기화돼요. 학생들이 키운 나무와 기록은 그대로 남아요." },
+  { title: "6. 새 챌린지 시작하기", body: "새 학기나 새 챌린지를 시작할 때 '새 챌린지 시작' 버튼을 누르면\n지금까지 키운 숲과 학생들의 독후감이 '지난 숲 앨범'에 저장되고, 모든 나무가 새싹부터 다시 자라요.\n앨범은 숲 화면 아래 '📚 지난 숲 앨범'에서 언제든 다시 볼 수 있어요." },
   { title: "7. 챌린지 일시정지하기", body: "시험기간처럼 며칠 쉬어야 할 때 '챌린지 일시정지' 버튼을 누르면\n그동안은 D-day가 늘어나지 않아요. 학생들은 원하면 계속 읽을 수 있고, 끝나면 '다시 진행하기'를 눌러주면 돼요." },
   { title: "8. 엑셀로 내려받기", body: "반 관리 화면에서 전체 기록을 엑셀 파일로 내려받아 보관하거나 학부모 안내에 활용할 수 있어요." },
 ];
@@ -458,6 +462,10 @@ export default function App() {
   const [classProgress, setClassProgress] = useState({ joined_today: 0, total_students: 1, class_pct: 0 });
   const [bloomPulse, setBloomPulse] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [albums, setAlbums] = useState([]); // 지난 숲 앨범 (최신순)
+  const [showAlbums, setShowAlbums] = useState(false);
+  const [albumView, setAlbumView] = useState(null); // 앨범 목록에서 고른 숲
+  const [albumTree, setAlbumTree] = useState(null); // 앨범 숲에서 누른 학생 나무
   const [showCommunalDetail, setShowCommunalDetail] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -491,7 +499,10 @@ export default function App() {
   const challengeDays = classInfo?.challenge_days ?? 30;
   // 학생 로그인이면 학생 id로, 선생님 체험 모드면 학급 id로 저장해서 어느 쪽이든 이어읽기가 되게 함
   const progressKey = studentInfo?.id || classInfo?.id || null;
-  const myStage = stageFromDays(myLog.length, challengeDays);
+  // 새 챌린지를 시작하면 그날부터의 기록만 지금 나무에 반영됨 (그 전 기록은 지난 숲 앨범으로 넘어감)
+  const roundStart = albums[0]?.next_start_date || null;
+  const myDays = roundStart ? myLog.filter((l) => l.log_date >= roundStart).length : myLog.length;
+  const myStage = stageFromDays(myDays, challengeDays);
   const timerRef = useRef(null);
   const pageVisibleRef = useRef(true);
   const wakeLockRef = useRef(null);
@@ -646,6 +657,17 @@ export default function App() {
       setClassmatesError(e?.message || e?.error_description || JSON.stringify(e) || "알 수 없는 오류");
     }
   };
+
+  const refreshAlbums = (classId) => {
+    // 앨범 표/함수가 아직 DB에 없더라도 앱은 그대로 동작하도록 실패는 조용히 무시
+    getForestAlbums(classId).then(setAlbums).catch(() => setAlbums([]));
+  };
+
+  useEffect(() => {
+    if (screen !== "main" || !classInfo?.id) return;
+    refreshAlbums(classInfo.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, classInfo?.id, classInfo?.start_date]);
 
   useEffect(() => {
     if (screen !== "main" || (tab !== "forest" && tab !== "rank") || !classInfo?.id) return;
@@ -1210,7 +1232,7 @@ export default function App() {
   const goalMet = TOTAL > 0 && todayRate >= goalPct;
 
   const teacherStats = teacherRoster.map((s) => {
-    const rows = teacherLogs.filter((l) => l.student_id === s.id);
+    const rows = teacherLogs.filter((l) => l.student_id === s.id && (!roundStart || l.log_date >= roundStart));
     return {
       id: s.id,
       nick: s.nickname,
@@ -1430,15 +1452,38 @@ export default function App() {
 
   const handleResetChallenge = async () => {
     if (!classInfo?.id) return;
-    if (!window.confirm(`오늘부터 새로운 ${challengeDays}일 챌린지를 다시 시작할까요?\n학생들의 나무와 기록은 그대로 유지되고, "우리 반 숲" 진행률과 D-day만 오늘 기준으로 초기화돼요.`)) return;
+    if (!window.confirm(`오늘부터 새로운 ${challengeDays}일 챌린지를 시작할까요?\n\n` +
+      `• 지금까지 키운 숲과 학생들의 독후감은 "지난 숲 앨범"에 저장돼요.\n` +
+      `• 모든 학생의 나무가 새싹부터 다시 자라요.\n` +
+      `• 읽기 기록·독후감 원본도 지워지지 않고 그대로 남아요.`)) return;
     try {
-      const today = todayKST();
-      const updated = await updateClassSettings(classInfo.id, { startDate: today });
+      const updated = await startNewChallenge(classInfo.id);
       setClassInfo(updated);
       setSession({ role: "teacher", classInfo: updated });
+      refreshAlbums(classInfo.id);
       refreshClassProgress(classInfo.id);
-      showToast("챌린지를 오늘부터 다시 시작했어요! 🌱");
-    } catch (e) { showToast(e.message || "챌린지 재시작에 실패했어요."); }
+      refreshClassmates(classInfo.id, studentInfo?.id);
+      showToast("지난 숲을 앨범에 저장하고, 새 챌린지를 시작했어요! 🌱");
+    } catch (e) { showToast(e.message || "새 챌린지 시작에 실패했어요."); }
+  };
+
+  const handleExportAlbum = (album) => {
+    try {
+      const students = album.snapshot?.students || [];
+      const daily = students.flatMap((st) => (st.logs || []).map((l) => ({
+        닉네임: st.nickname, 날짜: l.date, 책제목: l.book || "", "읽은시간(분)": l.minutes, "읽은페이지수": l.pages ?? "",
+        "인상깊은구절": l.quote ?? "", 느낀점: l.note,
+      })));
+      const summary = students.map((st) => ({ 닉네임: st.nickname, 완료일수: st.days, "총 독서시간(분)": st.minutes,
+        "읽은페이지수": st.pages, 완독한책: (st.completed_books || []).join(", ") }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(daily), "독후감");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "학생요약");
+      XLSX.writeFile(wb, `새싹책방_${album.round_no}기숲_${album.period_start || ""}~${album.period_end || ""}.xlsx`);
+      showToast("엑셀 파일을 내려받았어요 📄");
+    } catch {
+      showToast("미리보기에선 다운로드가 막힐 수 있어요. 실제 앱에선 저장돼요.");
+    }
   };
 
   const handleTogglePause = async () => {
@@ -1470,7 +1515,7 @@ export default function App() {
 
   const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
   const allTrees = role === "student"
-    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myLog.length, accessories: equippedAccessories }, ...classmates]
+    ? [{ me: true, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...classmates]
     : classmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
@@ -1515,18 +1560,40 @@ export default function App() {
   const FOREST_RING_MAX_R = 0.46; // 화면 좌우 밖으로 넘어가지 않게 잡아두는 한계 반지름 (학생이 아주 많을 때만 씀)
   const FOREST_RING_ARC_UNIT = 0.19; // 나무 한 명이 원 둘레에서 차지하는 길이 — 클릭하기 편하도록 넉넉하게 잡음
   const FOREST_IMAGE_ASPECT = 941 / 1672; // 가로 기준 비율을 세로 기준으로 바꿀 때 씀 (원이 타원이 되지 않도록)
-  const forestRings = [];
-  {
-    const items = [...allTrees];
+  const buildForestRings = (trees) => {
+    const rings = [];
+    const items = [...trees];
     let ringIndex = 0;
     while (items.length) {
       const radius = ringIndex < FOREST_RING_RADII.length ? FOREST_RING_RADII[ringIndex] : FOREST_RING_MAX_R;
       const capacity = Math.max(6, Math.round((2 * Math.PI * radius) / FOREST_RING_ARC_UNIT));
-      forestRings.push({ radius, members: items.splice(0, capacity) });
+      rings.push({ radius, members: items.splice(0, capacity) });
       ringIndex += 1;
     }
-  }
-  const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, toast: 400 };
+    return rings;
+  };
+  const forestRings = buildForestRings(allTrees);
+  // 앨범 숲: 그때 저장해둔 학생별 일수로 나무 단계를 다시 그림
+  const albumTrees = albumView
+    ? (albumView.snapshot?.students || []).map((st) => ({
+        ...st, id: st.student_id, nick: st.nickname,
+        stage: stageFromDays(st.days, albumView.challenge_days), accessories: st.accessories || [],
+      }))
+    : [];
+  const albumRings = buildForestRings(albumTrees);
+  const albumCommunal = (() => {
+    if (!albumView) return null;
+    const snap = albumView.snapshot || {};
+    const total = snap.total_students || 0;
+    const pct = Number(snap.class_pct) || 0;
+    const bonus = total > 0 ? Math.min(25, Math.round((snap.communal_minutes || 0) / (total * 10))) : 0;
+    return {
+      pct: Math.min(100, pct + bonus),
+      classPct: pct,
+      stage: getStageInfo(Math.round((pct / 100) * albumView.challenge_days), albumView.challenge_days).stage,
+    };
+  })();
+  const Z = { communal: 15, tabbar: 100, timer: 200, reflect: 210, card: 250, album: 270, albumCard: 280, toast: 400 };
 
   const TABS = [
     { id: "forest", icon: "🌳", label: "숲" },
@@ -1886,7 +1953,15 @@ export default function App() {
                       });
                     })}
                   </div>
-                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿</div>
+                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿
+                    {albums.length > 0 && (
+                      <div>
+                        <button onClick={() => { setAlbumView(null); setShowAlbums(true); }} className="cs-jua" style={{ marginTop: 10,
+                          border: `1.5px solid ${C.green}`, background: "#fff", color: C.greenDk, borderRadius: 16, padding: "9px 18px",
+                          fontSize: 13.5, cursor: "pointer" }}>📚 지난 숲 앨범 ({albums.length})</button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -2214,6 +2289,151 @@ export default function App() {
           </>
         )}
 
+        {/* 지난 숲 앨범 */}
+        {showAlbums && (
+          <div style={{ position: "fixed", inset: 0, background: C.paper, zIndex: Z.album, overflowY: "auto" }}>
+            <div style={{ maxWidth: 440, margin: "0 auto", paddingBottom: 30 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 8px" }}>
+                {albumView ? (
+                  <button onClick={() => setAlbumView(null)} style={{ border: "none", background: "transparent", color: C.green,
+                    fontSize: 14, cursor: "pointer", padding: 0 }}>← 앨범 목록</button>
+                ) : (
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>📚 지난 숲 앨범</div>
+                )}
+                <button onClick={() => { setShowAlbums(false); setAlbumView(null); }} style={{ border: "none", background: "#00000010",
+                  borderRadius: 16, width: 32, height: 32, fontSize: 15, color: C.inkSoft, cursor: "pointer" }}>✕</button>
+              </div>
+
+              {!albumView && (
+                <div style={{ padding: "0 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ fontSize: 12.5, color: C.inkSoft, marginBottom: 2 }}>새 챌린지를 시작할 때마다 그동안 키운 숲이 여기에 저장돼요.</div>
+                  {albums.length === 0 && (
+                    <div style={{ textAlign: "center", color: C.inkSoft, fontSize: 13, padding: 24 }}>아직 저장된 숲이 없어요.</div>
+                  )}
+                  {albums.map((a) => (
+                    <button key={a.id} onClick={() => setAlbumView(a)} style={{ textAlign: "left", background: "#fff", borderRadius: 16,
+                      border: "1px solid #eee5d3", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 30 }}>🌳</div>
+                      <div style={{ flex: 1 }}>
+                        <div className="cs-jua" style={{ fontSize: 17, color: C.greenDk }}>{a.round_no}기 숲</div>
+                        <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{formatDotDate(a.period_start)} ~ {formatDotDate(a.period_end)}</div>
+                        <div style={{ fontSize: 12, color: C.ink, marginTop: 2 }}>
+                          반 진행률 {Number(a.snapshot?.class_pct) || 0}% · 학생 {(a.snapshot?.students || []).length}명</div>
+                      </div>
+                      <div style={{ color: C.green, fontSize: 18 }}>›</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {albumView && (
+                <>
+                  <div style={{ padding: "0 18px 8px" }}>
+                    <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>🌳 {albumView.round_no}기 숲</div>
+                    <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 1 }}>
+                      {albumView.snapshot?.class_name ? `${albumView.snapshot.class_name} · ` : ""}
+                      {formatDotDate(albumView.period_start)} ~ {formatDotDate(albumView.period_end)}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft, margin: "10px 0 4px" }}>
+                      <span>우리 반 숲 ({albumView.challenge_days}일 누적)</span><span>{albumCommunal.classPct}%</span></div>
+                    <div style={{ height: 9, background: "#e6eadf", borderRadius: 6, overflow: "hidden" }}>
+                      <div style={{ width: `${albumCommunal.classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})` }} /></div>
+                  </div>
+                  <div style={{ position: "relative", width: "100%", aspectRatio: "941 / 1672", overflow: "hidden",
+                    backgroundImage: `url(${forestBg})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}>
+                    <div style={{ position: "absolute", left: `${FOREST_CENTER_X}%`, top: `${FOREST_CENTER_Y}%`, transform: "translate(-50%,-100%)",
+                      zIndex: Z.communal, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <CommunalTree size={116} pct={albumCommunal.pct} stage={albumCommunal.stage} />
+                      <div style={{ marginTop: 1, background: "#fff", padding: "3px 13px", borderRadius: 16, fontSize: 12, color: C.greenDk,
+                        boxShadow: "0 2px 6px #0002", border: `1px solid ${C.leafL}` }} className="cs-jua">🌳 우리 반 나무</div>
+                    </div>
+                    {albumRings.map((ring, ringIndex) => {
+                      const scale = Math.max(0.62, 1 - ringIndex * 0.1);
+                      const n = ring.members.length;
+                      const angleOffset = (360 / (2 * Math.max(n, 1))) * (ringIndex % 2);
+                      return ring.members.map((t, i) => {
+                        const rad = ((angleOffset + (360 / n) * i - 90) * Math.PI) / 180;
+                        const leftPct = FOREST_CENTER_X + ring.radius * 100 * Math.cos(rad);
+                        const topPct = FOREST_CENTER_Y + ring.radius * 100 * Math.sin(rad) * FOREST_IMAGE_ASPECT;
+                        const isMe = role === "student" && t.id === studentInfo?.id;
+                        return (
+                          <div key={t.id || t.nick} onClick={() => setAlbumTree(t)} style={{ position: "absolute", left: `${leftPct}%`, top: `${topPct}%`,
+                            transform: "translate(-50%,-100%)", zIndex: 10 + ringIndex, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                            <Tree stage={t.stage} size={58 * scale} accessories={t.accessories} />
+                            <div style={{ marginTop: 1, background: isMe ? "#fff" : "#ffffffcc", border: isMe ? `2px solid ${C.gold}` : "1px solid #fff",
+                              borderRadius: 9, padding: "1px 5px", boxShadow: "0 2px 4px #0000000f" }}>
+                              <div className="cs-hand" style={{ fontSize: 12, lineHeight: 1.1, color: C.greenDk, maxWidth: 52, overflow: "hidden",
+                                textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nick}</div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", padding: "14px 0" }}>
+                    나무를 누르면 그때 기록과 독후감을 볼 수 있어요 📖</div>
+                  {role === "teacher" && (
+                    <div style={{ padding: "12px 18px 0" }}>
+                      <button onClick={() => handleExportAlbum(albumView)} className="cs-jua" style={{ width: "100%", padding: 12, borderRadius: 12,
+                        border: "none", background: C.greenDk, color: "#fff", fontSize: 14, cursor: "pointer" }}>
+                        📄 이 숲의 독후감 전체 엑셀로 저장</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 앨범 숲의 나무 상세 (그때 기록 + 독후감) */}
+        {albumTree && albumView && (
+          <div onClick={() => setAlbumTree(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.albumCard,
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: C.paper, borderRadius: "24px 24px 0 0",
+              padding: "20px 22px 30px", animation: "cs-up .28s ease", maxHeight: "85vh", overflowY: "auto" }}>
+              <div style={{ width: 44, height: 5, background: "#00000018", borderRadius: 3, margin: "0 auto 14px" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Tree stage={albumTree.stage} size={64} accessories={albumTree.accessories} />
+                <div>
+                  <div className="cs-jua" style={{ fontSize: 22, color: C.greenDk }}>{albumTree.nick}</div>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>
+                    {albumView.round_no}기 숲 · {STAGE_NAME[albumTree.stage]} 단계까지 자랐어요</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                {[["💧", `${albumTree.days || 0}일`, "물 준 날"], ["⏱", `${albumTree.minutes || 0}분`, "읽은 시간"], ["📄", `${albumTree.pages || 0}쪽`, "읽은 쪽수"]].map(([icon, v, label]) => (
+                  <div key={label} style={{ flex: 1, background: "#fff", borderRadius: 14, padding: "10px 6px", textAlign: "center", border: "1px solid #eee5d3" }}>
+                    <div style={{ fontSize: 18 }}>{icon}</div>
+                    <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginTop: 2 }}>{v}</div>
+                    <div style={{ fontSize: 11, color: C.inkSoft }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              {(albumTree.completed_books || []).length > 0 && (
+                <div style={{ fontSize: 12.5, color: C.ink, marginTop: 12 }}>🍎 완독: {albumTree.completed_books.join(", ")}</div>
+              )}
+              <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, margin: "16px 0 8px" }}>✏️ 독후감</div>
+              {!albumTree.logs ? (
+                <div style={{ fontSize: 12.5, color: C.inkSoft, background: "#fff", borderRadius: 12, padding: 14, textAlign: "center" }}>
+                  🔒 독후감은 본인과 선생님만 볼 수 있어요.</div>
+              ) : albumTree.logs.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: C.inkSoft, background: "#fff", borderRadius: 12, padding: 14, textAlign: "center" }}>
+                  이 기간에 남긴 독후감이 없어요.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[...albumTree.logs].reverse().map((l, i) => (
+                    <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "11px 13px", border: "1px solid #eee5d3" }}>
+                      <div style={{ fontSize: 11.5, color: C.inkSoft }}>
+                        {formatLogDate(l.date)}{l.book ? ` · ${l.book}` : ""} · {l.minutes}분{l.pages ? ` · ${l.pages}쪽` : ""}</div>
+                      {l.quote && <div style={{ fontSize: 12.5, color: C.green, marginTop: 5, fontStyle: "italic", whiteSpace: "pre-wrap" }}>“{l.quote}”</div>}
+                      <div style={{ fontSize: 13.5, color: C.ink, marginTop: 5, whiteSpace: "pre-wrap" }}>{l.note}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 나무 상세 + 응원 */}
         {selected && (
           <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "#2e3d2f99", zIndex: Z.card,
@@ -2416,9 +2636,12 @@ export default function App() {
                   "우리 반 숲" 진행률, D-day 표시, 나무가 자라는 속도가 모두 이 기간을 기준으로 계산돼요. 이미 시작한 챌린지 중에 바꿔도 지금까지 기록은 그대로 유지돼요.</div>
                 <button onClick={handleResetChallenge} style={{ width: "100%", marginTop: 10, padding: 11, borderRadius: 10,
                   border: `1px dashed ${C.gold}`, background: "#fff9ec", color: C.gold, fontSize: 13, cursor: "pointer" }} className="cs-jua">
-                  🔄 챌린지 오늘부터 다시 시작</button>
+                  🌱 새 챌린지 시작 (지금 숲은 앨범에 저장)</button>
                 <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 6 }}>
-                  D-day와 "우리 반 숲" 진행률만 오늘부터 새로 시작돼요. 학생들이 키운 나무·기록·완독은 그대로 남아요.</div>
+                  지금까지 키운 숲과 학생들의 독후감이 "지난 숲 앨범"에 저장되고, 모든 나무가 새싹부터 다시 자라요. 기록 원본도 지워지지 않아요.</div>
+                <button onClick={() => { setShowTeacher(false); setAlbumView(null); setShowAlbums(true); }} style={{ width: "100%", marginTop: 8,
+                  padding: 11, borderRadius: 10, border: `1px solid ${C.green}`, background: "#fff", color: C.greenDk, fontSize: 13,
+                  cursor: "pointer" }} className="cs-jua">📚 지난 숲 앨범 보기 ({albums.length})</button>
                 <button onClick={handleTogglePause} style={{ width: "100%", marginTop: 10, padding: 11, borderRadius: 10,
                   border: isPaused ? "none" : `1px dashed ${C.inkSoft}`, background: isPaused ? C.green : "#f7f5ee",
                   color: isPaused ? "#fff" : C.inkSoft, fontSize: 13, cursor: "pointer" }} className="cs-jua">

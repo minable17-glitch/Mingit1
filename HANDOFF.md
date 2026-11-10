@@ -119,6 +119,14 @@ export function daysBetweenDateStrings(startStr, endStr) { /* 두 날짜 문자�
 
 **교훈**: 같은 계정으로 여러 기기/탭에서 동시 로그인하면 `auth_user_id`가 마지막 로그인 세션으로 덮어써지므로, 먼저 열어둔 세션은 그 다음 쓰기 작업에서 RLS 위반이 날 수 있음. 실제 학생 1인당 1세션이면 발생하지 않지만, 테스트 중 같은 계정을 여러 번/여러 곳에서 로그인하면 재현됨.
 
+## 9-1. 지난 숲 앨범 + 새 챌린지 (나무 새싹부터 다시)
+
+- 반 관리의 "🌱 새 챌린지 시작" 버튼 → RPC `start_new_challenge`: 지금 숲(학생별 일수·시간·쪽수·완독·장착 악세서리)과 **독후감 전체 복사본**을 `forest_albums.snapshot`(jsonb)에 저장 → 학생 `total_days`/`communal_minutes`/`total_pages`를 오늘 기록만 남기고 다시 셈 → `classes.start_date`를 오늘로. 같은 날 두 번 누르면 막힘.
+- `get_forest_albums`: 선생님은 모든 학생 독후감, 학생은 자기 독후감만 (`logs` 키를 서버에서 제거). 학생이 삭제돼도 앨범 복사본은 남음(학급 삭제 시에는 함께 삭제).
+- 프론트: `albums[0].next_start_date`(= 현재 챌린지 시작일)부터의 기록만 내 나무 단계(`myDays`)와 선생님 통계에 반영. 앨범 함수가 DB에 없으면 조용히 무시하고 예전처럼 동작.
+- `teacher_delete_log`도 수정: 앨범으로 넘어간 지난 기록을 지우면 지금 나무 일수는 줄지 않음.
+- SQL: `supabase/forest_album.sql` (schema.sql 끝에도 동일 내용 추가됨). 사용자가 SQL Editor에서 실행해야 반영됨.
+
 ## 10. 작업 시 유의사항 (다음 AI 세션을 위한 팁)
 
 - **사용자는 비개발자**입니다. SQL/코드 설명 시 "이거 실행해도 기존 데이터 안 없어져요" 같은 안심 문구를 항상 포함할 것.
