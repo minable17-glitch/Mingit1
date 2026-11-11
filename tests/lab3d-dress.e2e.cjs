@@ -27,7 +27,7 @@ async function open(ctx, id, nick, log, dress) {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const A = await open(ctx, 'stu-minsu', '민수', log, null);
-  await A.waitForFunction('window.__garden3d && window.__garden3d.me', null, { timeout: 20000 });
+  await A.waitForFunction('window.__garden3d && window.__garden3d.me', null, { timeout: 20000, polling: 300 });
   await A.getByText('내 캐릭터 꾸미기').waitFor({ timeout: 10000 }).catch(() => {});
   check('처음 들어오면 꾸미기 창이 저절로 열림', (await A.getByText('내 캐릭터 꾸미기').count()) > 0 && (await A.getByLabel('닫기').count()) === 0);
   await A.getByRole('button', { name: '👧 여자' }).click(); await A.waitForTimeout(600);
@@ -41,13 +41,13 @@ async function open(ctx, id, nick, log, dress) {
   check('정원 내 캐릭터가 바뀜', (await A.evaluate(() => window.__garden3d.me.lookKey)) === want);
   check('창이 닫힘', (await A.getByText('내 캐릭터 꾸미기').count()) === 0);
   await A.screenshot({ path: `${OUT}/dress-02-garden.png` });
-  await A.getByText('읽기', { exact: true }).click(); await A.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000 }).catch(async (e) => { await A.screenshot({ path: OUT + '/dress-fail.png' }); throw e; }); await A.waitForTimeout(1200);
+  await A.getByText('읽기', { exact: true }).click(); await A.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000, polling: 300 }).catch(async (e) => { await A.screenshot({ path: OUT + '/dress-fail.png' }); throw e; }); await A.waitForTimeout(1200);
   check('도서관 내 캐릭터도 같은 모습', (await A.evaluate(() => window.__lib3d.me.lookKey)) === want);
   check('도서관에서는 꾸미기 창이 다시 안 열림', (await A.getByText('내 캐릭터 꾸미기').count()) === 0);
   await A.screenshot({ path: `${OUT}/dress-03-library.png` });
   // 친구 화면
   const B = await open(ctx, 'stu-jiwoo', '지우', log, { g: 'boy', hs: 'short', hc: 0, sc: 3, b: 'pants', bc: 2 });
-  await B.bringToFront(); await B.getByText('읽기', { exact: true }).click(); await B.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000 }).catch(async (e) => { await B.screenshot({ path: OUT + '/dress-failB.png' }); console.log('B:', await B.evaluate(() => [!!window.__lib3d, window.__lib3d && window.__lib3d._synced, document.body.innerText.slice(0, 200)])); throw e; }); await B.waitForTimeout(3000);
+  await B.bringToFront(); await B.getByText('읽기', { exact: true }).click(); await B.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000, polling: 300 }).catch(async (e) => { await B.screenshot({ path: OUT + '/dress-failB.png' }); console.log('B:', await B.evaluate(() => [!!window.__lib3d, window.__lib3d && window.__lib3d._synced, document.body.innerText.slice(0, 200)])); throw e; }); await B.waitForTimeout(3000);
   const seen = () => B.evaluate(() => { const p = [...window.__lib3d.people.values()].find((q) => q.nick === '민수'); return p && p.lookKey; });
   check('친구 화면에 내가 고른 모습', (await seen()) === want, await seen());
   check('꾸미기를 한 친구(지우)는 처음 창이 안 열림', (await B.getByText('내 캐릭터 꾸미기').count()) === 0);
