@@ -309,13 +309,17 @@ export class LibraryWorld {
     };
     this._up = (e) => {
       const had = pts.delete(e.pointerId); if (pts.size < 2) pinch = 0;
-      if (had && start && !moved && pts.size === 0 && e.type === 'pointerup') this._tap(e.clientX, e.clientY);
+      if (had && start && !moved && pts.size === 0 && e.type === 'pointerup') this._queueTap(e.clientX, e.clientY);
       if (pts.size === 0) start = null;
     };
     this._wheel = (e) => { if (this.view !== 'third') return; e.preventDefault(); this.rig.zoom(e.deltaY > 0 ? 1.1 : 0.9); this._dirty = true; };
     el.addEventListener('pointerdown', this._down); el.addEventListener('pointermove', this._move);
     el.addEventListener('pointerup', this._up); el.addEventListener('pointercancel', this._up);
     el.addEventListener('wheel', this._wheel, { passive: false });
+    // 폰에서는 손을 뗀 뒤 '클릭'이 한 번 더 옴. 손을 떼자마자 창을 열면 그 클릭이 방금 연 창의 바깥을 눌러 바로 닫혀 버림
+    // → 클릭이 온 다음(안 오면 0.35초 뒤)에 누른 것을 처리
+    this._click = () => { const t = this._pendingTap; if (!t) return; this._pendingTap = null; clearTimeout(t.timer); this._tap(t.x, t.y); };
+    el.addEventListener('click', this._click);
     // 키보드(컴퓨터): 방향키·WASD로 걷기
     const KEY = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
     this._key = (e) => {
@@ -329,6 +333,11 @@ export class LibraryWorld {
     this._resize = () => this.resize(); window.addEventListener('resize', this._resize);
     this._vis = () => { if (document.visibilityState === 'visible') { this.clock.getDelta(); this._dirty = true; } else this.keys.clear(); };
     document.addEventListener('visibilitychange', this._vis);
+  }
+  _queueTap(x, y) {
+    if (this._pendingTap) clearTimeout(this._pendingTap.timer);
+    const t = { x, y }; t.timer = setTimeout(() => { if (this._pendingTap === t) { this._pendingTap = null; this._tap(x, y); } }, 350);
+    this._pendingTap = t;
   }
   _tap(cx, cy) {
     const r = this.canvas.getBoundingClientRect();
@@ -436,7 +445,7 @@ export class LibraryWorld {
     this.disposed = true; cancelAnimationFrame(this._raf);
     const el = this.canvas;
     el.removeEventListener('pointerdown', this._down); el.removeEventListener('pointermove', this._move);
-    el.removeEventListener('pointerup', this._up); el.removeEventListener('pointercancel', this._up); el.removeEventListener('wheel', this._wheel);
+    el.removeEventListener('pointerup', this._up); el.removeEventListener('pointercancel', this._up); el.removeEventListener('wheel', this._wheel); el.removeEventListener('click', this._click); if (this._pendingTap) clearTimeout(this._pendingTap.timer);
     window.removeEventListener('keydown', this._key); window.removeEventListener('keyup', this._key); window.removeEventListener('blur', this._blur);
     window.removeEventListener('resize', this._resize); document.removeEventListener('visibilitychange', this._vis);
     // 도서관 장면의 도형·재질·그림은 이 화면 전용이라 정리함. 캐릭터 재질은 다음에 다시 쓰므로 도형만 정리
