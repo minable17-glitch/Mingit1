@@ -62,7 +62,7 @@ export function snapshotParts(avatar, key) {
     const n = g.attributes.position.count, col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) { col[i * 3] = m.color.r; col[i * 3 + 1] = m.color.g; col[i * 3 + 2] = m.color.b; }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    (m.emissiveIntensity > 0 ? emis : plain).push(g);
+    (m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0 ? emis : plain).push(g);   // 빛나는 재질(피부·코)만 따로
   });
   const parts = [];
   if (plain.length) parts.push({ geo: mergeGeometries(plain, false), mat: snapMat(false), order: 0 });
@@ -281,13 +281,14 @@ export class Avatar {
       const ear = new THREE.Mesh(new THREE.SphereGeometry(0.043, 10, 8), M.skin); ear.scale.z = 0.62; ear.position.set(s * 0.236, -0.112, -0.02); head.add(ear);
     }
     // 얼굴 그림(표정 교체 가능)
-    this.faceMat = new THREE.MeshBasicMaterial({ map: drawFace(look, 'smile'), transparent: true, depthWrite: false });
+    // 얼굴 그림은 머리 겉면에 아주 얇게 붙어 있어서, 깊이 정밀도가 낮은 기기에서 머리 피부에 가려질 수 있음 → 항상 머리보다 앞에 그리도록 당김
+    this.faceMat = new THREE.MeshBasicMaterial({ map: drawFace(look, 'smile'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
     const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.006, 26, 18, Math.PI / 2 - FACE.alpha, FACE.alpha * 2, FACE.t0, FACE.tLen);
     { const p = faceGeo.attributes.position, uv = faceGeo.attributes.uv;
       for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / FACE.span + 0.5, p.getY(i) / FACE.span + 0.5); }
     puffGeometry(faceGeo);
     const face = new THREE.Mesh(faceGeo, this.faceMat);
-    face.renderOrder = 0; head.add(face);
+    face.renderOrder = 1; head.add(face);
     // 눈·볼터치: 머리 표면에 붙인 납작한 조각(옆에서 봐도 모양 유지)
     const ball = new THREE.SphereGeometry(1, 14, 10);
     // 코: 살짝 튀어나온 둥근 코

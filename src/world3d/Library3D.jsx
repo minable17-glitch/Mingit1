@@ -132,7 +132,7 @@ export default function Library3D({
       {canWalk && !timer && !reading && !loading && <Joystick bottom={cardH + 24} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {tip && !timer && (
         <div onClick={() => setTip(false)} style={{ position: "absolute", left: "50%", top: "42%", transform: "translate(-50%, -50%)", background: "#35503Fd9", color: "#fff",
-          borderRadius: 16, padding: "12px 16px", fontSize: 13.5, lineHeight: 1.6, textAlign: "center", maxWidth: 280, zIndex: 6 }}>
+          borderRadius: 16, padding: "12px 18px", fontSize: 13.5, lineHeight: 1.7, textAlign: "left", width: "max-content", maxWidth: "88%", whiteSpace: "nowrap", zIndex: 6 }}>
           🕹️ 왼쪽 아래 동그라미를 밀면 걸어요<br />👆 화면을 끌면 둘레를 둘러봐요<br />🪑 빈 의자를 누르면 가서 앉아요
         </div>
       )}

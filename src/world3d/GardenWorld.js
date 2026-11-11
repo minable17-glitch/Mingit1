@@ -173,7 +173,7 @@ export class GardenWorld {
   setView(v) {
     if (!this.me) v = 'top';
     this.view = v; if (v !== 'top') this.rig.setMode(v);
-    this.camera.fov = VIEW_FOV[v]; this.camera.updateProjectionMatrix();
+    this.camera.fov = VIEW_FOV[v]; this.camera.near = v === 'top' ? 1 : 0.15; this.camera.updateProjectionMatrix();   // 가까운 면을 멀리 둘수록 깊이 정밀도가 좋아져 얼굴 그림이 덜 가려짐
     this.garden.faceBackdrop(v === 'top' ? THREE.MathUtils.degToRad(48) : 0);
     this.garden.front.visible = v !== 'top';
     for (const p of this.people.values()) { p.avatar.lookUp = v === 'top' ? 0.3 : 0.04; if (!p.walk) p.avatar.update(0); }
