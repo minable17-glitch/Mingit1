@@ -18,7 +18,17 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
   const classId = classInfo?.id;
   const [view, setViewState] = useState(() => (canWalk ? loadView() : "top"));
   const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); saveView(v); };
-  const metaRef = useRef(null), leavingRef = useRef(false);
+  const metaRef = useRef(null), leavingRef = useRef(false), boxRef = useRef(null);
+  // 정원 화면이 화면 아래(탭바 위)까지 꽉 차도록 높이를 맞춤(위쪽 반 목표 카드 높이에 따라 달라짐)
+  const [boxH, setBoxH] = useState(null);
+  const [tip, setTip] = useState(true);
+  useEffect(() => {
+    const fit = () => { const el = boxRef.current; if (!el) return; const top = el.getBoundingClientRect().top + window.scrollY; setBoxH(Math.max(420, Math.round(window.innerHeight - top - 68))); };
+    fit(); const t = setTimeout(fit, 400); window.addEventListener("resize", fit);
+    return () => { clearTimeout(t); window.removeEventListener("resize", fit); };
+  }, []);
+  useEffect(() => { const t = setTimeout(() => setTip(false), 5000); return () => clearTimeout(t); }, []);
+  useEffect(() => { worldRef.current?.resize(); }, [boxH]);
   const cb = useRef({}); cb.current = { onTapTree, onTapClassTree, onGoLibrary };
   // 화분 개수가 달라질 때만 장면을 다시 지음(학생이 32명을 넘으면 화단이 늘어남)
   const islands = Math.max(8, Math.ceil((trees?.length || 0) / 4));
@@ -72,7 +82,7 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", aspectRatio: "10 / 13", marginTop: 4, overflow: "hidden", background: "#CFE9F5" }}>
+    <div ref={boxRef} style={{ position: "relative", width: "100%", ...(boxH ? { height: boxH } : { aspectRatio: "10 / 13" }), marginTop: 6, overflow: "hidden", background: "#CFE9F5" }}>
       {/* 캐릭터 시점에서는 화면을 끌어 둘러보므로 페이지 스크롤을 막음(위에서 보기는 예전처럼 스크롤 가능) */}
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: view === "top" ? "pan-y" : "none" }} />
       {!ready && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}
@@ -88,6 +98,10 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
               padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
           )}
         </div>
+      )}
+      {tip && ready && (
+        <div style={{ position: "absolute", left: "50%", top: 54, transform: "translateX(-50%)", background: "#35503Fcc", color: "#fff", borderRadius: 14,
+          padding: "6px 12px", fontSize: 12, whiteSpace: "nowrap", pointerEvents: "none" }}>🌳 나무를 누르면 그 친구가 읽는 책이 보여요</div>
       )}
       {canWalk && ready && !busy && <Joystick bottom={waterReady ? 76 : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {isStudent && waterReady && (

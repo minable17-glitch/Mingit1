@@ -2036,7 +2036,8 @@ export default function App() {
                     })}
                   </div>
                   )}
-                  <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: 6, padding: "16px 0 14px" }}>나무를 누르면 그 친구가 읽는 책이 보여요 🌿
+                  {/* 3D 정원은 화면 아래까지 꽉 차고 안내는 정원 안에 잠깐 뜸 → 아래 띠는 앨범이 있을 때만 */}
+                  {(!lab3d || albums.length > 0) && <div style={{ textAlign: "center", fontSize: 12, color: "#4b6b3f", background: "#DDE9D3", marginTop: lab3d ? 0 : 6, padding: lab3d ? "4px 0 14px" : "16px 0 14px" }}>{!lab3d && "나무를 누르면 그 친구가 읽는 책이 보여요 🌿"}
                     {albums.length > 0 && (
                       <div>
                         <button onClick={() => { setAlbumView(null); setShowAlbums(true); }} className="cs-jua" style={{ marginTop: 10,
@@ -2044,7 +2045,7 @@ export default function App() {
                           fontSize: 13.5, cursor: "pointer" }}>📚 지난 숲 앨범 ({albums.length})</button>
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </>
               )}
 

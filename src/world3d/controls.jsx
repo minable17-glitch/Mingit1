@@ -23,7 +23,7 @@ export function ViewPicker({ view, onChange }) {
 export function Joystick({ onMove, bottom }) {
   const base = useRef(null), id = useRef(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
-  const R = 42;
+  const R = 34, active = id.current != null || knob.x !== 0 || knob.y !== 0;
   const upd = (e) => {
     const r = base.current.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
     const d = Math.hypot(dx, dy); if (d > R) { dx = (dx / d) * R; dy = (dy / d) * R; }
@@ -35,11 +35,11 @@ export function Joystick({ onMove, bottom }) {
       onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); id.current = e.pointerId; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } upd(e); }}
       onPointerMove={(e) => { if (e.pointerId === id.current) upd(e); }}
       onPointerUp={end} onPointerCancel={end}
-      style={{ position: "absolute", left: 16, bottom, width: 2 * R + 34, height: 2 * R + 34, borderRadius: "50%", background: "#ffffff66", border: "2px solid #ffffffcc",
-        boxShadow: "0 4px 14px #3f7e4e2e", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", zIndex: 5 }}
+      style={{ position: "absolute", left: 14, bottom, width: 2 * R + 28, height: 2 * R + 28, borderRadius: "50%", background: active ? "#ffffff70" : "#ffffff40",
+        border: "1.5px solid #ffffffb0", boxShadow: "0 3px 10px #3f7e4e22", opacity: active ? 1 : 0.85, transition: "opacity .2s, background .2s", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", zIndex: 5 }}
       onContextMenu={(e) => e.preventDefault()}>
-      <div style={{ position: "absolute", left: "50%", top: "50%", width: 50, height: 50, marginLeft: -25, marginTop: -25, borderRadius: "50%",
-        background: "radial-gradient(circle at 35% 30%, #ffffff, #dff0d6)", border: `2px solid ${C.green}`, boxShadow: "0 3px 8px #3f7e4e44",
+      <div style={{ position: "absolute", left: "50%", top: "50%", width: 40, height: 40, marginLeft: -20, marginTop: -20, borderRadius: "50%",
+        background: "radial-gradient(circle at 35% 30%, #ffffff, #dff0d6)", border: `2px solid ${C.green}`, boxShadow: "0 2px 6px #3f7e4e44",
         transform: `translate(${knob.x}px, ${knob.y}px)`, pointerEvents: "none" }} />
     </div>
   );
