@@ -305,10 +305,31 @@ export function buildLibrary(scene) {
   }
   // 앞쪽 통창: 위에서 내려다볼 때는 화면을 가리므로 숨기고, 캐릭터 시점에서만 보임
   const front = new THREE.Group(); front.visible = false; root.add(front);
+  const ceiling = new THREE.Group(); front.add(ceiling);   // 천장도 앞 통창과 함께 캐릭터 시점에서만 보임
   { const fb = new Batch();
     for (let c = 0; c <= GRID.w; c += 6) fb.add(P.frame, box, gx(c), WALL_H / 2, zFront, 0, 0.09, WALL_H, 0.09);
     for (const y of [0.05, 2.05, WALL_H]) fb.add(P.frame, box, 0, y, zFront, 0, W + 0.1, y === 2.05 ? 0.06 : 0.1, 0.1);
     fb.build(front); }
+  // 천장(캐릭터 시점에서만 보임): 따뜻한 나무 천장 + 들보 + 가운데 줄 채광창 + 모둠 위 매달린 등
+  { const cb = new Batch(), CH = WALL_H;
+    for (let c = 0; c <= GRID.d; c += 8) cb.add(P.frame, box, 0, CH - 0.09, Math.min(gz(c), zFront), 0, W, 0.18, 0.14);   // 가로 들보(통창 기둥과 맞춤)
+    for (const x of [-W / 2 + 0.05, W / 2 - 0.05]) cb.add(P.frame, box, x, CH - 0.07, 0, 0, 0.12, 0.14, D);             // 양옆 테두리
+    cb.add(P.frame, box, 0, CH - 0.06, 0, 0, 0.1, 0.12, D);                                                               // 가운데 마룻대
+    for (const [cx, cy] of CLUSTER_CENTERS) {                                                                              // 모둠 위 매달린 등
+      const x = gx(cx), z = gz(cy);
+      cb.add(P.frame, cyl, x, CH - 0.45, z, 0, 0.008, 0.9, 0.008);                                                         // 줄
+      cb.add(P.shelf, new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), x, CH - 0.92, z, 0, 0.26, 0.17, 0.26);  // 갓
+    }
+    cb.build(ceiling);
+    const plankTex = woodFloorTexture({ ...P, floor: '#F1D5AE', floorLine: '#E3BF92' }); plankTex.center.set(0.5, 0.5); plankTex.rotation = Math.PI / 2; plankTex.repeat.set(D / 2.4, W / 2.4);
+    const top = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: plankTex, roughness: 1 }));
+    top.rotation.x = Math.PI / 2; top.position.y = CH; ceiling.add(top);                                                    // 아래(방 안)를 향하는 면
+    const sky = new THREE.MeshBasicMaterial({ color: '#FFF3D6', side: THREE.DoubleSide, fog: false });                    // 채광창: 하늘빛이 들어오는 밝은 칸
+    for (let c = 4; c < GRID.d; c += 16) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.0), sky); m.rotation.x = Math.PI / 2; m.position.set(0, CH - 0.005, gz(c + 4)); ceiling.add(m); }
+    for (const [cx, cy] of CLUSTER_CENTERS) {                                                                              // 등불 + 은은한 빛
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 10), lampMat); b.position.set(gx(cx), CH - 0.96, gz(cy)); ceiling.add(b);
+      const h = new THREE.Sprite(glowMat); h.scale.set(0.9, 0.9, 1); h.position.copy(b.position); h.renderOrder = 4; ceiling.add(h);
+    } }
   const glass = new THREE.MeshBasicMaterial({ color: '#EAF7FF', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
   for (const x of [xL, xR]) { const g = new THREE.Mesh(new THREE.PlaneGeometry(D, WALL_H), glass); g.rotation.y = Math.PI / 2; g.position.set(x, WALL_H / 2, 0); root.add(g); }
   { const g = new THREE.Mesh(new THREE.PlaneGeometry(W, WALL_H), glass); g.position.set(0, WALL_H / 2, zBack); root.add(g); }
