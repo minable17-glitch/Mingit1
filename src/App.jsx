@@ -16,7 +16,7 @@ import {
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
-  probeWatering, waterTree, getClassReadDays,
+  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -580,6 +580,30 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  // 캐릭터 꾸미기(성별·머리·옷): 기기에 먼저 저장하고, 서버(supabase/avatar_dress.sql 적용 시)에도 저장해 다른 기기에서도 같은 모습
+  const [myDress, setMyDress] = useState(null);
+  const [dressReady, setDressReady] = useState(false);   // 서버 확인까지 끝났는지(처음 꾸미기 창을 띄울지 정할 때 씀)
+  const dressKeyLS = studentInfo?.id ? `saesak_dress_${studentInfo.id}` : null;
+  useEffect(() => {
+    if (screen !== "main" || role !== "student" || !studentInfo?.id) { setMyDress(null); setDressReady(false); return; }
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(`saesak_dress_${studentInfo.id}`) || "null"); } catch { /* 무시 */ }
+    setMyDress(local); setDressReady(false);
+    let alive = true;
+    getMyAvatar(studentInfo.id).then((d) => {
+      if (!alive) return;
+      if (d) { setMyDress(d); try { localStorage.setItem(`saesak_dress_${studentInfo.id}`, JSON.stringify(d)); } catch { /* 무시 */ } }
+      else if (local) saveMyAvatar(local).catch(() => {});     // 기기에만 있던 것을 서버에도 올림
+      setDressReady(true);
+    }).catch(() => { if (alive) setDressReady(true); });
+    return () => { alive = false; };
+  }, [screen, role, studentInfo?.id]);
+  const saveDress = async (d) => {
+    setMyDress(d);
+    try { if (dressKeyLS) localStorage.setItem(dressKeyLS, JSON.stringify(d)); } catch { /* 무시 */ }
+    try { await saveMyAvatar(d); return true; } catch { return false; }   // 서버 저장 실패(SQL 적용 전 등)여도 이 기기에는 저장됨
+  };
 
   // 2D 화면(3D가 안 되는 기기·?lab3d=0)에는 정원 물주기 버튼이 없음 → 3D에서 저장해 두고 아직 안 준 물이 있으면 자동으로 줘서 나무가 자라게 함
   useEffect(() => {
@@ -2003,6 +2027,7 @@ export default function App() {
                     <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}>
                       <Garden3D
                         classInfo={classInfo} studentInfo={studentInfo} role={role}
+                        myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
                         trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
@@ -2121,6 +2146,7 @@ export default function App() {
                 <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>도서관 문을 여는 중…</div>}>
                   <Library3D
                     classInfo={classInfo} studentInfo={studentInfo} role={role} reading={reading}
+                    myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
                     myBook={myBook} doneToday={doneToday} dailyTargetMinutes={dailyTargetMinutes}
                     resumeMinutes={Math.floor(getResumeElapsed(false) / 60)} bonusResumeMinutes={Math.floor(getResumeElapsed(true) / 60)}
                     onStartTarget={() => startReading("target")} onStartFree={() => startReading("free")} onStartBonus={() => startReading("free", true)}

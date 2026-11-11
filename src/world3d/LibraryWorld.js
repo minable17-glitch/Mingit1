@@ -1,7 +1,7 @@
 // 도서관 3D 장면 엔진 — 그리기, 카메라, 터치, 걷기, 앉기, 친구 표시
 // React와 분리된 순수 클래스. 화면(Library3D.jsx)이 만들고, 이벤트로만 소통함.
 import * as THREE from 'three';
-import { Avatar, LOOKS, snapshotParts } from './avatar.js';
+import { Avatar, LOOKS, snapshotParts, cleanDress, lookFromDress, dressKey } from './avatar.js';
 import { buildLibrary, GRID, CELL } from './library.js';
 import { entryPoint, GARDEN_DOOR_CELL } from './paths.js';
 import { gx, gz } from './library.js';
@@ -28,6 +28,11 @@ function standPoint(nav, s, from) {
   return nav.nearest(s.x, s.z);
 }
 const lookOf = (id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % LOOKS.length; };
+// 꾸미기를 한 학생은 고른 모습, 안 한 학생은 이름으로 정해지는 기본 모습 4가지 중 하나
+export function makeAvatar(id, dress) {
+  const d = cleanDress(dress);
+  return { avatar: new Avatar(d ? lookFromDress(d) : LOOKS[lookOf(id)]), key: d ? dressKey(d) : 'L' + lookOf(id) };
+}
 
 export { lookOf };
 export function webglAvailable() {
@@ -75,7 +80,7 @@ export class LibraryWorld {
 
     if (opts.me) {
       const e = entryPoint();
-      this.me = this._addPerson(opts.me.id, opts.me.nick, true);
+      this.me = this._addPerson(opts.me.id, opts.me.nick, true, opts.me.dress);
       // 입구로 들어와서 도서관 안쪽(뒤쪽 통창)을 바라보며 시작
       const st = this.nav.nearest((Math.random() - 0.5) * 0.7, e.z - 2.2 - Math.random() * 0.8);   // 여럿이 같은 곳에 겹쳐 서지 않게 조금씩 흩어짐       // 가운데 통로에서 시작(앞이 탁 트여 있음)
       this.me.avatar.root.position.set(st.x, 0, st.z); this.me.avatar.root.rotation.y = Math.PI; this.me.anchor = { x: st.x, z: st.z };
@@ -88,16 +93,29 @@ export class LibraryWorld {
   }
 
   // ── 사람 추가/삭제
-  _addPerson(id, nick, mine = false) {
-    const avatar = new Avatar(LOOKS[lookOf(id)]);
+  _addPerson(id, nick, mine = false, dress = null) {
+    const { avatar, key } = makeAvatar(id, dress);
     avatar.lookUp = this.view === 'top' ? 0.3 : 0.04; avatar.setState('idle'); avatar.update(0);
     const tag = nameTag(nick || '친구', mine); avatar.root.add(tag);
     this.scene.add(avatar.root);
-    const p = { id, nick, avatar, tag, seat: null, state: 'stand', walk: null, anchor: null, mine, seatAt: 0, goal: null };
+    const p = { id, nick, avatar, tag, seat: null, state: 'stand', walk: null, anchor: null, mine, seatAt: 0, goal: null, lookKey: key };
     avatar.root.userData.personId = id;
     if (mine && this.view === 'first') avatar.root.visible = false;
     this.people.set(id, p); return p;
   }
+  // 꾸미기를 바꾸면 캐릭터를 새 모습으로 갈아 끼움(자리·자세·이름표는 그대로)
+  _swapLook(p, dress) {
+    const { avatar, key } = makeAvatar(p.id, dress); if (key === p.lookKey) return;
+    const old = p.avatar.root;
+    avatar.root.position.copy(old.position); avatar.root.rotation.copy(old.rotation); avatar.root.visible = old.visible;
+    avatar.root.userData.personId = p.id; avatar.lookUp = p.avatar.lookUp;
+    old.remove(p.tag); avatar.root.add(p.tag);
+    this.scene.remove(old); old.traverse((o) => { if (!o.userData.snap) o.geometry?.dispose?.(); });
+    p.avatar = avatar; p.lookKey = key; p.snap = null; p.snapKey = null; p.snapOn = null;
+    avatar.setState(p.walk ? 'walk' : (p.mine && this._moving) ? 'walk' : this._poseFor(p)); avatar.update(0);
+    this.scene.add(avatar.root); this._dirty = true;
+  }
+  setMyDress(dress) { if (this.me) { this._swapLook(this.me, dress); if (this.me.seat && !this.me.walk) this._placeSeated(this.me); } }
   // 가만히 있는 친구는 굳힌 모습으로 그림(읽는 친구는 가까이 있을 때만 움직이는 모습)
   _lod() {
     const cam = this.camera.position;
@@ -112,7 +130,7 @@ export class LibraryWorld {
     }
   }
   _setSnap(p, on) {
-    const root = p.avatar.root, key = `${lookOf(p.id)}|${p.avatar.state}|${p.avatar.lookUp}`;
+    const root = p.avatar.root, key = `${p.lookKey}|${p.avatar.state}|${p.avatar.lookUp}`;
     if (on && p.snapKey !== key) {
       if (p.snap) { root.remove(p.snap); p.snap = null; }
       for (const c of root.children) if (c !== p.tag) c.visible = true;
@@ -195,7 +213,8 @@ export class LibraryWorld {
     for (const o of list) {
       if (this.me && o.id === this.me.id) continue;
       let p = this.people.get(o.id); const isNew = !p;
-      if (isNew) p = this._addPerson(o.id, o.nick);
+      if (isNew) p = this._addPerson(o.id, o.nick, false, o.dress);
+      else this._swapLook(p, o.dress);
       p.seatAt = o.seatAt || 0;
       const seat = o.seat && this.seats.has(o.seat) ? o.seat : null;
       if (seat) { if (seat !== p.seat) this._moveToSeat(p, seat, isNew); }

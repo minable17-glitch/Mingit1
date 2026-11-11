@@ -19,7 +19,7 @@ async function open(ctx, id, nick, log) {
     if (/\/rest\/v1\//.test(url)) return route.fulfill({ status: obj ? 406 : 200, contentType: 'application/json', body: obj ? '{"message":"none"}' : '[]' });
     return route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
   });
-  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); }, [session(id, nick)]);
+  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); const sid = JSON.parse(s).studentInfo?.id; if (sid && !localStorage.getItem('saesak_dress_' + sid)) localStorage.setItem('saesak_dress_' + sid, JSON.stringify({ g: 'boy', hs: 'short', hc: 1, sc: 0, b: 'shorts', bc: 0 })); }, [session(id, nick)]);
   await p.goto('http://localhost:4321/?lab3d=1&rtlocal=1&debug=1');
   await p.waitForTimeout(600); await p.mouse.click(195, 400);           // 스플래시 넘기기
   await p.waitForTimeout(800);
