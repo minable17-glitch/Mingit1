@@ -9,10 +9,10 @@ export const saveView = (v) => { try { localStorage.setItem(VIEW_KEY, v); } catc
 
 export function ViewPicker({ view, onChange }) {
   return (
-    <div style={{ background: "#ffffffd9", borderRadius: 20, padding: 3, display: "flex", gap: 2, boxShadow: "0 2px 6px #0000000f" }}>
+    <div style={{ background: "#ffffffd9", borderRadius: 18, padding: 2, display: "flex", gap: 1, boxShadow: "0 2px 6px #0000000f" }}>
       {VIEWS.map(([v, icon, label]) => (
         <button key={v} onClick={() => onChange(v)} aria-pressed={view === v} data-view={v}
-          style={{ border: "none", borderRadius: 16, padding: "5px 8px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
+          style={{ border: "none", borderRadius: 15, padding: "4px 7px", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap",
             background: view === v ? C.green : "transparent", color: view === v ? "#fff" : C.greenDk }}>{icon} {label}</button>
       ))}
     </div>

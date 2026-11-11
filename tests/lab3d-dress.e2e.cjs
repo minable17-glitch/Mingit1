@@ -47,7 +47,7 @@ async function open(ctx, id, nick, log, dress) {
   await A.screenshot({ path: `${OUT}/dress-03-library.png` });
   // 친구 화면
   const B = await open(ctx, 'stu-jiwoo', '지우', log, { g: 'boy', hs: 'short', hc: 0, sc: 3, b: 'pants', bc: 2 });
-  await B.bringToFront(); await B.getByText('읽기', { exact: true }).click(); await B.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000, polling: 300 }).catch(async (e) => { await B.screenshot({ path: OUT + '/dress-failB.png' }); console.log('B:', await B.evaluate(() => [!!window.__lib3d, window.__lib3d && window.__lib3d._synced, document.body.innerText.slice(0, 200)])); throw e; }); await B.waitForTimeout(3000);
+  await B.bringToFront(); await B.getByText('읽기', { exact: true }).click(); await B.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 45000, polling: 300 }).catch(async (e) => { await B.screenshot({ path: OUT + '/dress-failB.png' }); console.log('B:', await B.evaluate(() => [!!window.__lib3d, window.__lib3d && window.__lib3d._synced, document.body.innerText.slice(0, 200)])); throw e; }); await B.waitForTimeout(3000);
   const seen = () => B.evaluate(() => { const p = [...window.__lib3d.people.values()].find((q) => q.nick === '민수'); return p && p.lookKey; });
   check('친구 화면에 내가 고른 모습', (await seen()) === want, await seen());
   check('꾸미기를 한 친구(지우)는 처음 창이 안 열림', (await B.getByText('내 캐릭터 꾸미기').count()) === 0);

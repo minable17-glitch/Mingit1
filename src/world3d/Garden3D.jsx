@@ -103,24 +103,24 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
       {!ready && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}
       {onGoLibrary && ready && (
         <button onClick={() => { leavingRef.current = true; onGoLibrary(); }} style={{ position: "absolute", top: 10, left: 12, border: "none", cursor: "pointer", background: `linear-gradient(${C.green}, ${C.greenDk})`, borderRadius: 20,
-          padding: "5px 12px", fontSize: 12.5, color: "#fff", boxShadow: "0 2px 6px #0000001a" }}>📚 도서관 가기</button>
+          padding: "4px 10px", fontSize: 11.5, color: "#fff", boxShadow: "0 2px 6px #0000001a" }}>📚 도서관 가기</button>
       )}
       {canWalk && ready && (
         <div style={{ position: "absolute", top: 10, right: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <ViewPicker view={view} onChange={chooseView} />
           {isStudent && <button onClick={() => setDressOpen(true)} data-dress style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
-            padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>👕 꾸미기</button>}
+            padding: "4px 10px", fontSize: 11.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>👕 꾸미기</button>}
           {view === "top" && isStudent && (
             <button onClick={() => setNear((n) => !n)} style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
-              padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
+              padding: "4px 10px", fontSize: 11.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
           )}
         </div>
       )}
       {tip && ready && (
         <div style={{ position: "absolute", left: "50%", top: 54, transform: "translateX(-50%)", background: "#35503Fcc", color: "#fff", borderRadius: 14,
-          padding: "6px 12px", fontSize: 12, whiteSpace: "nowrap", pointerEvents: "none" }}>🌳 나무를 누르면 그 친구가 읽는 책이 보여요</div>
+          padding: "5px 11px", fontSize: 11.5, whiteSpace: "nowrap", pointerEvents: "none" }}>🌳 나무를 누르면 그 친구가 읽는 책이 보여요</div>
       )}
-      {canWalk && ready && !busy && <Joystick bottom={waterReady ? 76 : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {canWalk && ready && !busy && <Joystick bottom={waterReady ? (waterLeft > 0 ? 76 : 46) : 16} onMove={(x, y) => worldRef.current?.setMove(x, y)} />}
       {isStudent && waterReady && (
         <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", gap: 8, justifyContent: "center", pointerEvents: "none" }}>
           {waterLeft > 0 ? (
@@ -134,7 +134,7 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
               )}
             </>
           ) : (
-            <div style={{ pointerEvents: "auto", background: "#ffffffd9", borderRadius: 16, padding: "8px 14px", fontSize: 12.5, color: C.greenDk }}>지금은 줄 물이 없어요. 책을 읽고 기록을 남기면 물이 생겨요 🌱</div>
+            <div style={{ pointerEvents: "auto", background: "#ffffffcc", borderRadius: 14, padding: "5px 11px", fontSize: 11, color: C.greenDk }}>줄 물이 없어요 · 책을 읽고 기록하면 물이 생겨요 🌱</div>
           )}
         </div>
       )}

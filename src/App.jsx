@@ -1995,6 +1995,32 @@ export default function App() {
                       학급원 정보 오류: {classmatesError}
                     </div>
                   )}
+                  {lab3d ? (
+                    /* 3D 정원일 때: 정원을 크게 보이도록 반 목표·우리 반 숲을 얇은 두 줄로 */
+                    <div style={{ padding: "0 14px 2px" }}>
+                      <div style={{ background: "#fff", borderRadius: 14, padding: "8px 12px 9px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="cs-jua" style={{ fontSize: 13, color: C.greenDk, whiteSpace: "nowrap" }}>🎯 오늘 {joinedToday}/{TOTAL}명</span>
+                          <div style={{ flex: 1, position: "relative", height: 8, background: "#eef2e8", borderRadius: 5 }}>
+                            <div style={{ width: `${todayRate}%`, height: "100%", borderRadius: 5, transition: "width .5s ease",
+                              background: goalMet ? `linear-gradient(90deg, ${C.gold}, #f0b73f)` : `linear-gradient(90deg, ${C.leafL}, ${C.green})` }} />
+                            <div style={{ position: "absolute", left: `${goalPct}%`, top: -3, bottom: -3, width: 2, background: C.greenDk, borderRadius: 2 }} />
+                          </div>
+                          <span className="cs-hand" style={{ fontSize: 13, color: goalMet ? C.gold : C.green, whiteSpace: "nowrap" }}>
+                            {TOTAL === 0 ? "아직 없어요" : goalMet ? "달성! 🎉" : `${remain}명 더 🌟`}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                          <span style={{ fontSize: 11.5, color: C.inkSoft, whiteSpace: "nowrap" }}>🌳 우리 반 숲 {classPct}%</span>
+                          <div style={{ flex: 1, height: 5, background: "#eef2e8", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 3, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
+                          <span style={{ fontSize: 11, color: C.inkSoft, whiteSpace: "nowrap" }}>목표 {goalPct}% · {challengeDays}일</span>
+                        </div>
+                        {TOTAL === 0 && role === "teacher" && classInfo?.code && (
+                          <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 4 }}>학급 코드 <b>{classInfo.code}</b>를 학생들에게 알려주세요!</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (<>
                   <div style={{ padding: "0 18px 4px" }}>
                     <div style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: `1px solid ${goalMet ? C.leafL : "#eee5d3"}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
@@ -2023,6 +2049,7 @@ export default function App() {
                     <div style={{ height: 9, background: "#ffffff88", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ width: `${classPct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${C.leafL}, ${C.green})`, transition: "width .6s ease" }} /></div>
                   </div>
+                  </>)}
                   {lab3d ? (
                     <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}>
                       <Garden3D
