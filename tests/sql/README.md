@@ -15,3 +15,8 @@
 
 `00-local-stubs.sql` → `supabase/schema.sql` → `10-realtime-stub.sql`(Supabase Realtime 흉내) → `supabase/realtime_library.sql` → `11-realtime-access.sql`.
 기대 결과: 그 반 학생·담당 선생님은 "들어갈 수 있음", 다른 반 학생·로그인 안 한 사람·다른 이름 채널은 "막힘".
+
+## 캐릭터 꾸미기 점검 (`supabase/avatar_dress.sql`)
+
+`00-local-stubs.sql` → `supabase/schema.sql` → `supabase/avatar_dress.sql`(두 번) → `20-avatar.sql`.
+기대 결과: 본인 모습 저장(모르는 키는 버림), 다른 학생은 그대로, 이상한 성별·범위 밖 색·숫자 아닌 색·로그인 안 한 사람은 모두 "막힘".

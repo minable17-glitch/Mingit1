@@ -15,6 +15,29 @@ export const LOOKS = [
   { hair: '#5B3A2A', shirt: '#8EC3E0', shorts: '#F3E1B6' },
 ];
 
+// ── 꾸미기: 학생이 고른 모습(짧은 기록) → 캐릭터 생김새
+// g: 성별(boy|girl), hs: 머리 모양, hc: 머리 색 번호, sc: 윗옷 색 번호, b: 아래옷, bc: 아래옷 색 번호
+export const DRESS = {
+  hairStyles: [['short', '짧은 머리'], ['bob', '단발'], ['pigtails', '양갈래'], ['long', '긴 머리']],
+  bottoms: [['shorts', '반바지'], ['pants', '긴바지'], ['skirt', '치마']],
+  hairColors: ['#3E2C25', '#5B3A2A', '#96563A', '#D9A25A'],
+  shirtColors: ['#AAC45E', '#F6C96B', '#F3A6B4', '#8EC3E0', '#B9A3E3', '#F29C6B'],
+  bottomColors: ['#FBE8C0', '#8FB8A8', '#6F86B5', '#C98B6B', '#F3A6B4'],
+};
+export const defaultDress = (g) => (g === 'girl'
+  ? { g: 'girl', hs: 'bob', hc: 1, sc: 2, b: 'skirt', bc: 0 }
+  : { g: 'boy', hs: 'short', hc: 1, sc: 0, b: 'shorts', bc: 0 });
+// 저장된 값·친구가 보낸 값을 믿지 않고 허용된 값만 남김(없거나 이상하면 null)
+export function cleanDress(d) {
+  if (!d || typeof d !== 'object') return null;
+  const inList = (v, list) => list.some(([k]) => k === v), idx = (v, list) => (Number.isInteger(v) && v >= 0 && v < list.length ? v : 0);
+  if (d.g !== 'boy' && d.g !== 'girl') return null;
+  return { g: d.g, hs: inList(d.hs, DRESS.hairStyles) ? d.hs : defaultDress(d.g).hs, hc: idx(d.hc, DRESS.hairColors), sc: idx(d.sc, DRESS.shirtColors),
+    b: inList(d.b, DRESS.bottoms) ? d.b : defaultDress(d.g).b, bc: idx(d.bc, DRESS.bottomColors) };
+}
+export const dressKey = (d) => (d ? [d.g, d.hs, d.hc, d.sc, d.b, d.bc].join('.') : '');
+export const lookFromDress = (d) => ({ gender: d.g, hair: DRESS.hairColors[d.hc], shirt: DRESS.shirtColors[d.sc], shorts: DRESS.bottomColors[d.bc], hairStyle: d.hs, bottom: d.b });
+
 const HEAD_R = 0.24;
 const FACE = { span: 0.46, W: 1024, H: 1024, alpha: deg(66), t0: deg(40), tLen: deg(108) };
 
@@ -234,12 +257,21 @@ export class Avatar {
       this.legs.push(hip);
     }
 
-    // ── 반바지: 골반 덩어리 + 양쪽 통(통은 다리 관절에 붙어 걷기·앉기 때 함께 움직임)
+    // ── 아래옷: 골반 덩어리 + (반바지·긴바지) 양쪽 통 또는 (치마) 허리에서 퍼지는 종 모양
+    const bottom = look.bottom || 'shorts';
     const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), M.shorts); pelvis.scale.set(0.118, 0.03, 0.094); pelvis.position.y = 0.29; body.add(pelvis);
-    for (const hip of this.legs) {
-      const s = Math.sign(hip.position.x);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.07, 0.112, 14), M.shorts); tube.scale.z = 0.94; tube.position.set(s * 0.002, 0.022, 0); hip.add(tube);
-      const hem = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.011, 6, 16), M.shorts); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.94, 1); hem.position.set(s * 0.002, -0.032, 0); hip.add(hem);
+    if (bottom === 'skirt') {
+      const pts = [[0.168, 0.168], [0.166, 0.18], [0.15, 0.226], [0.132, 0.272], [0.12, 0.302], [0.08, 0.314], [0, 0.318]].map(([x, y]) => new THREE.Vector2(x, y));
+      const skirt = new THREE.Mesh(new THREE.LatheGeometry(pts, 22), M.shorts); skirt.scale.z = 0.86; body.add(skirt);
+      const hem = new THREE.Mesh(new THREE.TorusGeometry(0.166, 0.011, 6, 26), M.shorts); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.86, 1); hem.position.y = 0.17; body.add(hem);
+    } else {
+      const long = bottom === 'pants';
+      for (const hip of this.legs) {   // 통은 다리 관절에 붙어 걷기·앉기 때 함께 움직임
+        const s = Math.sign(hip.position.x);
+        const tube = long ? new THREE.Mesh(new THREE.CylinderGeometry(0.064, 0.05, 0.2, 14), M.shorts) : new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.07, 0.112, 14), M.shorts);
+        tube.scale.z = 0.94; tube.position.set(s * 0.002, long ? -0.03 : 0.022, 0); hip.add(tube);
+        const hem = new THREE.Mesh(new THREE.TorusGeometry(long ? 0.048 : 0.062, 0.011, 6, 16), M.shorts); hem.rotation.x = Math.PI / 2; hem.scale.set(1, 0.94, 1); hem.position.set(s * 0.002, long ? -0.128 : -0.032, 0); hip.add(hem);
+      }
     }
 
     // ── 상체(티셔츠)
@@ -305,6 +337,31 @@ export class Avatar {
     lock(head, hairSolid, -72, -8, 0.034, 0.058, 0.024, -4, HEAD_R * 1.0);  // 귀 앞 옆머리(가늘고 뾰족)
     lock(head, hairSolid, 74, -8, 0.034, 0.058, 0.024, 6, HEAD_R * 1.0);
     lobe(head, hairSolid, 180, -36, 0.17, 0.085, 0.06, 0, HEAD_R * 0.94);   // 뒷목
+    const hs = look.hairStyle || 'short';
+    if (look.gender === 'girl' && hs !== 'pigtails') {   // 여학생: 앞머리 옆 작은 리본 핀
+      const pin = mat('#F58E97'), q = surfaceQuat(new THREE.Vector3(Math.sin(deg(-58)) * Math.cos(deg(30)), Math.sin(deg(30)), Math.cos(deg(-58)) * Math.cos(deg(30))), 0);
+      const at = new THREE.Vector3(Math.sin(deg(-58)) * Math.cos(deg(30)), Math.sin(deg(30)), Math.cos(deg(-58)) * Math.cos(deg(30))).multiplyScalar(HEAD_R * 1.12);
+      for (const sd of [-1, 1]) { const w = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), pin); w.scale.set(0.05, 0.036, 0.018); w.position.copy(at).add(new THREE.Vector3(sd * 0.045, 0, 0).applyQuaternion(q)); w.quaternion.copy(q); head.add(w); }
+      const c = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), pin); c.position.copy(at); head.add(c);
+    }
+    if (hs === 'bob' || hs === 'long') {   // 단발·긴 머리: 옆과 뒤를 턱선까지 둥글게 덮음
+      for (const sd of [-1, 1]) {
+        lobe(head, hairSolid, sd * 96, -20, 0.078, 0.14, 0.09, 0, HEAD_R * 0.97);
+        lobe(head, hairSolid, sd * 130, -26, 0.11, 0.15, 0.1, 0, HEAD_R * 0.92);
+      }
+      lobe(head, hairSolid, 180, -24, 0.19, 0.16, 0.1, 0, HEAD_R * 0.9);
+    }
+    if (hs === 'long') {                    // 긴 머리: 등 뒤로 내려오는 머리 + 어깨 앞 가닥
+      const back = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), hairSolid); back.scale.set(0.19, 0.25, 0.08); back.position.set(0, -0.2, -0.13); back.rotation.x = deg(-10); head.add(back);
+      for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), hairSolid); st.scale.set(0.055, 0.15, 0.055); st.position.set(sd * 0.2, -0.2, -0.03); st.rotation.z = sd * deg(-6); head.add(st); }
+    }
+    if (hs === 'pigtails') {                // 양갈래: 귀 뒤로 묶은 두 다발 + 분홍 머리끈
+      const tie = mat('#F58E97');
+      for (const sd of [-1, 1]) {
+        const t = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 12), hairSolid); t.scale.set(0.075, 0.13, 0.072); t.position.set(sd * 0.33, -0.06, -0.04); t.rotation.z = sd * deg(32); head.add(t);
+        const k = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), tie); k.position.set(sd * 0.27, 0.04, -0.04); head.add(k);
+      }
+    }
 
     // 바닥 그림자(가벼운 원판)
     const sh = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), new THREE.MeshBasicMaterial({ color: '#5a4630', transparent: true, opacity: 0.16, depthWrite: false }));

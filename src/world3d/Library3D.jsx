@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { LibraryWorld, webglAvailable } from "./LibraryWorld.js";
 import { connectRoom } from "./realtime.js";
 import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
+import DressUp from "./DressUp.jsx";
+import { cleanDress, dressKey } from "./avatar.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", paper: "#FBF7EE", leafL: "#9BD187" };
 const seatKey = (classId, studentId) => `saesak_seat_${classId}_${studentId}`;
@@ -11,6 +13,7 @@ export default function Library3D({
   classInfo, studentInfo, role, reading, myBook, doneToday, dailyTargetMinutes,
   resumeMinutes, bonusResumeMinutes, onStartTarget, onStartFree, onStartBonus,
   onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer, waterLeft = 0, onGoGarden,
+  myDress = null, dressReady = false, onSaveDress,
 }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null), metaRef = useRef(null);
   const [net, setNet] = useState("connecting");       // connecting | online | local | offline
@@ -35,6 +38,19 @@ export default function Library3D({
 
   // 최신 콜백을 장면 이벤트에서 쓰기 위한 참조
   const cb = useRef({}); cb.current = { onTapFriend, showToast, onGoGarden, timer, leaving };
+  // 캐릭터 꾸미기: 버튼으로 열고, 아직 한 번도 안 고른 학생은 처음 들어올 때 한 번 자동으로 열림
+  const [dressOpen, setDressOpen] = useState(false);
+  const myDressKey = dressKey(cleanDress(myDress));
+  useEffect(() => { if (isStudent && dressReady && !cleanDress(myDress)) setDressOpen(true); }, [isStudent, dressReady]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isStudent) return;
+    worldRef.current?.setMyDress(cleanDress(myDress));
+    if (metaRef.current && !metaRef.current.observer) { metaRef.current = { ...metaRef.current, dress: cleanDress(myDress) }; roomRef.current?.update(metaRef.current); }
+  }, [myDressKey, isStudent]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const saveDress = async (d) => {
+    const ok = await onSaveDress?.(d); setDressOpen(false);
+    showToast?.(ok === false ? "이 기기에 저장했어요 👕" : "새 모습으로 바꿨어요 👕");
+  };
   const goGarden = () => { if (cb.current.leaving) return; setLeaving(true); const w = worldRef.current; if (w) w.goGarden(onGoGarden); else onGoGarden(); };
 
   useEffect(() => {
@@ -45,11 +61,11 @@ export default function Library3D({
     const meId = isStudent ? studentInfo.id : null;
     let lastSeat = null;
     try { lastSeat = isStudent ? Number(localStorage.getItem(seatKey(classId, meId))) || null : null; } catch { /* 저장소를 못 써도 계속 */ }
-    const baseMeta = isStudent ? { nick: studentInfo.nickname, place: "library", seat: null, state: "stand", seatAt: 0 } : { observer: true };
+    const baseMeta = isStudent ? { nick: studentInfo.nickname, place: "library", seat: null, state: "stand", seatAt: 0, dress: cleanDress(myDress) } : { observer: true };
     metaRef.current = baseMeta;
     try {
       world = new LibraryWorld(canvasRef.current, {
-        me: isStudent ? { id: meId, nick: studentInfo.nickname } : canWalk ? { id: "teacher-me", nick: "선생님" } : null,
+        me: isStudent ? { id: meId, nick: studentInfo.nickname, dress: myDress } : canWalk ? { id: "teacher-me", nick: "선생님" } : null,
         lastSeat, view,
         onEvent: (type, payload) => {
           if (type === "me") {
@@ -118,6 +134,9 @@ export default function Library3D({
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", pointerEvents: "auto" }}>
           {canWalk && !reading && (
             <ViewPicker view={view} onChange={chooseView} />
+          )}
+          {isStudent && !reading && (
+            <button onClick={() => setDressOpen(true)} data-dress style={{ ...pill, border: "none", cursor: "pointer" }}>👕 꾸미기</button>
           )}
           {view === "top" && !reading && <button onClick={() => worldRef.current?.focusMe()} style={{ ...pill, border: "none", cursor: "pointer" }}>📍 처음 위치로</button>}
           {onGoGarden && !timer && (
@@ -206,6 +225,7 @@ export default function Library3D({
           )}
         </div>
       </div>}
+      {dressOpen && <DressUp initial={myDress} firstTime={!cleanDress(myDress)} onSave={saveDress} onClose={() => setDressOpen(false)} />}
     </div>
   );
 }

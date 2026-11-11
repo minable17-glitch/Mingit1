@@ -460,3 +460,14 @@ export async function getClassReadDays(classId) {
   for (const r of data || []) by[r.student_id] = r.days;
   return by;
 }
+
+// 캐릭터 꾸미기(성별·머리·옷). supabase/avatar_dress.sql 적용 전에는 null(그 기기에만 저장)
+export async function getMyAvatar(studentId) {
+  const { data, error } = await supabase.from('students').select('avatar').eq('id', studentId).maybeSingle();
+  if (error) return null;
+  return data?.avatar || null;
+}
+export async function saveMyAvatar(dress) {
+  const { error } = await supabase.rpc('student_set_avatar', { p_avatar: dress });
+  if (error) throw error;
+}

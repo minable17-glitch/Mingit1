@@ -5,10 +5,12 @@ import { GardenWorld } from "./GardenWorld.js";
 import { webglAvailable } from "./LibraryWorld.js";
 import { connectRoom } from "./realtime.js";
 import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
+import DressUp from "./DressUp.jsx";
+import { cleanDress, dressKey } from "./avatar.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
 
-export default function Garden3D({ classInfo, studentInfo, role, trees, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
+export default function Garden3D({ classInfo, studentInfo, role, myDress = null, dressReady = false, onSaveDress, trees, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -30,6 +32,19 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
   useEffect(() => { const t = setTimeout(() => setTip(false), 5000); return () => clearTimeout(t); }, []);
   useEffect(() => { worldRef.current?.resize(); }, [boxH]);
   const cb = useRef({}); cb.current = { onTapTree, onTapClassTree, onGoLibrary };
+  // 캐릭터 꾸미기: 버튼으로 열고, 아직 한 번도 안 고른 학생은 처음 들어올 때 한 번 자동으로 열림
+  const [dressOpen, setDressOpen] = useState(false);
+  const myDressKey = dressKey(cleanDress(myDress));
+  useEffect(() => { if (isStudent && dressReady && !cleanDress(myDress)) setDressOpen(true); }, [isStudent, dressReady]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isStudent) return;
+    worldRef.current?.setMyDress(cleanDress(myDress));
+    if (metaRef.current && !metaRef.current.observer) { metaRef.current = { ...metaRef.current, dress: cleanDress(myDress) }; roomRef.current?.update(metaRef.current); }
+  }, [myDressKey, isStudent]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const saveDress = async (d) => {
+    const ok = await onSaveDress?.(d); setDressOpen(false);
+    showToast?.(ok === false ? "이 기기에 저장했어요 👕" : "새 모습으로 바꿨어요 👕");
+  };
   // 화분 개수가 달라질 때만 장면을 다시 지음(학생이 32명을 넘으면 화단이 늘어남)
   const islands = Math.max(8, Math.ceil((trees?.length || 0) / 4));
 
@@ -39,7 +54,7 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
     let world;
     try {
       world = new GardenWorld(canvasRef.current, {
-        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname } : canWalk ? { id: "teacher-me", nick: "선생님" } : null, view,
+        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname, dress: myDress } : canWalk ? { id: "teacher-me", nick: "선생님" } : null, view,
         onEvent: (type, payload) => {
           if (type === "tapTree") cb.current.onTapTree?.(payload.id);
           else if (type === "tapClassTree") cb.current.onTapClassTree?.();
@@ -52,7 +67,7 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
     if (new URLSearchParams(window.location.search).get("debug") === "1") window.__garden3d = world;   // 자동 점검용
     const meId = isStudent ? studentInfo.id : null;
     const startPos = world.me ? { x: Math.round(world.me.avatar.root.position.x * 100) / 100, z: Math.round(world.me.avatar.root.position.z * 100) / 100 } : {};
-    metaRef.current = isStudent ? { nick: studentInfo.nickname, place: "garden", state: "stand", ...startPos } : { observer: true };
+    metaRef.current = isStudent ? { nick: studentInfo.nickname, place: "garden", state: "stand", dress: cleanDress(myDress), ...startPos } : { observer: true };
     const room = connectRoom({
       classId, key: meId || `teacher-${Math.random().toString(36).slice(2, 8)}`,
       meta: metaRef.current,
@@ -93,6 +108,8 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
       {canWalk && ready && (
         <div style={{ position: "absolute", top: 10, right: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <ViewPicker view={view} onChange={chooseView} />
+          {isStudent && <button onClick={() => setDressOpen(true)} data-dress style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
+            padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>👕 꾸미기</button>}
           {view === "top" && isStudent && (
             <button onClick={() => setNear((n) => !n)} style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
               padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>{near ? "🔭 전체 보기" : "🔍 내 나무 보기"}</button>
@@ -121,6 +138,7 @@ export default function Garden3D({ classInfo, studentInfo, role, trees, classSta
           )}
         </div>
       )}
+      {dressOpen && <DressUp initial={myDress} firstTime={!cleanDress(myDress)} onSave={saveDress} onClose={() => setDressOpen(false)} />}
     </div>
   );
 }

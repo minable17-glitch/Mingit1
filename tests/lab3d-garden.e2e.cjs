@@ -31,7 +31,7 @@ async function run(supportsWater) {
     if (/rest\/v1\//.test(url)) return obj ? json({ message: 'none' }, 406) : json([]);
     return json({}, 400);
   });
-  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); }, [session]);
+  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); const sid = JSON.parse(s).studentInfo?.id; if (sid && !localStorage.getItem('saesak_dress_' + sid)) localStorage.setItem('saesak_dress_' + sid, JSON.stringify({ g: 'boy', hs: 'short', hc: 1, sc: 0, b: 'shorts', bc: 0 })); }, [session]);
   await p.goto('http://localhost:4321/?lab3d=1&rtlocal=1&debug=1');
   await p.waitForTimeout(600); await p.mouse.click(195, 400);
   await p.waitForFunction('window.__garden3d && window.__garden3d.slots.filter((s) => s && s.id).length === 10', null, { timeout: 40000 });

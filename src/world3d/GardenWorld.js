@@ -1,9 +1,8 @@
 // 정원 3D 장면 엔진 — 나무 표시, 내 캐릭터, 물주기 연출, 터치
 // 보는 방법: 위에서(전체·내 나무 가까이) / 내 캐릭터 뒤에서(3인칭) / 내 눈으로(1인칭). 캐릭터 시점에서는 조이스틱으로 걸어 다님.
 import * as THREE from 'three';
-import { Avatar, LOOKS } from './avatar.js';
 import { buildGarden, CENTER } from './garden.js';
-import { nameTag, lookOf } from './LibraryWorld.js';
+import { nameTag, makeAvatar } from './LibraryWorld.js';
 import { NavGrid, CameraRig, stepJoystick } from './roam.js';
 
 const PITCH = THREE.MathUtils.degToRad(50), FOV = 30, WALK_SPEED = 1.9, POS_EVERY = 1.2;
@@ -50,7 +49,7 @@ export class GardenWorld {
     this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
     if (opts.me) {
       // 도서관 문 앞에서 나타나, 탁 트인 가운데 길까지 걸어 들어와 우리 반 나무를 바라봄
-      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 6.0 + Math.random() * 0.3);   // 학생이 32명을 넘으면 생기는 앞쪽 화단(z≈4.9)보다 앞
+      const me = this._person(opts.me.id, opts.me.nick, true, opts.me.dress), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 6.0 + Math.random() * 0.3);   // 학생이 32명을 넘으면 생기는 앞쪽 화단(z≈4.9)보다 앞
       me.avatar.root.position.set(d.x, 0, d.z); me.avatar.root.rotation.y = Math.atan2(st.x - d.x, st.z - d.z);
       this._walk(me, this.nav.path(d, st) || [st], () => { me.avatar.root.rotation.y = Math.PI; this._announce(); });
       this.me = me; me.goal = st; this.rig.snapTo(0);
@@ -91,16 +90,28 @@ export class GardenWorld {
   }
   setClassStage(stage) { if (this.garden.setClassStage(stage)) this._dirty = true; }
 
-  _person(id, nick, mine = false) {
+  _person(id, nick, mine = false, dress = null) {
     let p = this.people.get(id);
     if (!p) {
-      const avatar = new Avatar(LOOKS[lookOf(id)]); avatar.lookUp = this.view === 'top' ? 0.3 : 0.04; avatar.setState('idle'); avatar.update(0); this.scene.add(avatar.root);
+      const { avatar, key } = makeAvatar(id, dress); avatar.lookUp = this.view === 'top' ? 0.3 : 0.04; avatar.setState('idle'); avatar.update(0); this.scene.add(avatar.root);
       avatar.root.userData.personId = id;
       let tag = null; if (!mine && nick) { tag = nameTag(nick, false); tag.scale.multiplyScalar(0.8); tag.position.y = 1.15; avatar.root.add(tag); }
-      p = { id, nick, avatar, tag, until: 0, slot: -1, walk: null, goal: null, mine }; this.people.set(id, p);
-    }
+      p = { id, nick, avatar, tag, until: 0, slot: -1, walk: null, goal: null, mine, lookKey: key }; this.people.set(id, p);
+    } else this._swapLook(p, dress);
     return p;
   }
+  // 꾸미기를 바꾸면 캐릭터를 새 모습으로 갈아 끼움
+  _swapLook(p, dress) {
+    const { avatar, key } = makeAvatar(p.id, dress); if (key === p.lookKey) return;
+    const old = p.avatar.root;
+    avatar.root.position.copy(old.position); avatar.root.rotation.copy(old.rotation); avatar.root.visible = old.visible;
+    avatar.root.userData.personId = p.id; avatar.lookUp = p.avatar.lookUp;
+    if (p.tag) { old.remove(p.tag); avatar.root.add(p.tag); }
+    this.scene.remove(old); old.traverse((o) => o.geometry?.dispose?.());
+    avatar.setState(p.walk ? 'walk' : p.avatar.state); avatar.update(0);
+    p.avatar = avatar; p.lookKey = key; this.scene.add(avatar.root); this._dirty = true;
+  }
+  setMyDress(dress) { if (this.me) this._swapLook(this.me, dress); }
   // 나무 앞에 서는 곳: 마당 가운데 쪽에서 나무를 바라봄(막혀 있으면 둘레에서 찾음)
   _treeSpot(slot) {
     const t = this.garden.trees[slot], side = t.x < 0 ? -1 : 1, base = Math.atan2(-side, 0.2);
@@ -130,7 +141,7 @@ export class GardenWorld {
     for (const [id, p] of [...this.people]) if (!ids.has(id)) { this.scene.remove(p.avatar.root); p.avatar.root.traverse((o) => o.geometry?.dispose?.()); if (p.tag) { p.tag.material.map.dispose(); p.tag.material.dispose(); } this.people.delete(id); }
     for (const o of list) {
       if (this.opts.me && o.id === this.opts.me.id) continue;
-      const isNew = !this.people.has(o.id), p = this._person(o.id, o.nick);
+      const isNew = !this.people.has(o.id), p = this._person(o.id, o.nick, false, o.dress);
       if (typeof o.x === 'number' && typeof o.z === 'number') {
         const to = this.nav.nearest(o.x, o.z);
         if (isNew) { p.avatar.root.position.set(to.x, 0, to.z); p.goal = to; }

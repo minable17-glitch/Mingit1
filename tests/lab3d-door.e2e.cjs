@@ -7,7 +7,7 @@ const session = JSON.stringify({ role: 'student', classInfo: { id: 'class-demo',
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.route(/supabase\.co/, (route) => { const u = route.request().url(), obj = (route.request().headers()['accept'] || '').includes('vnd.pgrst.object'); if (/get_class_progress/.test(u)) return route.fulfill({ status: 200, contentType: 'application/json', body: '[{"joined_today":0,"total_students":1,"class_pct":0,"communal_minutes":0}]' }); if (/students/.test(u) && /total_days/.test(u)) return route.fulfill({ status: 200, contentType: 'application/json', body: '[{"id":"stu-00","nickname":"민수","total_days":4,"communal_minutes":0,"total_pages":0,"equipped_accessories":[],"created_at":"2026-10-01"}]' }); return route.fulfill({ status: obj ? 406 : 200, contentType: 'application/json', body: obj ? '{}' : '[]' }); });
-  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); }, [session]);
+  await p.addInitScript(([s]) => { localStorage.setItem('saesak_session', s); localStorage.setItem('saesak_lab3d', '1'); const sid = JSON.parse(s).studentInfo?.id; if (sid && !localStorage.getItem('saesak_dress_' + sid)) localStorage.setItem('saesak_dress_' + sid, JSON.stringify({ g: 'boy', hs: 'short', hc: 1, sc: 0, b: 'shorts', bc: 0 })); }, [session]);
   await p.goto('http://localhost:4321/?lab3d=1&rtlocal=1&debug=1'); await p.waitForTimeout(600); await p.mouse.click(195, 400); await p.waitForTimeout(800);
   await p.getByText('읽기', { exact: true }).click();
   await p.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 30000 });
