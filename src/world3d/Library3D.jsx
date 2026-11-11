@@ -111,7 +111,7 @@ export default function Library3D({
 
   const readingCount = people.filter((p) => p.state === "read").length;
   const start = (fn) => { worldRef.current?.autoSeat(); fn?.(); };
-  const pill = { background: "#ffffffd9", borderRadius: 20, padding: "5px 12px", fontSize: 12.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" };
+  const pill = { background: "#ffffffd9", borderRadius: 18, padding: "4px 10px", fontSize: 11.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" };
   const netLabel = { connecting: "연결 중…", online: "함께 읽는 중", local: "연습 모드", offline: "실시간 연결 안 됨" }[net];
   const netDot = { connecting: "#EDA83A", online: "#57A365", local: "#7CC4D6", offline: "#c9a0a0" }[net];
 
@@ -125,8 +125,8 @@ export default function Library3D({
       {/* 위쪽: 반 이름과 접속 상태 */}
       <div style={{ position: "absolute", top: 10, left: 12, right: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start", pointerEvents: "none" }}>
         <div style={{ ...pill, pointerEvents: "auto" }}>
-          <span className="cs-jua" style={{ fontSize: 14 }}>📚 {classInfo?.name || "우리 반"} 도서관</span>
-          <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 1 }}>
+          <span className="cs-jua" style={{ fontSize: 12.5 }}>📚 {classInfo?.name || "우리 반"} 도서관</span>
+          <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1 }}>
             <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 4, background: netDot, marginRight: 5 }} />
             {netLabel}{net === "online" || net === "local" ? ` · ${people.length}명 접속 · ${readingCount}명 읽는 중` : ""}
           </div>

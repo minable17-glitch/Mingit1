@@ -36,7 +36,7 @@ async function run(supportsWater) {
   await p.waitForTimeout(600); await p.mouse.click(195, 400);
   await p.waitForFunction('window.__garden3d && window.__garden3d.slots.filter((s) => s && s.id).length === 10', null, { timeout: 40000 });
   await p.waitForTimeout(1500);
-  const state = () => p.evaluate(() => { const w = window.__garden3d; const m = w.slots.find((s) => s && s.me); return { mine: m ? `${m.nick} ${m.stage}단계` : null, trees: w.slots.filter((s) => s && s.id).map((s) => `${s.nick}:${s.stage}`).join(' '), people: w.people.size, button: (document.body.innerText.match(/💧 물 주기[^\n]*|지금은 줄 물이 없어요[^\n]*/) || ['(물주기 버튼 없음)'])[0], hasAll: /모두 주기/.test(document.body.innerText) }; });
+  const state = () => p.evaluate(() => { const w = window.__garden3d; const m = w.slots.find((s) => s && s.me); return { mine: m ? `${m.nick} ${m.stage}단계` : null, trees: w.slots.filter((s) => s && s.id).map((s) => `${s.nick}:${s.stage}`).join(' '), people: w.people.size, button: (document.body.innerText.match(/💧 물 주기[^\n]*|줄 물이 없어요[^\n]*/) || ['(물주기 버튼 없음)'])[0], hasAll: /모두 주기/.test(document.body.innerText) }; });
   const tag = supportsWater ? '[물주기 SQL 적용됨]' : '[SQL 적용 전]';
   console.log(tag, '처음:', JSON.stringify(await state()));
   if (!supportsWater) { await p.screenshot({ path: `${OUT}/g0-legacy.png` }); console.log(tag, 'errors:', errs.length ? errs.slice(0, 5) : 'none'); await b.close(); return; }
