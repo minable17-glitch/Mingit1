@@ -409,14 +409,15 @@ export default function App() {
   const [screen, setScreen] = useState("splash");
   const [enter, setEnter] = useState(false);
   const [tab, setTab] = useState("forest");
-  // 3D 도서관 시험 기능: 주소에 ?lab3d=1 을 붙여 들어오면 이 기기에서 켜지고, ?lab3d=0 이면 꺼짐. 기본은 꺼짐
+  // 3D 도서관·정원: 모든 학생에게 기본으로 켜짐. 주소에 ?lab3d=0 을 붙여 들어오면 그 기기에서만 예전 2D 화면(기억됨), ?lab3d=1 이면 다시 3D
+  // (3D가 안 되는 기기는 화면을 열 때 자동으로 2D로 바뀜)
   const [lab3d, setLab3d] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search).get("lab3d");
-      if (p === "1") localStorage.setItem("saesak_lab3d", "1");
-      if (p === "0") localStorage.removeItem("saesak_lab3d");
-      return localStorage.getItem("saesak_lab3d") === "1";
-    } catch { return false; }
+      if (p === "1") localStorage.removeItem("saesak_lab3d");
+      if (p === "0") localStorage.setItem("saesak_lab3d", "0");
+      return localStorage.getItem("saesak_lab3d") !== "0";
+    } catch { return true; }
   });
   // 정원 물주기(시험 기능): DB에 물주기 SQL이 적용돼 있고 이 기기에서 3D를 켰을 때만 true. 아니면 예전처럼 저장하면 바로 자람
   const [waterReady, setWaterReady] = useState(false);
@@ -579,6 +580,19 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, role, classInfo?.id, studentInfo?.id]);
+
+  // 2D 화면(3D가 안 되는 기기·?lab3d=0)에는 정원 물주기 버튼이 없음 → 3D에서 저장해 두고 아직 안 준 물이 있으면 자동으로 줘서 나무가 자라게 함
+  useEffect(() => {
+    if (screen !== "main" || lab3d || role !== "student" || !studentInfo?.id) return;
+    let alive = true;
+    probeWatering().then((ok) => (ok ? waterTree(null) : 0)).then((n) => {
+      if (!alive || !n) return;
+      getMyLogs(studentInfo.id).then((logs) => { if (alive) setMyLog(logs.map(mapLog)); }).catch(() => {});
+      if (classInfo?.id) refreshClassmates(classInfo.id, studentInfo.id);
+    }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, lab3d, role, studentInfo?.id]);
 
   useEffect(() => {
     if (screen !== "main" || !lab3d || role !== "student" || !studentInfo?.id) { setWaterReady(false); return; }
