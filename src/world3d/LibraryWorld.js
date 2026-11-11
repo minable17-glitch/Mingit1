@@ -43,7 +43,9 @@ export function nameTag(text, mine) {
   g.fillStyle = '#3F7E4E'; g.fillText(label, 128, 42);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
-  s.scale.set(0.92, 0.29, 1); s.position.y = 1.2; s.renderOrder = 10; return s;
+  s.scale.set(0.92, 0.29, 1); s.position.y = 1.2; s.renderOrder = 10;
+  s.userData.pill = { hw: w / 512, y0: 12 / 80, y1: 68 / 80 };   // 그림 안에서 실제 이름표(둥근 칸)가 차지하는 부분 — 누르기 판정용
+  return s;
 }
 
 export class LibraryWorld {

@@ -235,9 +235,19 @@ export class GardenWorld {
       const sl = o && this.slots.findIndex((s) => s && s.id === o.userData.personId); if (sl >= 0) { this.emit('tapTree', { id: this.slots[sl].id }); return; }
     }
     if (this.view !== 'top') {
-      // 옆에서 볼 때: 누른 방향에서 가장 가까운 나무(나무 가운데 높이 기준)
-      let bi = -1, bd = 0.32;
-      this.garden.trees.forEach((t, i) => { const s = this.slots[i]; if (!s || !s.id) return; const c = new THREE.Vector3(t.x, 0.3, t.z); if (c.clone().sub(ray.origin).dot(ray.direction) <= 0) return; const d = ray.distanceToPoint(c); if (d < bd) { bd = d; bi = i; } });
+      // 옆에서 볼 때: 나무 자체(잎·줄기)·이름표·악세서리 중 손가락 아래 가장 앞에 있는 것
+      const targets = [], owner = new Map();
+      this.garden.trees.forEach((t, i) => { const s = this.slots[i]; if (!s || !s.id) return; for (const o of [t.group, s.tag, ...(s.accs || [])]) if (o) { owner.set(o, i); targets.push(o); } });
+      for (const h of this.raycaster.intersectObjects(targets, true)) {
+        const pill = h.object.userData.pill;     // 이름표는 투명한 테두리 말고 글자 칸을 눌렀을 때만
+        if (pill && h.uv && (Math.abs(h.uv.x - 0.5) > pill.hw || h.uv.y < 1 - pill.y1 || h.uv.y > 1 - pill.y0)) continue;
+        let o = h.object; while (o && !owner.has(o)) o = o.parent;
+        if (o) { this.emit('tapTree', { id: this.slots[owner.get(o)].id }); return; }
+      }
+      // 조금 빗나가도: 나무 높이만큼의 세로 막대에서 가장 가까운 나무(손가락 굵기만큼 너그럽게)
+      let bi = -1, bd = 0.26 * 0.26;
+      const v0 = new THREE.Vector3(), v1 = new THREE.Vector3();
+      this.garden.trees.forEach((t, i) => { const s = this.slots[i]; if (!s || !s.id) return; v0.set(t.x, 0.05, t.z); v1.set(t.x, TAG_Y[Math.max(0, s.stage)], t.z); const d = ray.distanceSqToSegment(v0, v1); if (d < bd) { bd = d; bi = i; } });
       if (bi >= 0) { this.emit('tapTree', { id: this.slots[bi].id }); return; }
       if (ray.distanceToPoint(new THREE.Vector3(CENTER[0], 0.9, CENTER[1])) < 1.0) { this.emit('tapClassTree'); return; }
       const hit = new THREE.Vector3(); if (!ray.intersectPlane(this.ground, hit) || !this.me || this.busy) return;
