@@ -50,7 +50,7 @@ export class GardenWorld {
     this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
     if (opts.me) {
       // 도서관 문 앞에서 나타나, 탁 트인 가운데 길까지 걸어 들어와 우리 반 나무를 바라봄
-      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 5.0 + Math.random() * 0.5);
+      const me = this._person(opts.me.id, opts.me.nick, true), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 6.0 + Math.random() * 0.3);   // 학생이 32명을 넘으면 생기는 앞쪽 화단(z≈4.9)보다 앞
       me.avatar.root.position.set(d.x, 0, d.z); me.avatar.root.rotation.y = Math.atan2(st.x - d.x, st.z - d.z);
       this._walk(me, this.nav.path(d, st) || [st], () => { me.avatar.root.rotation.y = Math.PI; this._announce(); });
       this.me = me; me.goal = st; this.rig.snapTo(0);
@@ -206,12 +206,16 @@ export class GardenWorld {
     };
     this._up = (e) => {
       const had = pts.delete(e.pointerId); if (pts.size < 2) pinch = 0;
-      if (had && start && !moved && pts.size === 0 && e.type === 'pointerup') this._tap(e.clientX, e.clientY);
+      if (had && start && !moved && pts.size === 0 && e.type === 'pointerup') this._queueTap(e.clientX, e.clientY);
       if (pts.size === 0) start = null;
     };
     this._wheel = (e) => { if (this.view !== 'third') return; e.preventDefault(); this.rig.zoom(e.deltaY > 0 ? 1.1 : 0.9); this._dirty = true; };
     el.addEventListener('pointerdown', this._down); el.addEventListener('pointermove', this._move);
     el.addEventListener('pointerup', this._up); el.addEventListener('pointercancel', this._up); el.addEventListener('wheel', this._wheel, { passive: false });
+    // 폰에서는 손을 뗀 뒤 '클릭'이 한 번 더 옴. 손을 떼자마자 창을 열면 그 클릭이 방금 연 창의 바깥을 눌러 바로 닫혀 버림
+    // → 클릭이 온 다음(안 오면 0.35초 뒤)에 누른 것을 처리
+    this._click = () => { const t = this._pendingTap; if (!t) return; this._pendingTap = null; clearTimeout(t.timer); this._tap(t.x, t.y); };
+    el.addEventListener('click', this._click);
     const KEY = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
     this._key = (e) => {
       const k = KEY[e.code]; if (!k || this.view === 'top') return;
@@ -225,6 +229,11 @@ export class GardenWorld {
     this._vis = () => { if (document.visibilityState === 'visible') { this.clock.getDelta(); this._dirty = true; } else this.keys.clear(); };
     document.addEventListener('visibilitychange', this._vis);
   }
+  _queueTap(x, y) {
+    if (this._pendingTap) clearTimeout(this._pendingTap.timer);
+    const t = { x, y }; t.timer = setTimeout(() => { if (this._pendingTap === t) { this._pendingTap = null; this._tap(x, y); } }, 350);
+    this._pendingTap = t;
+  }
   _tap(cx, cy) {
     const r = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), this.camera);
@@ -234,16 +243,16 @@ export class GardenWorld {
       let o = h.object; while (o && o.userData.personId == null) o = o.parent;
       const sl = o && this.slots.findIndex((s) => s && s.id === o.userData.personId); if (sl >= 0) { this.emit('tapTree', { id: this.slots[sl].id }); return; }
     }
-    if (this.view !== 'top') {
-      // 옆에서 볼 때: 나무 자체(잎·줄기)·이름표·악세서리 중 손가락 아래 가장 앞에 있는 것
-      const targets = [], owner = new Map();
+    // 손가락 아래 가장 앞에 있는 나무(잎·줄기)·이름표·악세서리 (모든 보기 공통)
+    { const targets = [], owner = new Map();
       this.garden.trees.forEach((t, i) => { const s = this.slots[i]; if (!s || !s.id) return; for (const o of [t.group, s.tag, ...(s.accs || [])]) if (o) { owner.set(o, i); targets.push(o); } });
       for (const h of this.raycaster.intersectObjects(targets, true)) {
         const pill = h.object.userData.pill;     // 이름표는 투명한 테두리 말고 글자 칸을 눌렀을 때만
         if (pill && h.uv && (Math.abs(h.uv.x - 0.5) > pill.hw || h.uv.y < 1 - pill.y1 || h.uv.y > 1 - pill.y0)) continue;
         let o = h.object; while (o && !owner.has(o)) o = o.parent;
         if (o) { this.emit('tapTree', { id: this.slots[owner.get(o)].id }); return; }
-      }
+      } }
+    if (this.view !== 'top') {
       // 조금 빗나가도: 나무 높이만큼의 세로 막대에서 가장 가까운 나무(손가락 굵기만큼 너그럽게)
       let bi = -1, bd = 0.26 * 0.26;
       const v0 = new THREE.Vector3(), v1 = new THREE.Vector3();
@@ -333,7 +342,7 @@ export class GardenWorld {
   dispose() {
     this.disposed = true; cancelAnimationFrame(this._raf);
     const el = this.canvas;
-    el.removeEventListener('pointerdown', this._down); el.removeEventListener('pointermove', this._move); el.removeEventListener('pointerup', this._up); el.removeEventListener('pointercancel', this._up); el.removeEventListener('wheel', this._wheel);
+    el.removeEventListener('pointerdown', this._down); el.removeEventListener('pointermove', this._move); el.removeEventListener('pointerup', this._up); el.removeEventListener('pointercancel', this._up); el.removeEventListener('wheel', this._wheel); el.removeEventListener('click', this._click); if (this._pendingTap) clearTimeout(this._pendingTap.timer);
     window.removeEventListener('keydown', this._key); window.removeEventListener('keyup', this._key); window.removeEventListener('blur', this._blur);
     window.removeEventListener('resize', this._resize); document.removeEventListener('visibilitychange', this._vis);
     for (const s of this.slots) if (s && s.tag) { s.tag.material.map.dispose(); s.tag.material.dispose(); }
