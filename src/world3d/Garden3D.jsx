@@ -14,12 +14,12 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const [near, setNear] = useState(true);            // 가까이 보기(내 나무 둘레) / 전체 보기
+  const [near, setNear] = useState(false);           // 위에서 보기: 처음엔 정원 전체, 버튼으로 내 나무 가까이
   const isStudent = role === "student" && !!studentInfo?.id;
   const canWalk = isStudent || role === "teacher";     // 선생님도 걸어 다니며 둘러봄(학생 화면에는 안 보임)
   const classId = classInfo?.id;
   const [view, setViewState] = useState(() => (canWalk ? loadView() : "top"));
-  const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); saveView(v); };
+  const chooseView = (v) => { setViewState(v); worldRef.current?.setView(v); saveView(v); if (v === "top") setNear(false); };   // "전체"를 누르면 정원 전체
   const metaRef = useRef(null), leavingRef = useRef(false), boxRef = useRef(null);
   // 정원 화면이 화면 아래(탭바 위)까지 꽉 차도록 높이를 맞춤(위쪽 반 목표 카드 높이에 따라 달라짐)
   const [boxH, setBoxH] = useState(null);
@@ -93,7 +93,7 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
       const [n] = await Promise.all([onWater(all), worldRef.current?.water()]);
       if (!n) showToast?.("줄 수 있는 물이 없어요.");
     } catch (e) { showToast?.(e?.message || "물주기에 실패했어요. 다시 시도해 주세요."); }
-    finally { upd("stand"); setBusy(false); }
+    finally { upd("stand"); setBusy(false); if (view === "top") setTimeout(() => setNear(false), 1800); }   // 물 준 모습을 잠깐 본 뒤 다시 정원 전체
   };
 
   return (

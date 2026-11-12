@@ -40,7 +40,7 @@ export class GardenWorld {
     this.slots = [];                    // 화분 순서대로: { id, nick, stage, me, tag }
     this.people = new Map();            // 정원에 있는 사람: id → { avatar, until }
     this.sparkles = [];
-    this.near = !!opts.me; this.cam = { x: 0, z: 0.1, dist: 30 }; this._camInit = false;
+    this.near = false; this.cam = { x: 0, z: 0.1, dist: 30 }; this._camInit = false;
     // 걸을 수 있는 마당 지도
     const g = this.garden;
     this.nav = new NavGrid({ x0: -4.6, x1: 4.6, z0: -7.4, z1: 8.2 }, 0.1, g.inside);
