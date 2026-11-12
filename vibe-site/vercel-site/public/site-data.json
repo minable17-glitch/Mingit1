@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 80,
+ "rev": 81,
  "pages": [
   {
    "id": "home",
@@ -2810,6 +2810,129 @@
      "t": "note",
      "tone": "tip",
      "text": "**운영하면서 바뀐 점** — 처음엔 승인되면 크루 참여 코드를 받아 앱에 넣게 했는데, 중간에 **코드 없이 선생님이 앱에서 크루로 묶어 주는** 방식으로 바꾸고 마감도 이틀 늘렸어요. 안내지의 주황색 '바뀐 점'이 그 흔적이에요. 웹앱은 **그때그때 고쳐 쓰기 쉽다**는 게 장점이에요."
+    }
+   ]
+  },
+  {
+   "id": "github",
+   "title": "깃허브",
+   "parent": null,
+   "tag": "",
+   "desc": "코드의 저장 기록을 남기고, 인터넷에 보관하고, 함께 쓰는 방법",
+   "blocks": [
+    {
+     "t": "h",
+     "text": "깃허브"
+    }
+   ]
+  },
+  {
+   "id": "git-concept",
+   "title": "깃과 깃허브 개념",
+   "parent": "github",
+   "tag": "",
+   "desc": "저장 지점을 남기는 깃, 그 기록을 인터넷에 보관하는 깃허브",
+   "blocks": [
+    {
+     "t": "h",
+     "text": "이런 파일, 본 적 있죠?"
+    },
+    {
+     "t": "box",
+     "tone": "soft",
+     "text": "📄 가정통신문.hwp\n📄 가정통신문_수정.hwp\n📄 가정통신문_최종.hwp\n📄 가정통신문_최종_진짜최종.hwp\n📄 가정통신문_최종_진짜최종(교감선생님수정).hwp"
+    },
+    {
+     "t": "p",
+     "text": "고칠 때마다 파일을 복사해 두는 건, **예전 상태로 돌아가고 싶어서**예요. 그런데 파일이 늘어나면 무엇이 최신인지, 어디를 왜 고쳤는지 알 수 없어요.\n**깃(Git)**은 이 일을 깔끔하게 해 주는 도구예요. 파일은 하나만 두고, **저장 지점과 메모를 기록**해 둬요."
+    },
+    {
+     "t": "h",
+     "text": "깃과 깃허브는 달라요"
+    },
+    {
+     "t": "cols",
+     "items": [
+      {
+       "title": "💾 깃 (Git) — 내 컴퓨터의 저장 기록장",
+       "text": "파일을 고칠 때마다 **\"여기까지 저장\" 지점(커밋)**을 남겨요. 각 지점에는 **언제, 무엇을 바꿨는지** 한 줄 메모가 붙어요.\n언제든 예전 지점으로 **되돌릴 수** 있어요. 프로그램(도구)의 이름이에요."
+      },
+      {
+       "title": "☁️ 깃허브 (GitHub) — 인터넷 보관소",
+       "text": "깃으로 남긴 기록을 **통째로 인터넷에 올려 두는** 웹사이트(github.com)예요.\n컴퓨터가 고장 나도 안전하고, **다른 사람과 같이 보고 고칠** 수 있어요. 구글 드라이브와 비슷하지만 **저장 기록까지** 함께 보관해요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "꼭 알아야 할 단어 다섯 개"
+    },
+    {
+     "t": "cards",
+     "num": true,
+     "items": [
+      {
+       "title": "저장소 (Repository, 레포)",
+       "body": "한 프로젝트의 파일과 그 기록을 담는 **폴더**. 웹앱 하나 = 저장소 하나라고 생각하면 돼요."
+      },
+      {
+       "title": "커밋 (Commit)",
+       "body": "**저장 지점 + 한 줄 메모.** \"날짜 수정\", \"신청 단추 추가\"처럼 무엇을 바꿨는지 적어요."
+      },
+      {
+       "title": "푸시 (Push)",
+       "body": "내 컴퓨터의 커밋을 **깃허브로 올리기.** 올려야 인터넷에 보관되고 다른 사람이 볼 수 있어요."
+      },
+      {
+       "title": "풀 (Pull)",
+       "body": "깃허브의 최신 내용을 **내 컴퓨터로 받기.** 학교에서 하던 작업을 집에서 이어 할 때 써요."
+      },
+      {
+       "title": "되돌리기 (Revert)",
+       "body": "예전 커밋의 내용으로 **돌아가기.** 기록은 지워지지 않아서 언제든 다시 앞으로 올 수도 있어요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "직접 해 보기"
+    },
+    {
+     "t": "html",
+     "title": "깃 체험 — 저장 지점 남기고 되돌리기",
+     "height": "640",
+     "fit": true,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>깃 체험 — 저장 지점 남기고 되돌리기</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--bg:#f4f7fb;--git:#f05133;--gh:#24292f;--ok:#16a34a;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  [hidden]{display:none!important}\n  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:16px}\n  .wrap{max-width:1100px;margin:0 auto}\n  h1{font-size:22px;margin:0}\n  .sub{margin:2px 0 14px;color:var(--muted);font-size:14.5px}\n  .grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px}\n  @media(max-width:860px){.grid{grid-template-columns:1fr}}\n  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}\n  .card h2{font-size:15px;margin:0;display:flex;align-items:center;gap:6px}\n  .card h2 small{font-weight:500;color:var(--muted);font-size:12px}\n  textarea{width:100%;height:190px;font:inherit;font-size:14.5px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}\n  input[type=text]{width:100%;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}\n  .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}\n  .btn{font:inherit;font-weight:800;font-size:14px;border:0;border-radius:10px;padding:9px 13px;cursor:pointer;background:var(--git);color:#fff}\n  .btn.gh{background:var(--gh)}\n  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:700}\n  .btn:disabled{opacity:.45;cursor:default}\n  .state{font-size:12.5px;color:var(--muted)}\n  .state b.dirty{color:#b45309}.state b.clean{color:var(--ok)}\n  ol.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}\n  ol.log li{border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;cursor:pointer;background:#fff}\n  ol.log li:hover{border-color:var(--git)}\n  ol.log li.cur{border-color:var(--git);background:#fff4f1}\n  ol.log .h{font-family:var(--mono);font-size:11.5px;color:#fff;background:var(--git);border-radius:6px;padding:1px 6px}\n  ol.log .m{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n  ol.log .t{grid-column:2;font-size:11.5px;color:var(--muted)}\n  .cloud ol.log .h{background:var(--gh)}\n  .empty{font-size:13px;color:var(--muted);padding:6px 0}\n  .peek{font-size:13px;background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:8px 10px;white-space:pre-wrap;max-height:150px;overflow:auto}\n  .toast{margin-top:12px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--git);border-radius:0 12px 12px 0;padding:10px 14px;font-size:14px;min-height:20px}\n  .gloss{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}\n  .gloss span{font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 10px}\n  .gloss b{color:var(--git)}\n</style>\n</head>\n<body>\n<div class=\"wrap\">\n  <h1>💾 깃 체험 — 저장 지점 남기고 되돌리기</h1>\n  <p class=\"sub\">가정통신문을 고쳐 가며 <b>커밋</b>(저장 지점)을 남겨 보세요. 예전 지점을 눌러 되돌려 보고, <b>푸시</b>로 깃허브에 올려 보세요.</p>\n  <div class=\"grid\">\n    <div class=\"card\">\n      <h2>✏️ 작업 중인 파일 <small>내 컴퓨터</small></h2>\n      <textarea id=\"doc\" spellcheck=\"false\"></textarea>\n      <div class=\"state\" id=\"state\"></div>\n      <input type=\"text\" id=\"msg\" placeholder=\"무엇을 바꿨는지 한 줄 메모 (예: 날짜 수정)\">\n      <div class=\"row\"><button class=\"btn\" id=\"commit\">💾 커밋 (저장 지점 남기기)</button></div>\n    </div>\n    <div class=\"card\">\n      <h2>🕘 깃 기록 <small>내 컴퓨터에 쌓인 저장 지점</small></h2>\n      <ol class=\"log\" id=\"local\"></ol>\n      <div class=\"peek\" id=\"peek\" hidden></div>\n      <div class=\"row\" id=\"peekBar\" hidden><button class=\"btn ghost\" id=\"restore\">↩ 이 지점으로 되돌리기</button><button class=\"btn ghost\" id=\"close\">닫기</button></div>\n    </div>\n    <div class=\"card cloud\">\n      <h2>☁️ 깃허브 <small>인터넷 보관소 (github.com)</small></h2>\n      <ol class=\"log\" id=\"remote\"></ol>\n      <div class=\"row\"><button class=\"btn gh\" id=\"push\">⬆ 푸시 (깃허브에 올리기)</button><button class=\"btn ghost\" id=\"pull\">⬇ 풀 (다른 컴퓨터에서 받기)</button></div>\n      <div class=\"state\" id=\"sync\"></div>\n    </div>\n  </div>\n  <div class=\"toast\" id=\"toast\">👉 왼쪽 글을 조금 고치고, 메모를 적은 뒤 <b>커밋</b>을 눌러 보세요.</div>\n  <div class=\"gloss\">\n    <span><b>커밋</b> = 저장 지점 + 한 줄 메모</span>\n    <span><b>로그</b> = 커밋이 쌓인 기록</span>\n    <span><b>되돌리기</b> = 예전 커밋의 내용으로 돌아가기</span>\n    <span><b>푸시</b> = 내 컴퓨터 → 깃허브로 올리기</span>\n    <span><b>풀</b> = 깃허브 → 내 컴퓨터로 받기</span>\n  </div>\n</div>\n<script>\nvar START = '[가정통신문]\\n제목: 현장체험학습 안내\\n날짜: 10월 15일(수)\\n장소: 과학관\\n준비물: 도시락, 물';\nvar $ = function (id) { return document.getElementById(id); };\nvar commits = [], pushed = 0, viewing = -1;\nfunction hash() { return Math.random().toString(16).slice(2, 9); }\nfunction time() { return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }\nfunction say(t) { $('toast').innerHTML = t; }\nfunction head() { return commits.length ? commits[commits.length - 1].text : null; }\nfunction li(c, i, cls) {\n  var e = document.createElement('li'); if (cls) e.className = cls;\n  e.innerHTML = '<span class=\"h\"></span><span class=\"m\"></span><span class=\"t\"></span>';\n  e.children[0].textContent = c.h; e.children[1].textContent = c.m; e.children[2].textContent = c.t + (i === commits.length - 1 ? ' · 최신' : '');\n  return e;\n}\nfunction render() {\n  var dirty = $('doc').value !== head();\n  $('state').innerHTML = commits.length === 0 ? '아직 커밋이 없어요.' : dirty ? '상태: <b class=\"dirty\">● 커밋 안 된 변경 있음</b>' : '상태: <b class=\"clean\">✓ 마지막 커밋과 같아요</b>';\n  $('commit').disabled = !dirty || !$('msg').value.trim();\n  var L = $('local'); L.textContent = '';\n  if (!commits.length) L.innerHTML = '<li class=\"empty\" style=\"cursor:default;border:0\">아직 저장 지점이 없어요</li>';\n  commits.slice().reverse().forEach(function (c, k) { var i = commits.length - 1 - k, e = li(c, i, i === viewing ? 'cur' : ''); e.onclick = function () { peek(i); }; L.append(e); });\n  var R = $('remote'); R.textContent = '';\n  if (!pushed) R.innerHTML = '<li class=\"empty\" style=\"cursor:default;border:0\">아직 올린 커밋이 없어요</li>';\n  commits.slice(0, pushed).reverse().forEach(function (c, k) { R.append(li(c, pushed - 1 - k)); });\n  var ahead = commits.length - pushed;\n  $('sync').textContent = ahead > 0 ? '⬆ 아직 안 올린 커밋 ' + ahead + '개' : pushed ? '✓ 깃허브와 똑같아요' : '';\n  $('push').disabled = ahead <= 0;\n  $('pull').disabled = !pushed;\n}\nfunction peek(i) {\n  viewing = i; $('peek').hidden = false; $('peekBar').hidden = false;\n  $('peek').textContent = commits[i].text;\n  say('🔎 <b>' + commits[i].h + '</b> 「' + commits[i].m + '」 때의 내용이에요. <b>되돌리기</b>를 누르면 이 내용으로 돌아가요.');\n  render();\n}\n$('doc').value = START; $('msg').value = '처음 만듦';\n$('doc').addEventListener('input', render); $('msg').addEventListener('input', render);\n$('commit').onclick = function () {\n  var m = $('msg').value.trim(); if (!m) return;\n  commits.push({ h: hash(), m: m, t: time(), text: $('doc').value });\n  $('msg').value = ''; viewing = -1; $('peek').hidden = true; $('peekBar').hidden = true;\n  say(commits.length === 1 ? '✅ 첫 커밋! 지금 내용이 <b>저장 지점</b>으로 남았어요. 글을 더 고치고 또 커밋해 보세요.'\n    : '✅ 커밋 ' + commits.length + '개째. 가운데 기록에서 <b>예전 지점</b>을 눌러 보세요.');\n  render();\n};\n$('restore').onclick = function () {\n  var c = commits[viewing]; $('doc').value = c.text; $('msg').value = '「' + c.m + '」 때로 되돌림';\n  $('peek').hidden = true; $('peekBar').hidden = true; viewing = -1;\n  say('↩ 「' + c.m + '」 때로 되돌렸어요. 실수해도 <b>기록이 남아 있으니</b> 언제든 돌아갈 수 있어요. 되돌린 것도 커밋으로 남겨 두세요.');\n  render();\n};\n$('close').onclick = function () { viewing = -1; $('peek').hidden = true; $('peekBar').hidden = true; render(); };\n$('push').onclick = function () {\n  var n = commits.length - pushed; pushed = commits.length;\n  say('⬆ 커밋 ' + n + '개를 <b>깃허브</b>에 올렸어요. 이제 컴퓨터가 고장 나도 안전하고, 다른 선생님과 같이 볼 수 있어요.');\n  render();\n};\n$('pull').onclick = function () {\n  $('doc').value = commits[pushed - 1].text;\n  say('⬇ 깃허브에서 최신 내용을 받아왔어요. 학교 컴퓨터에서 작업하던 것을 집 컴퓨터에서 이어서 할 때 이렇게 해요.');\n  render();\n};\nrender();\n</script>\n</body>\n</html>\n"
+    },
+    {
+     "t": "h",
+     "text": "바이브 코딩에서 깃허브가 왜 필요할까?"
+    },
+    {
+     "t": "cards",
+     "items": [
+      {
+       "title": "🛟 AI가 코드를 망가뜨려도 괜찮아요",
+       "body": "AI에게 \"이것 좀 고쳐 줘\" 했다가 더 이상해질 때가 있어요. 커밋을 남겨 뒀다면 **잘 되던 때로 바로 되돌리면** 돼요."
+      },
+      {
+       "title": "🌐 깃허브에 올리면 웹사이트가 돼요",
+       "body": "깃허브에 올린 코드는 **Vercel·GitHub Pages** 같은 곳과 연결해 링크 하나짜리 웹사이트로 만들 수 있어요. 고쳐서 푸시하면 사이트도 저절로 바뀌어요."
+      },
+      {
+       "title": "🤝 동료 선생님과 같이 만들어요",
+       "body": "같은 저장소에서 각자 고치고 올리면, **누가 언제 무엇을 바꿨는지** 기록이 남아요. 파일을 메신저로 주고받을 필요가 없어요."
+      },
+      {
+       "title": "🤖 AI 코딩 도구가 직접 커밋해요",
+       "body": "Claude Code 같은 AI 코딩 도구는 코드를 고친 뒤 **알아서 커밋하고 깃허브에 올려** 줘요. 우리는 메모를 읽고 확인만 하면 돼요."
+      }
+     ]
+    },
+    {
+     "t": "note",
+     "tone": "info",
+     "text": "**이 연수 사이트도 깃허브에 있어요.** 페이지를 고치고 저장할 때마다 깃허브에 커밋이 하나씩 쌓이고, 그걸 Vercel이 받아서 사이트를 다시 만들어요. 지금 보고 계신 화면도 그렇게 바뀐 거예요."
     }
    ]
   }

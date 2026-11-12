@@ -131,3 +131,7 @@
 - `api/feedback.js`(러닝 코치)는 GEMINI_API_KEY 있으면 Gemini, 없으면 Groq.
 - `api/review.js` = 종합 실습 AI 채점 봇. 기준 10개(RUBRIC: 기본 b1~b4, 심화 d1a~d3b) 마다 pass/partial/fail + 이유, 기록 항목, 잘한 점, 피드백, 다음 프롬프트(JSON). 코드 속 키(AIza…, AQ.…)는 보내기 전에 가림. vercel.json maxDuration 60.
 - **키는 저장소에 절대 넣지 않는다.** Vercel → pevibecode → Settings → Environment Variables → GEMINI_API_KEY → Redeploy.
+
+## 깃허브 단원 (2026-11-12, 체육·범교과 둘 다)
+- 맨 끝에 단원 `github`(깃허브) + 첫 페이지 `git-concept`(깃과 깃허브 개념): 파일명_최종_진짜최종 예시 → 깃/깃허브 차이 → 단어 5개(저장소·커밋·푸시·풀·되돌리기) → 깃 체험(가정통신문 고치며 커밋·되돌리기·푸시·풀, 브라우저 안에서만) → 바이브 코딩에서 왜 필요한지.
+- 다음 실습 페이지는 이 단원 아래에 이어 붙이면 된다.
