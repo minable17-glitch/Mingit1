@@ -1006,7 +1006,7 @@ function zoomSelect(b){
 }
 function labView(b){
   var ready=false, timer;
-  var frame=el('iframe',{class:'lab-frame',sandbox:'allow-scripts allow-modals allow-popups'+(b.storage?' allow-same-origin':''),title:b.title||'체험',style:'height:'+(b.height||320)+'px'});
+  var frame=el('iframe',{class:'lab-frame',sandbox:'allow-scripts allow-modals allow-popups allow-forms'+(b.storage?' allow-same-origin':''),title:b.title||'체험',style:'height:'+(b.height||320)+'px'});
   var fail=el('div',{class:'lab-fail',hidden:true},'이 화면에서는 실행 미리보기가 열리지 않았어요. 아래 “코드 보기”에서 코드를 복사해 AI 도구나 브라우저에서 열어 보세요.');
   frame._ok=function(){ready=true;fail.hidden=true;};
   frame._fit=!!b.fit;
