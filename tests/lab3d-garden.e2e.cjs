@@ -53,7 +53,7 @@ async function run(supportsWater) {
   console.log(tag, '한 번 더 준 뒤:', JSON.stringify(await state()));
   // 전체 보기로 바꾼 뒤 나무를 눌러 친구 정보 열기
   await p.click('[data-view="top"]'); await p.waitForTimeout(300);
-  await p.getByText('🔭 전체 보기').click(); await p.waitForTimeout(2500); await p.screenshot({ path: `${OUT}/g4-overview.png` });
+  await p.waitForTimeout(2500);   // "전체"를 누르면 바로 정원 전체 await p.screenshot({ path: `${OUT}/g4-overview.png` });
   const [tx, ty] = await p.evaluate(() => { const w = window.__garden3d, i = w.slots.findIndex((s) => s && s.nick === '수아'), t = w.garden.trees[i], v = new (w.camera.position.constructor)(t.x, 0.1, t.z).project(w.camera), r = w.canvas.getBoundingClientRect(); return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]; });
   await p.mouse.click(tx, ty); await p.waitForTimeout(500);
   console.log(tag, "'수아' 나무를 누름 → 상세 창:", await p.evaluate(() => (document.body.innerText.match(/지금 [^\n]* 단계 · 누적 \d+일/) || ['안 열림'])[0]));
