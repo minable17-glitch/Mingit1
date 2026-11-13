@@ -6,12 +6,14 @@
 const { limited, cors, bodyOf } = require('./_groq');
 const { askGemini } = require('./_gemini');
 
-// 배점: 기본 40 (2개 × 20) + 심화 1·2·3 각 20 (2개 × 10) = 100점. 부분 통과는 절반.
+// 배점: 기본 40 (선택·입력 15 + 쌓임 15 + 앱스크립트 웹앱 10) + 심화 1·2·3 각 20 (2개 × 10) = 100점. 부분 통과는 절반.
 const RUBRIC = [
-  { level: 'basic', id: 'b1', pts: 20, text: '명렬표(반·번호·이름)의 학생을 선택하고 수업 중 기록을 입력할 수 있다',
-    rule: 'pass: 서버가 시트에서 명단을 읽어(getValues 등) 화면이 반·학생을 단추/목록으로 고르게 하고, 기록을 입력해 저장 함수로 보냄(웹앱으로 열리고 google.script.run 연결이 동작). partial: 명단을 코드에 직접 적어 두었거나, 반 구분이 없거나, 화면이 부르는 서버 함수가 없어 동작하지 않음. fail: 이름을 글자로 입력함 / 입력 화면 없음' },
-  { level: 'basic', id: 'b2', pts: 20, text: '입력한 기록이 사라지지 않고 한곳(구글 시트)에 계속 쌓인다',
+  { level: 'basic', id: 'b1', pts: 15, text: '명렬표(반·번호·이름)의 학생을 선택하고 수업 중 기록을 입력할 수 있다',
+    rule: 'pass: 서버가 시트에서 명단을 읽어(getValues 등) 화면이 반·학생을 단추/목록으로 고르게 하고, 기록을 입력해 저장 함수로 보냄. partial: 명단을 코드에 직접 적어 두었거나, 반 구분이 없음. fail: 이름을 글자로 입력함 / 입력 화면 없음' },
+  { level: 'basic', id: 'b2', pts: 15, text: '입력한 기록이 사라지지 않고 한곳(구글 시트)에 계속 쌓인다',
     rule: 'pass: 저장 함수가 appendRow/setValues 로 시트에 새 줄을 더함(덮어쓰지 않음). partial: 저장은 되지만 같은 칸을 덮어써 누적이 안 됨. fail: 시트에 쓰지 않음(변수·localStorage 만)' },
+  { level: 'basic', id: 'b4', pts: 10, text: '구글 앱스크립트 웹앱으로 링크 하나로 접속한다 (doGet 으로 화면 제공, google.script.run 으로 서버 연결)',
+    rule: 'pass: doGet 이 HtmlService 로 index 를 돌려주고, 화면이 google.script.run 으로 code.gs 의 함수를 부름(함수 이름이 서로 맞음). partial: 둘 중 하나가 빠졌거나, 화면이 부르는 함수가 code.gs 에 없음. fail: doGet 없음(앱스크립트 웹앱이 아님)' },
   { level: 'd1', id: 'd1a', pts: 10, text: '학생 이름을 누르면 그 학생의 누적 기록이 그래프로 표시된다',
     rule: 'pass: 학생을 고르면 시트에 쌓인 그 학생의 여러 회 기록(평균·합계·추이)을 그래프로 그림. partial: 그래프는 있으나 마지막 한 번 기록만 보이거나 학생별로 나뉘지 않음. fail: 학생별 그래프 없음' },
   { level: 'd1', id: 'd1b', pts: 10, text: '방사형(레이더) 그래프로 능력치를 표현한다 (막대·선 그래프면 부분 인정)',
@@ -86,9 +88,9 @@ function factLines(f) {
 function caps(f) {
   const c = {};
   const cap = (id, max, why) => { if (!c[id] || rankOf(max) < rankOf(c[id].max)) c[id] = { max, why }; };
-  if (!f.doGet) cap('b1', 'partial', 'code.gs 에 doGet 함수가 없어 웹앱으로 열리지 않아요.');
-  else if (!f.scriptRun || !f.htmlService) cap('b1', 'partial', '화면 제공(HtmlService) 또는 google.script.run 연결이 보이지 않아요.');
-  if (f.missingFns.length) cap('b1', 'partial', `화면이 부르는 ${f.missingFns.join(', ')} 함수가 code.gs 에 없어요.`);
+  if (!f.doGet) cap('b4', 'fail', 'code.gs 에 doGet 함수가 없어 웹앱으로 열리지 않아요.');
+  else if (!f.scriptRun || !f.htmlService) cap('b4', 'partial', '화면 제공(HtmlService) 또는 google.script.run 연결이 보이지 않아요.');
+  if (f.missingFns.length) cap('b4', 'partial', `화면이 부르는 ${f.missingFns.join(', ')} 함수가 code.gs 에 없어요.`);
   if (!f.readSheet) cap('b1', 'partial', '시트에서 명단을 읽는 코드(getValues)가 없어요.');
   if (!f.writeSheet) cap('b2', 'fail', '시트에 쓰는 코드(appendRow·setValues)가 없어요.');
   if (!f.chart) { cap('d1a', 'fail', '그래프를 그리는 코드가 없어요.'); cap('d1b', 'fail', '그래프를 그리는 코드가 없어요.'); }
@@ -106,8 +108,9 @@ function rankOf(s) { return s === 'pass' ? 2 : s === 'partial' ? 1 : 0; }
 function staticGrade(f) {
   const ready = f.doGet && f.htmlService && f.scriptRun && !f.missingFns.length;
   const st = {
-    b1: f.readSheet && !f.textNameInput && ready ? 'pass' : f.textNameInput && !f.readSheet ? 'fail' : 'partial',
+    b1: f.readSheet && !f.textNameInput ? 'pass' : f.textNameInput && !f.readSheet ? 'fail' : 'partial',
     b2: f.writeSheet ? 'pass' : 'fail',
+    b4: ready ? 'pass' : f.doGet ? 'partial' : 'fail',
     d1a: f.chart ? 'pass' : 'fail',
     d1b: f.radar && f.chart ? 'pass' : f.chart ? 'partial' : 'fail',
     d2a: f.teacherView ? 'pass' : 'fail',
@@ -116,7 +119,8 @@ function staticGrade(f) {
     d3b: f.aiCall && f.scriptProps && !f.hardKey ? 'pass' : f.aiCall && !f.hardKey ? 'partial' : 'fail',
   };
   const why = {
-    b1: !ready ? '웹앱 화면 연결(doGet·google.script.run)이 덜 됐어요.' : f.readSheet ? '시트에서 명단을 읽고 화면과 연결돼 있어요.' : '시트에서 명단을 읽는 코드가 보이지 않아요.',
+    b1: f.readSheet ? '시트에서 명단을 읽는 코드(getValues)가 있어요.' : '시트에서 명단을 읽는 코드가 보이지 않아요.',
+    b4: ready ? 'doGet 과 google.script.run 연결이 있어요.' : '화면 제공(doGet·HtmlService) 또는 연결(google.script.run)이 빠졌어요.' + (f.missingFns.length ? ` (code.gs 에 없는 함수: ${f.missingFns.join(', ')})` : ''),
     b2: f.writeSheet ? '시트에 쓰는 코드(appendRow·setValues)가 있어요.' : '시트에 쓰는 코드가 없어요.',
     d1a: f.chart ? '그래프를 그리는 코드가 있어요.' : '그래프 코드가 없어요.',
     d1b: f.radar ? '방사형(radar) 그래프예요.' : f.chart ? '그래프는 있지만 방사형이 아니에요.' : '그래프 코드가 없어요.',
@@ -161,7 +165,7 @@ ${factLines(f)}
   마지막 줄에 "code.gs 와 index.html 전체를 생략 없이 각각 다른 코드블록으로 다시 줘"를 붙여. 모든 기준이 pass 면 더 다듬을 점 하나를 부탁해.
 
 [출력] 아래 JSON 만:
-{"items":[{"id":"b1","status":"pass|partial|fail","evidence":"근거가 된 코드 한 줄(80자 이내, 없으면 빈칸)","reason":"..."}, ... 8개 모두], "record_fields":"앱이 기록하는 항목을 짧게(예: 타격, 수비, 참여도)", "strengths":["..."], "feedback":"...", "next_prompt":"..."}
+{"items":[{"id":"b1","status":"pass|partial|fail","evidence":"근거가 된 코드 한 줄(80자 이내, 없으면 빈칸)","reason":"..."}, ... 9개 모두], "record_fields":"앱이 기록하는 항목을 짧게(예: 타격, 수비, 참여도)", "strengths":["..."], "feedback":"...", "next_prompt":"..."}
 
 ===== code.gs =====
 ${gs}
