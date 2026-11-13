@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 93,
+ "rev": 94,
  "pages": [
   {
    "id": "home",
@@ -2285,7 +2285,7 @@
     },
     {
      "t": "embed",
-     "title": "✅ 고치면 이렇게 돼요 — 직접 눌러 보세요",
+     "title": "✅ API키 누락된 예시 — 직접 눌러 보세요",
      "url": "https://script.google.com/macros/s/AKfycbz6KcBiLGJqxsZJHMKMV0j4YaZaCu55D8PGyQILx8U78FymTLcpOxNflG-yAWtErmBI3Q/exec",
      "height": 980
     },
@@ -3022,5 +3022,5 @@
    ]
   }
  ],
- "updated": "2026-11-13T03:27:25.214Z"
+ "updated": "2026-11-13T04:12:46.508Z"
 }
