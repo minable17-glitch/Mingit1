@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 19,
+ "rev": 20,
  "pages": [
   {
    "id": "home",
@@ -2271,30 +2271,50 @@
    "blocks": [
     {
      "t": "h",
-     "text": "연습 실습 — 키만 넣으면 완성되는 AI 앱"
+     "text": "연습 실습 — API 키만 넣으면 완성"
     },
     {
      "t": "p",
-     "text": "코드는 **다 만들어 드려요.** 그대로 붙여 넣고 열면 AI 대신 **\"🔑 API 키가 없어요\"** 가 떠요. 스크립트 속성에 **API 키를 넣어서** AI가 답하게 만드는 것이 이번 실습이에요."
+     "text": "코드는 **완성돼 있어요.** 붙여 넣고 **API 키만 넣으면** AI가 학생 글에 피드백해 줘요."
     },
     {
      "t": "box",
      "tone": "accent",
-     "title": "만들 앱 — ✍️ 글쓰기 AI 피드백",
-     "text": "학생이 **과목·주제**를 고르고 **쓴 글**을 붙여 넣으면\n→ AI 선생님이 **잘한 점 · 고칠 점 · 고쳐 쓴 예시 문장**을 알려 주고\n→ 구글 시트 **글쓰기피드백** 탭에 기록이 쌓여요.\n국어 감상문, 사회 주장 글, 과학 탐구 보고서, 영어 일기… 어느 과목에서나 써요."
+     "title": "✍️ 글쓰기 AI 피드백",
+     "text": "학생이 글을 쓰면 → AI가 **잘한 점 · 고칠 점**을 알려 줘요."
     },
     {
      "t": "gallery",
      "items": [
       {
        "src": "images/write-1.jpg",
-       "caption": "① 키를 넣기 전 — 노란 칸에 **API 키가 없어요** (코드가 스크립트 속성에서 키를 못 찾음)"
+       "caption": "① 키 넣기 전 — **API 키가 없어요**"
       },
       {
        "src": "images/write-2.jpg",
-       "caption": "② 키를 넣은 뒤 — **다시 누르기만** 하면 AI 피드백이 와요 (다시 배포할 필요 없음)"
+       "caption": "② 키 넣은 뒤 — AI 피드백이 와요"
       }
      ]
+    },
+    {
+     "t": "h",
+     "text": "Code.gs"
+    },
+    {
+     "t": "prompt",
+     "label": "Code.gs — 통째로 복사해서 붙여 넣기",
+     "hide": true,
+     "text": "// ✍️ 글쓰기 AI 피드백 — 학생이 쓴 글에 AI가 잘한 점·고칠 점을 알려 준다\n// 이 코드는 다 완성돼 있어요. 스크립트 속성에 GEMINI_API_KEY 만 넣으면 동작해요.\n\n// 기록이 쌓일 시트 탭 이름\nconst SHEET = '글쓰기피드백';\n\n// 쓸 모델 — 내 키로 쓸 수 있는 모델 목록을 구글에 물어봐서, 빠르고 가벼운 'Flash-Lite' 를 먼저 쓴다.\n// 목록을 못 받으면 아래 이름으로 시도한다.\nconst MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest'];\n\n// 웹앱 주소로 들어오면 index.html 화면을 보여 준다\nfunction doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('글쓰기 AI 피드백')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n\n// 화면에서 google.script.run.getFeedback(data) 로 부른다\n// data 예: { subject: '국어', topic: '내가 좋아하는 책', text: '학생이 쓴 글' }\nfunction getFeedback(data) {\n  // ① API 키는 코드에 쓰지 않고 스크립트 속성에서 꺼낸다 ← 이번 실습에서 넣는 곳!\n  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');\n  if (!key) {\n    return '🔑 API 키가 없어요.\\n' +\n      '편집기 왼쪽 ⚙ 프로젝트 설정 → 스크립트 속성 → 스크립트 속성 추가\\n' +\n      '속성: GEMINI_API_KEY / 값: 발급받은 API 키 → 저장한 뒤 다시 눌러 보세요.';\n  }\n\n  // ② AI에게 보낼 부탁(프롬프트) — 이름 같은 개인정보는 보내지 않는다\n  const prompt =\n    '너는 중학교 ' + data.subject + ' 선생님이야. 학생이 쓴 글을 읽고 짧게 피드백해 줘.\\n' +\n    '- 잘한 점 1가지, 고치면 좋을 점 1가지, 고쳐 쓴 예시 문장 1개\\n' +\n    '- 따뜻하고 구체적으로, 중학생이 읽기 쉬운 한국어로\\n' +\n    '- 마크다운 기호(#, *)는 쓰지 말고 6줄 이내로 써 줘\\n\\n' +\n    '글의 주제: ' + (data.topic || '자유') + '\\n' +\n    '학생의 글:\\n' + data.text;\n\n  // ③ Gemini 에게 보내고 피드백 받기 (모델 고르기는 아래 askGemini 가 알아서)\n  const feedback = askGemini(key, prompt);\n\n  // ④ 시트에 한 줄 남기기 (탭과 첫 줄 제목은 처음에 자동으로 만든다)\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  const sheet = ss.getSheetByName(SHEET) || ss.insertSheet(SHEET);\n  if (sheet.getLastRow() === 0) sheet.appendRow(['시각', '과목', '주제', '글', 'AI 피드백']);\n  sheet.appendRow([new Date(), data.subject, data.topic, data.text, feedback]);\n\n  return feedback;\n}\n\n// Gemini API 부르기 — 성공한 모델은 스크립트 속성 GEMINI_MODEL 에 기억해 두고 다음부터 먼저 쓴다\n// 오류에 따라: 404(모델 없음)·429(이 모델 횟수 초과)·500/503(서버 바쁨) → 같은 모델로 다시 보내지 않고 바로 다음 모델로,\n//              400/401/403(요청·키 문제) → 모델을 바꿔도 안 되니 바로 멈춘다\n// 학생이 너무 오래 기다리지 않게, 모두 합쳐 LIMIT_SEC 초가 넘으면 그만둔다\nconst LIMIT_SEC = 40;\nfunction askGemini(key, prompt) {\n  const props = PropertiesService.getScriptProperties();\n  const saved = props.getProperty('GEMINI_MODEL');   // 지난번에 잘 된 모델\n  const start = Date.now();\n  const tried = [];\n  let lastCode = 0;\n  let models = (saved ? [saved] : []).concat(getModels(key, props));\n\n  for (const model of models) {\n    if (tried.indexOf(model) >= 0) continue;\n    tried.push(model);\n    let think = true;   // 처음에는 '짧게 생각하기' 설정을 붙여 본다\n    for (let attempt = 0; attempt < 2; attempt++) {\n      if ((Date.now() - start) / 1000 > LIMIT_SEC) return '지금 AI가 너무 오래 걸려요. 잠시 뒤 다시 눌러 주세요.';\n      const t = Date.now();\n      const res = UrlFetchApp.fetch(\n        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {\n          method: 'post',\n          contentType: 'application/json',\n          headers: { 'x-goog-api-key': key },\n          payload: JSON.stringify(makeBody(model, prompt, think)),\n          muteHttpExceptions: true\n        });\n      const code = res.getResponseCode();\n      console.log(model + (think ? ' (짧게 생각)' : '') + ' → ' + code + ', ' + Math.round((Date.now() - t) / 1000) + '초');\n      if (code === 200) {\n        if (model !== saved) props.setProperty('GEMINI_MODEL', model);\n        const parts = JSON.parse(res.getContentText()).candidates[0].content.parts;\n        return parts.map(function (p) { return p.text || ''; }).join('').trim();\n      }\n      lastCode = code;\n      if (code === 400 && think) { think = false; continue; }   // 이 모델이 '생각 설정'을 모르면 빼고 다시\n      if (code === 400 || code === 401 || code === 403) return errorText(code);\n      break;   // 다음 모델로\n    }\n  }\n  return errorText(lastCode);\n}\n\n// 보낼 내용 — 요즘 모델은 답하기 전에 오래 '생각'해서 느리므로, 짧게 생각하라고 부탁한다\nfunction makeBody(model, prompt, think) {\n  const body = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024 } };\n  if (think) {\n    if (/gemini-3/.test(model)) body.generationConfig.thinkingConfig = { thinkingLevel: 'minimal' };\n    else if (/2\\.5/.test(model)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };\n  }\n  return body;\n}\n\n// 오류 번호를 학생이 알아듣는 말로\nfunction errorText(code) {\n  if (code === 503 || code === 500) return 'AI가 지금 너무 바빠요. 잠시 뒤 다시 눌러 주세요. (오류 ' + code + ')';\n  if (code === 429) return '오늘 AI를 너무 많이 불렀어요. 잠시 뒤(또는 내일) 다시 해 주세요. (오류 429)';\n  if (code === 401 || code === 403) return 'API 키가 맞지 않아요. 스크립트 속성의 GEMINI_API_KEY 를 확인해 주세요. (오류 ' + code + ')';\n  if (code === 404) return '쓸 수 있는 Gemini 모델을 찾지 못했어요. AI Studio 에서 모델 이름을 확인해 주세요.';\n  return '지금은 AI 처방을 받을 수 없어요. (오류 ' + code + ')';\n}\n\n// 내 키로 쓸 수 있는 Flash 모델 이름들 — 가벼운 Lite 먼저, 시험판(preview)은 뒤로\n// 한 번 받은 목록은 스크립트 속성 GEMINI_MODELS 에 하루 동안 기억해 둔다\nfunction getModels(key, props) {\n  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');\n  const cache = props.getProperty('GEMINI_MODELS');\n  if (cache && cache.indexOf(today + '|') === 0) return cache.split('|')[1].split(',');\n  const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {\n    headers: { 'x-goog-api-key': key },\n    muteHttpExceptions: true\n  });\n  if (res.getResponseCode() !== 200) return MODELS;\n  const rank = function (n) { return (/lite/.test(n) ? 0 : 2) + (/preview|exp/.test(n) ? 1 : 0); };\n  const list = (JSON.parse(res.getContentText()).models || [])\n    .filter(function (m) {\n      return /flash/.test(m.name) && !/image|tts|live|audio|embedding|thinking/.test(m.name) &&\n        (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0;\n    })\n    .map(function (m) { return m.name.replace('models/', ''); })\n    .sort(function (a, b) { return rank(a) - rank(b) || (a < b ? 1 : -1); })\n    .slice(0, 6);\n  if (!list.length) return MODELS;\n  props.setProperty('GEMINI_MODELS', today + '|' + list.join(','));\n  console.log('쓸 수 있는 모델: ' + list.join(', '));\n  return list;\n}\n\n// 편집기에서 이 함수를 골라 ▶ 실행하면, 웹앱 없이 AI 연결을 시험해 볼 수 있어요\n// 아래 '실행 로그'에 걸린 시간과 AI 답(또는 오류 문구)이 나와요. (시트에 시험용 한 줄이 남아요)\nfunction testGemini() {\n  const start = Date.now();\n  const fb = getFeedback({ subject: '국어', topic: '내가 좋아하는 계절', text: '나는 가을이 좋다. 왜냐하면 덥지 않기 때문이다. 그리고 낙엽이 예쁘다.' });\n  Logger.log('걸린 시간: ' + Math.round((Date.now() - start) / 1000) + '초');\n  Logger.log(fb);\n}\n"
+    },
+    {
+     "t": "h",
+     "text": "index.html"
+    },
+    {
+     "t": "prompt",
+     "label": "index.html — 통째로 복사해서 붙여 넣기",
+     "hide": true,
+     "text": "<!DOCTYPE html>\n<html>\n<head>\n  <base target=\"_top\">\n  <meta charset=\"UTF-8\">\n  <style>\n    body { margin: 0; padding: 16px; background: #eef2ff; font-family: system-ui, sans-serif; color: #1f2933; }\n    .box { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }\n    h1 { font-size: 22px; margin: 0 0 4px; }\n    p.sub { margin: 0 0 14px; color: #6b7280; font-size: 14px; }\n    label { display: block; font-size: 14px; font-weight: 700; margin: 12px 0 6px; }\n    select, input, textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; }\n    textarea { height: 150px; resize: vertical; line-height: 1.6; }\n    .count { text-align: right; font-size: 12px; color: #9ca3af; margin-top: 4px; }\n    #send { width: 100%; margin-top: 16px; padding: 14px; font-size: 17px; font-weight: 800; border: 0; border-radius: 12px; background: #4f46e5; color: #fff; cursor: pointer; }\n    #send:disabled { opacity: .6; }\n    #result { display: none; margin-top: 16px; padding: 14px; border-radius: 12px; background: #eef2ff; line-height: 1.75; white-space: pre-wrap; }\n    #result.warn { background: #fef3c7; color: #92400e; font-weight: 600; }\n  </style>\n</head>\n<body>\n  <div class=\"box\">\n    <h1>✍️ 글쓰기 AI 피드백</h1>\n    <p class=\"sub\">쓴 글을 붙여 넣으면 AI 선생님이 잘한 점과 고칠 점을 알려 줘요. 이름은 적지 않아요.</p>\n\n    <label for=\"subject\">과목</label>\n    <select id=\"subject\">\n      <option>국어</option><option>사회</option><option>과학</option><option>영어</option>\n      <option>도덕</option><option>미술</option><option>체육</option><option>진로</option>\n    </select>\n\n    <label for=\"topic\">글의 주제</label>\n    <input id=\"topic\" placeholder=\"예: 내가 좋아하는 책 / 환경 보호 방법\">\n\n    <label for=\"text\">내가 쓴 글</label>\n    <textarea id=\"text\" placeholder=\"여기에 글을 써요 (3~10문장)\"></textarea>\n    <div class=\"count\" id=\"count\">0자</div>\n\n    <button id=\"send\">🤖 AI 피드백 받기</button>\n    <div id=\"result\"></div>\n  </div>\n\n  <script>\n    const text = document.getElementById('text');\n    text.oninput = function () { document.getElementById('count').textContent = text.value.length + '자'; };\n\n    // 보내기 → Code.gs 의 getFeedback 을 부르고, 돌아온 피드백을 보여 준다\n    document.getElementById('send').onclick = function () {\n      const data = {\n        subject: document.getElementById('subject').value,\n        topic: document.getElementById('topic').value.trim(),\n        text: text.value.trim()\n      };\n      const send = document.getElementById('send');\n      const result = document.getElementById('result');\n      if (data.text.length < 10) {\n        result.style.display = 'block'; result.className = 'warn';\n        result.textContent = '글을 조금 더 써 주세요 (10자 이상).';\n        return;\n      }\n\n      send.disabled = true;\n      const startAt = Date.now();\n      const timer = setInterval(function () {\n        send.textContent = 'AI 선생님이 읽는 중... ' + Math.round((Date.now() - startAt) / 1000) + '초';\n      }, 1000);\n      send.textContent = 'AI 선생님이 읽는 중... 0초';\n\n      google.script.run\n        .withSuccessHandler(function (msg) {\n          clearInterval(timer);\n          result.style.display = 'block';\n          result.className = msg.indexOf('🔑') === 0 ? 'warn' : '';   // 키가 없으면 노란 안내\n          result.textContent = msg;\n          send.disabled = false;\n          send.textContent = '🤖 다시 받기';\n        })\n        .withFailureHandler(function (err) {\n          clearInterval(timer);\n          result.style.display = 'block'; result.className = 'warn';\n          result.textContent = '피드백을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요. (' + (err && err.message ? err.message : '알 수 없는 오류') + ')';\n          send.disabled = false;\n          send.textContent = '🤖 AI 피드백 받기';\n        })\n        .getFeedback(data);\n    };\n  </script>\n</body>\n</html>\n"
     },
     {
      "t": "h",
@@ -2305,19 +2325,19 @@
      "items": [
       {
        "title": "붙여 넣기",
-       "body": "**sheets.new** → **확장 프로그램 → Apps Script** → `Code.gs` 내용을 지우고 아래 **Code.gs** 를 통째로 붙여 넣기 → 왼쪽 **＋ → HTML** → 이름 `index` → 아래 **index.html** 붙여 넣기 → 💾 저장"
+       "body": "**sheets.new** → **확장 프로그램 → Apps Script** → 위 **Code.gs**·**index.html**(＋ → HTML → 이름 `index`) 붙여 넣고 💾 저장"
       },
       {
-       "title": "배포하고 열어 보기",
-       "body": "**배포 → 새 배포 → 유형: 웹 앱** · 실행: 나 · 액세스: 모든 사용자 → 권한 허용 → 웹 앱 URL 열기 → 글을 쓰고 단추를 누르면 **🔑 API 키가 없어요** 가 떠요 (정상!)"
+       "title": "배포하기",
+       "body": "**배포 → 새 배포 → 웹 앱** · 실행: 나 · 액세스: 모든 사용자 → 웹 앱 URL 열기 → 단추를 누르면 **API 키가 없어요** (정상!)"
       },
       {
        "title": "API 키 넣기",
-       "body": "편집기 왼쪽 **⚙ 프로젝트 설정 → 스크립트 속성 → 스크립트 속성 추가** → 속성 `GEMINI_API_KEY` · 값: 내 키 → **스크립트 속성 저장** (키 발급은 [API 키 발급](#api-key) 페이지)"
+       "body": "**⚙ 프로젝트 설정 → 스크립트 속성 추가** → 속성 `GEMINI_API_KEY` · 값: 내 키 → 저장 (아래 그림 참고)"
       },
       {
-       "title": "다시 눌러 보기",
-       "body": "웹앱 화면에서 **🤖 다시 받기**를 눌러요. AI 피드백이 오고, 시트에 **글쓰기피드백** 탭이 생기면 성공!"
+       "title": "다시 누르기",
+       "body": "웹앱에서 단추를 **다시 누르면** AI 피드백이 와요. 다시 배포할 필요 없어요."
       }
      ]
     },
@@ -2325,7 +2345,7 @@
      "t": "h",
      "size": "sm",
      "bg": "yellow",
-     "text": "🔑 3번 API 키 넣기 — 칸 두 개만 정확히"
+     "text": "🔑 API 키 넣기 — 칸 두 개만 정확히"
     },
     {
      "t": "img",
@@ -2412,26 +2432,6 @@
        "caption": "⑬ 웹 앱 URL 복사 → 새 탭 주소창에 붙여 넣어 열기"
       }
      ]
-    },
-    {
-     "t": "h",
-     "text": "Code.gs"
-    },
-    {
-     "t": "prompt",
-     "label": "Code.gs — 통째로 복사해서 붙여 넣기",
-     "hide": true,
-     "text": "// ✍️ 글쓰기 AI 피드백 — 학생이 쓴 글에 AI가 잘한 점·고칠 점을 알려 준다\n// 이 코드는 다 완성돼 있어요. 스크립트 속성에 GEMINI_API_KEY 만 넣으면 동작해요.\n\n// 기록이 쌓일 시트 탭 이름\nconst SHEET = '글쓰기피드백';\n\n// 쓸 모델 — 내 키로 쓸 수 있는 모델 목록을 구글에 물어봐서, 빠르고 가벼운 'Flash-Lite' 를 먼저 쓴다.\n// 목록을 못 받으면 아래 이름으로 시도한다.\nconst MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest'];\n\n// 웹앱 주소로 들어오면 index.html 화면을 보여 준다\nfunction doGet() {\n  return HtmlService.createHtmlOutputFromFile('index')\n    .setTitle('글쓰기 AI 피드백')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n\n// 화면에서 google.script.run.getFeedback(data) 로 부른다\n// data 예: { subject: '국어', topic: '내가 좋아하는 책', text: '학생이 쓴 글' }\nfunction getFeedback(data) {\n  // ① API 키는 코드에 쓰지 않고 스크립트 속성에서 꺼낸다 ← 이번 실습에서 넣는 곳!\n  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');\n  if (!key) {\n    return '🔑 API 키가 없어요.\\n' +\n      '편집기 왼쪽 ⚙ 프로젝트 설정 → 스크립트 속성 → 스크립트 속성 추가\\n' +\n      '속성: GEMINI_API_KEY / 값: 발급받은 API 키 → 저장한 뒤 다시 눌러 보세요.';\n  }\n\n  // ② AI에게 보낼 부탁(프롬프트) — 이름 같은 개인정보는 보내지 않는다\n  const prompt =\n    '너는 중학교 ' + data.subject + ' 선생님이야. 학생이 쓴 글을 읽고 짧게 피드백해 줘.\\n' +\n    '- 잘한 점 1가지, 고치면 좋을 점 1가지, 고쳐 쓴 예시 문장 1개\\n' +\n    '- 따뜻하고 구체적으로, 중학생이 읽기 쉬운 한국어로\\n' +\n    '- 마크다운 기호(#, *)는 쓰지 말고 6줄 이내로 써 줘\\n\\n' +\n    '글의 주제: ' + (data.topic || '자유') + '\\n' +\n    '학생의 글:\\n' + data.text;\n\n  // ③ Gemini 에게 보내고 피드백 받기 (모델 고르기는 아래 askGemini 가 알아서)\n  const feedback = askGemini(key, prompt);\n\n  // ④ 시트에 한 줄 남기기 (탭과 첫 줄 제목은 처음에 자동으로 만든다)\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  const sheet = ss.getSheetByName(SHEET) || ss.insertSheet(SHEET);\n  if (sheet.getLastRow() === 0) sheet.appendRow(['시각', '과목', '주제', '글', 'AI 피드백']);\n  sheet.appendRow([new Date(), data.subject, data.topic, data.text, feedback]);\n\n  return feedback;\n}\n\n// Gemini API 부르기 — 성공한 모델은 스크립트 속성 GEMINI_MODEL 에 기억해 두고 다음부터 먼저 쓴다\n// 오류에 따라: 404(모델 없음)·429(이 모델 횟수 초과)·500/503(서버 바쁨) → 같은 모델로 다시 보내지 않고 바로 다음 모델로,\n//              400/401/403(요청·키 문제) → 모델을 바꿔도 안 되니 바로 멈춘다\n// 학생이 너무 오래 기다리지 않게, 모두 합쳐 LIMIT_SEC 초가 넘으면 그만둔다\nconst LIMIT_SEC = 40;\nfunction askGemini(key, prompt) {\n  const props = PropertiesService.getScriptProperties();\n  const saved = props.getProperty('GEMINI_MODEL');   // 지난번에 잘 된 모델\n  const start = Date.now();\n  const tried = [];\n  let lastCode = 0;\n  let models = (saved ? [saved] : []).concat(getModels(key, props));\n\n  for (const model of models) {\n    if (tried.indexOf(model) >= 0) continue;\n    tried.push(model);\n    let think = true;   // 처음에는 '짧게 생각하기' 설정을 붙여 본다\n    for (let attempt = 0; attempt < 2; attempt++) {\n      if ((Date.now() - start) / 1000 > LIMIT_SEC) return '지금 AI가 너무 오래 걸려요. 잠시 뒤 다시 눌러 주세요.';\n      const t = Date.now();\n      const res = UrlFetchApp.fetch(\n        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {\n          method: 'post',\n          contentType: 'application/json',\n          headers: { 'x-goog-api-key': key },\n          payload: JSON.stringify(makeBody(model, prompt, think)),\n          muteHttpExceptions: true\n        });\n      const code = res.getResponseCode();\n      console.log(model + (think ? ' (짧게 생각)' : '') + ' → ' + code + ', ' + Math.round((Date.now() - t) / 1000) + '초');\n      if (code === 200) {\n        if (model !== saved) props.setProperty('GEMINI_MODEL', model);\n        const parts = JSON.parse(res.getContentText()).candidates[0].content.parts;\n        return parts.map(function (p) { return p.text || ''; }).join('').trim();\n      }\n      lastCode = code;\n      if (code === 400 && think) { think = false; continue; }   // 이 모델이 '생각 설정'을 모르면 빼고 다시\n      if (code === 400 || code === 401 || code === 403) return errorText(code);\n      break;   // 다음 모델로\n    }\n  }\n  return errorText(lastCode);\n}\n\n// 보낼 내용 — 요즘 모델은 답하기 전에 오래 '생각'해서 느리므로, 짧게 생각하라고 부탁한다\nfunction makeBody(model, prompt, think) {\n  const body = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024 } };\n  if (think) {\n    if (/gemini-3/.test(model)) body.generationConfig.thinkingConfig = { thinkingLevel: 'minimal' };\n    else if (/2\\.5/.test(model)) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };\n  }\n  return body;\n}\n\n// 오류 번호를 학생이 알아듣는 말로\nfunction errorText(code) {\n  if (code === 503 || code === 500) return 'AI가 지금 너무 바빠요. 잠시 뒤 다시 눌러 주세요. (오류 ' + code + ')';\n  if (code === 429) return '오늘 AI를 너무 많이 불렀어요. 잠시 뒤(또는 내일) 다시 해 주세요. (오류 429)';\n  if (code === 401 || code === 403) return 'API 키가 맞지 않아요. 스크립트 속성의 GEMINI_API_KEY 를 확인해 주세요. (오류 ' + code + ')';\n  if (code === 404) return '쓸 수 있는 Gemini 모델을 찾지 못했어요. AI Studio 에서 모델 이름을 확인해 주세요.';\n  return '지금은 AI 처방을 받을 수 없어요. (오류 ' + code + ')';\n}\n\n// 내 키로 쓸 수 있는 Flash 모델 이름들 — 가벼운 Lite 먼저, 시험판(preview)은 뒤로\n// 한 번 받은 목록은 스크립트 속성 GEMINI_MODELS 에 하루 동안 기억해 둔다\nfunction getModels(key, props) {\n  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');\n  const cache = props.getProperty('GEMINI_MODELS');\n  if (cache && cache.indexOf(today + '|') === 0) return cache.split('|')[1].split(',');\n  const res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {\n    headers: { 'x-goog-api-key': key },\n    muteHttpExceptions: true\n  });\n  if (res.getResponseCode() !== 200) return MODELS;\n  const rank = function (n) { return (/lite/.test(n) ? 0 : 2) + (/preview|exp/.test(n) ? 1 : 0); };\n  const list = (JSON.parse(res.getContentText()).models || [])\n    .filter(function (m) {\n      return /flash/.test(m.name) && !/image|tts|live|audio|embedding|thinking/.test(m.name) &&\n        (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0;\n    })\n    .map(function (m) { return m.name.replace('models/', ''); })\n    .sort(function (a, b) { return rank(a) - rank(b) || (a < b ? 1 : -1); })\n    .slice(0, 6);\n  if (!list.length) return MODELS;\n  props.setProperty('GEMINI_MODELS', today + '|' + list.join(','));\n  console.log('쓸 수 있는 모델: ' + list.join(', '));\n  return list;\n}\n\n// 편집기에서 이 함수를 골라 ▶ 실행하면, 웹앱 없이 AI 연결을 시험해 볼 수 있어요\n// 아래 '실행 로그'에 걸린 시간과 AI 답(또는 오류 문구)이 나와요. (시트에 시험용 한 줄이 남아요)\nfunction testGemini() {\n  const start = Date.now();\n  const fb = getFeedback({ subject: '국어', topic: '내가 좋아하는 계절', text: '나는 가을이 좋다. 왜냐하면 덥지 않기 때문이다. 그리고 낙엽이 예쁘다.' });\n  Logger.log('걸린 시간: ' + Math.round((Date.now() - start) / 1000) + '초');\n  Logger.log(fb);\n}\n"
-    },
-    {
-     "t": "h",
-     "text": "index.html"
-    },
-    {
-     "t": "prompt",
-     "label": "index.html — 통째로 복사해서 붙여 넣기",
-     "hide": true,
-     "text": "<!DOCTYPE html>\n<html>\n<head>\n  <base target=\"_top\">\n  <meta charset=\"UTF-8\">\n  <style>\n    body { margin: 0; padding: 16px; background: #eef2ff; font-family: system-ui, sans-serif; color: #1f2933; }\n    .box { max-width: 480px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }\n    h1 { font-size: 22px; margin: 0 0 4px; }\n    p.sub { margin: 0 0 14px; color: #6b7280; font-size: 14px; }\n    label { display: block; font-size: 14px; font-weight: 700; margin: 12px 0 6px; }\n    select, input, textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; }\n    textarea { height: 150px; resize: vertical; line-height: 1.6; }\n    .count { text-align: right; font-size: 12px; color: #9ca3af; margin-top: 4px; }\n    #send { width: 100%; margin-top: 16px; padding: 14px; font-size: 17px; font-weight: 800; border: 0; border-radius: 12px; background: #4f46e5; color: #fff; cursor: pointer; }\n    #send:disabled { opacity: .6; }\n    #result { display: none; margin-top: 16px; padding: 14px; border-radius: 12px; background: #eef2ff; line-height: 1.75; white-space: pre-wrap; }\n    #result.warn { background: #fef3c7; color: #92400e; font-weight: 600; }\n  </style>\n</head>\n<body>\n  <div class=\"box\">\n    <h1>✍️ 글쓰기 AI 피드백</h1>\n    <p class=\"sub\">쓴 글을 붙여 넣으면 AI 선생님이 잘한 점과 고칠 점을 알려 줘요. 이름은 적지 않아요.</p>\n\n    <label for=\"subject\">과목</label>\n    <select id=\"subject\">\n      <option>국어</option><option>사회</option><option>과학</option><option>영어</option>\n      <option>도덕</option><option>미술</option><option>체육</option><option>진로</option>\n    </select>\n\n    <label for=\"topic\">글의 주제</label>\n    <input id=\"topic\" placeholder=\"예: 내가 좋아하는 책 / 환경 보호 방법\">\n\n    <label for=\"text\">내가 쓴 글</label>\n    <textarea id=\"text\" placeholder=\"여기에 글을 써요 (3~10문장)\"></textarea>\n    <div class=\"count\" id=\"count\">0자</div>\n\n    <button id=\"send\">🤖 AI 피드백 받기</button>\n    <div id=\"result\"></div>\n  </div>\n\n  <script>\n    const text = document.getElementById('text');\n    text.oninput = function () { document.getElementById('count').textContent = text.value.length + '자'; };\n\n    // 보내기 → Code.gs 의 getFeedback 을 부르고, 돌아온 피드백을 보여 준다\n    document.getElementById('send').onclick = function () {\n      const data = {\n        subject: document.getElementById('subject').value,\n        topic: document.getElementById('topic').value.trim(),\n        text: text.value.trim()\n      };\n      const send = document.getElementById('send');\n      const result = document.getElementById('result');\n      if (data.text.length < 10) {\n        result.style.display = 'block'; result.className = 'warn';\n        result.textContent = '글을 조금 더 써 주세요 (10자 이상).';\n        return;\n      }\n\n      send.disabled = true;\n      const startAt = Date.now();\n      const timer = setInterval(function () {\n        send.textContent = 'AI 선생님이 읽는 중... ' + Math.round((Date.now() - startAt) / 1000) + '초';\n      }, 1000);\n      send.textContent = 'AI 선생님이 읽는 중... 0초';\n\n      google.script.run\n        .withSuccessHandler(function (msg) {\n          clearInterval(timer);\n          result.style.display = 'block';\n          result.className = msg.indexOf('🔑') === 0 ? 'warn' : '';   // 키가 없으면 노란 안내\n          result.textContent = msg;\n          send.disabled = false;\n          send.textContent = '🤖 다시 받기';\n        })\n        .withFailureHandler(function (err) {\n          clearInterval(timer);\n          result.style.display = 'block'; result.className = 'warn';\n          result.textContent = '피드백을 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요. (' + (err && err.message ? err.message : '알 수 없는 오류') + ')';\n          send.disabled = false;\n          send.textContent = '🤖 AI 피드백 받기';\n        })\n        .getFeedback(data);\n    };\n  </script>\n</body>\n</html>\n"
     },
     {
      "t": "fold",
