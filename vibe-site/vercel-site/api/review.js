@@ -6,26 +6,23 @@
 const { limited, cors, bodyOf } = require('./_groq');
 const { askGemini } = require('./_gemini');
 
+// 배점: 기본 40 (2개 × 20) + 심화 1·2·3 각 20 (2개 × 10) = 100점. 부분 통과는 절반.
 const RUBRIC = [
-  { level: 'basic', id: 'b1', text: '명렬표(반·번호·이름) 시트에서 학생 목록을 읽어, 이름을 타이핑하지 않고 선택해서 기록한다',
-    rule: 'pass: 서버가 시트에서 명단을 읽어(getValues 등) 화면이 반·학생을 단추/목록으로 고르게 함. partial: 명단을 코드에 직접 적어 두었거나, 고르기는 되지만 반 구분이 없음. fail: 이름을 글자로 입력함' },
-  { level: 'basic', id: 'b2', text: '입력한 기록이 구글 시트에 저장되어 사라지지 않고 계속 쌓인다',
-    rule: 'pass: 저장 함수가 appendRow/setValues 로 새 줄을 더함(덮어쓰지 않음). partial: 저장은 되지만 같은 칸을 덮어써 누적이 안 됨. fail: 시트에 쓰지 않음(변수·localStorage 만)' },
-  { level: 'basic', id: 'b3', text: '두 선생님이 각자 접속해도 같은 기록을 본다 (브라우저 저장소가 아니라 시트에 저장·조회)',
-    rule: 'pass: 화면이 기록을 서버(시트)에서 다시 읽어 옴. partial: 시트에 쓰기는 하지만 화면은 자기 브라우저에 입력한 것만 보여 줌. fail: localStorage·변수에만 둠' },
-  { level: 'basic', id: 'b4', text: '웹앱 링크 하나로 접속할 수 있다 (doGet 으로 화면 제공, google.script.run 으로 연결)',
-    rule: 'pass: doGet 이 HtmlService 로 index 를 돌려주고 화면이 google.script.run 으로 서버 함수를 부름. partial: 둘 중 하나가 빠졌거나 이름이 맞지 않음(없는 함수 호출). fail: doGet 없음' },
-  { level: 'd1', id: 'd1a', text: '학생 이름을 누르면 그 학생의 누적 기록이 그래프로 표시된다',
-    rule: 'pass: 학생을 고르면 그 학생의 여러 회 기록(평균·합계·추이)을 그래프로 그림. partial: 그래프는 있으나 마지막 한 번 기록만 보이거나 학생별로 나뉘지 않음. fail: 학생별 그래프 없음' },
-  { level: 'd1', id: 'd1b', text: '방사형(레이더) 그래프로 능력치를 표현한다 (막대·선 그래프면 부분 인정)',
+  { level: 'basic', id: 'b1', pts: 20, text: '명렬표(반·번호·이름)의 학생을 선택하고 수업 중 기록을 입력할 수 있다',
+    rule: 'pass: 서버가 시트에서 명단을 읽어(getValues 등) 화면이 반·학생을 단추/목록으로 고르게 하고, 기록을 입력해 저장 함수로 보냄(웹앱으로 열리고 google.script.run 연결이 동작). partial: 명단을 코드에 직접 적어 두었거나, 반 구분이 없거나, 화면이 부르는 서버 함수가 없어 동작하지 않음. fail: 이름을 글자로 입력함 / 입력 화면 없음' },
+  { level: 'basic', id: 'b2', pts: 20, text: '입력한 기록이 사라지지 않고 한곳(구글 시트)에 계속 쌓인다',
+    rule: 'pass: 저장 함수가 appendRow/setValues 로 시트에 새 줄을 더함(덮어쓰지 않음). partial: 저장은 되지만 같은 칸을 덮어써 누적이 안 됨. fail: 시트에 쓰지 않음(변수·localStorage 만)' },
+  { level: 'd1', id: 'd1a', pts: 10, text: '학생 이름을 누르면 그 학생의 누적 기록이 그래프로 표시된다',
+    rule: 'pass: 학생을 고르면 시트에 쌓인 그 학생의 여러 회 기록(평균·합계·추이)을 그래프로 그림. partial: 그래프는 있으나 마지막 한 번 기록만 보이거나 학생별로 나뉘지 않음. fail: 학생별 그래프 없음' },
+  { level: 'd1', id: 'd1b', pts: 10, text: '방사형(레이더) 그래프로 능력치를 표현한다 (막대·선 그래프면 부분 인정)',
     rule: "pass: type 'radar' 등 방사형 그래프. partial: 막대·선 등 다른 그래프. fail: 그래프 없음" },
-  { level: 'd2', id: 'd2a', text: '교사 전용 화면(탭·모드·별도 화면)이 있다',
+  { level: 'd2', id: 'd2a', pts: 10, text: '교사 전용 화면(탭·모드·별도 화면)이 있다',
     rule: 'pass: 입력 화면과 구분된 교사용 탭·화면·모드가 있음. partial: 같은 화면 아래에 분석이 붙어 있을 뿐 따로 구분되지 않음. fail: 없음' },
-  { level: 'd2', id: 'd2b', text: '반별 비교, 학생별 비교 등 분석(표·그래프·순위)이 가능하다',
-    rule: 'pass: 반별 비교와 학생별 비교(순위·표·그래프)가 둘 다 있음. partial: 둘 중 하나만 있거나 기록 목록을 그대로 나열만 함. fail: 없음' },
-  { level: 'd3', id: 'd3a', text: 'Gemini 등 AI API 를 불러 학생마다 맞는 피드백을 만든다',
-    rule: 'pass: UrlFetchApp 으로 AI API 를 부르고, 그 학생의 기록(점수)을 프롬프트에 넣어 피드백을 받아 화면에 보여 줌. partial: AI 를 부르지만 학생 기록을 넣지 않아 모두 같은 피드백이거나 화면에 안 보임. fail: AI 호출 없음' },
-  { level: 'd3', id: 'd3b', text: 'API 키를 코드에 쓰지 않고 스크립트 속성 등에서 꺼내며, 학생 이름 같은 개인정보는 AI 에게 보내지 않는다',
+  { level: 'd2', id: 'd2b', pts: 10, text: '반별 비교, 학생별 비교를 표·그래프·순위로 나타낸다',
+    rule: 'pass: 반별 비교와 학생별 비교가 둘 다 있고, 표·그래프·순위 중 둘 이상으로 나타냄. partial: 반별·학생별 중 하나만 있거나, 표·그래프·순위 중 하나뿐이거나, 기록 목록을 그대로 나열만 함. fail: 없음' },
+  { level: 'd3', id: 'd3a', pts: 10, text: '학생의 타격·수비·참여도 기록으로 AI(Gemini API)가 피드백을 준다',
+    rule: 'pass: 타격·수비·참여도를 기록 항목으로 쓰고, UrlFetchApp 으로 AI API 를 불러 그 학생의 타격·수비·참여도 기록(점수)을 프롬프트에 넣어 받은 피드백을 화면에 보여 줌. partial: AI 는 부르지만 세 항목 중 일부만 쓰거나, 학생 기록을 넣지 않아 모두 같은 피드백이거나, 화면에 안 보임. fail: AI 호출 없음' },
+  { level: 'd3', id: 'd3b', pts: 10, text: 'API 키를 코드에 쓰지 않고 스크립트 속성에서 꺼내며, 학생 이름 같은 개인정보는 AI 에게 보내지 않는다',
     rule: 'pass: 키를 getScriptProperties().getProperty 로 꺼내고, AI 에게 보내는 글에 이름이 들어가지 않음. partial: 키는 속성에서 꺼내지만 이름을 함께 보냄. fail: 키를 코드에 직접 적음, 또는 AI 호출 없음' },
 ];
 
@@ -49,6 +46,7 @@ function facts(gs, html, rawAll) {
     aiCall: /UrlFetchApp\.fetch/.test(gs) && /generativelanguage\.googleapis\.com|gemini|openai|groq|anthropic/i.test(gs),
     scriptProps: /getScriptProperties\s*\(\s*\)[\s\S]{0,120}getProperty/.test(gs),
     hardKey: KEY_RE.test(rawAll),
+    items3: ['타격', '수비', '참여'].filter((w) => t.indexOf(w) >= 0),
   };
   KEY_RE.lastIndex = 0;
   // 화면이 부르는 서버 함수가 code.gs 에 실제로 있는지 — google.script.run.a(..).b(..).함수(..) 사슬의 마지막 이름
@@ -79,6 +77,7 @@ function factLines(f) {
     `시트 읽기(getValues 등): ${yn(f.readSheet)} / 시트 쓰기(appendRow·setValues): ${yn(f.writeSheet)} / 브라우저 저장소(localStorage 등): ${yn(f.browserStore)}`,
     `이름을 글자로 입력하는 칸으로 보이는 것: ${yn(f.textNameInput)}`,
     `그래프 도구: ${yn(f.chart)} / 방사형(radar) 표시: ${yn(f.radar)} / 교사·대시보드 관련 글자: ${yn(f.teacherView)}`,
+    `기록 항목 글자(타격·수비·참여도) 중 코드에 있는 것: ${f.items3.join('·') || '없음'}`,
     `AI API 호출(UrlFetchApp + AI 주소): ${yn(f.aiCall)} / 스크립트 속성에서 키 꺼내기: ${yn(f.scriptProps)} / 코드에 적힌 API 키: ${yn(f.hardKey)}`,
   ].join('\n');
 }
@@ -87,14 +86,15 @@ function factLines(f) {
 function caps(f) {
   const c = {};
   const cap = (id, max, why) => { if (!c[id] || rankOf(max) < rankOf(c[id].max)) c[id] = { max, why }; };
-  if (!f.doGet) cap('b4', 'fail', 'code.gs 에 doGet 함수가 없어요.');
-  else if (!f.scriptRun || !f.htmlService) cap('b4', 'partial', '화면 제공(HtmlService) 또는 google.script.run 연결이 보이지 않아요.');
-  if (f.missingFns.length) cap('b4', 'partial', `화면이 부르는 ${f.missingFns.join(', ')} 함수가 code.gs 에 없어요.`);
-  if (!f.writeSheet) { cap('b2', 'fail', '시트에 쓰는 코드(appendRow·setValues)가 없어요.'); cap('b3', 'fail', '시트에 저장하지 않아서 다른 선생님이 볼 수 없어요.'); }
-  if (!f.readSheet) { cap('b1', 'partial', '시트에서 명단을 읽는 코드(getValues)가 없어요.'); cap('b3', 'partial', '시트에서 기록을 다시 읽어 오는 코드가 보이지 않아요.'); }
+  if (!f.doGet) cap('b1', 'partial', 'code.gs 에 doGet 함수가 없어 웹앱으로 열리지 않아요.');
+  else if (!f.scriptRun || !f.htmlService) cap('b1', 'partial', '화면 제공(HtmlService) 또는 google.script.run 연결이 보이지 않아요.');
+  if (f.missingFns.length) cap('b1', 'partial', `화면이 부르는 ${f.missingFns.join(', ')} 함수가 code.gs 에 없어요.`);
+  if (!f.readSheet) cap('b1', 'partial', '시트에서 명단을 읽는 코드(getValues)가 없어요.');
+  if (!f.writeSheet) cap('b2', 'fail', '시트에 쓰는 코드(appendRow·setValues)가 없어요.');
   if (!f.chart) { cap('d1a', 'fail', '그래프를 그리는 코드가 없어요.'); cap('d1b', 'fail', '그래프를 그리는 코드가 없어요.'); }
   else if (!f.radar) cap('d1b', 'partial', '방사형(radar) 그래프가 아니에요.');
   if (!f.aiCall) { cap('d3a', 'fail', 'AI API 를 부르는 코드(UrlFetchApp)가 없어요.'); cap('d3b', 'fail', 'AI API 를 부르지 않아요.'); }
+  else if (f.items3.length < 3) cap('d3a', 'partial', `기록 항목에 ${['타격', '수비', '참여'].filter((w) => f.items3.indexOf(w) < 0).join('·')} 이(가) 보이지 않아요.`);
   if (f.hardKey) cap('d3b', 'fail', '코드에 API 키가 그대로 적혀 있어요.');
   else if (f.aiCall && !f.scriptProps) cap('d3b', 'partial', '키를 스크립트 속성에서 꺼내는 코드가 보이지 않아요.');
   return c;
@@ -106,45 +106,42 @@ function rankOf(s) { return s === 'pass' ? 2 : s === 'partial' ? 1 : 0; }
 function staticGrade(f) {
   const ready = f.doGet && f.htmlService && f.scriptRun && !f.missingFns.length;
   const st = {
-    b1: f.readSheet && !f.textNameInput ? 'pass' : f.textNameInput && !f.readSheet ? 'fail' : 'partial',
+    b1: f.readSheet && !f.textNameInput && ready ? 'pass' : f.textNameInput && !f.readSheet ? 'fail' : 'partial',
     b2: f.writeSheet ? 'pass' : 'fail',
-    b3: f.writeSheet && f.readSheet ? 'pass' : f.writeSheet ? 'partial' : 'fail',
-    b4: ready ? 'pass' : f.doGet ? 'partial' : 'fail',
     d1a: f.chart ? 'pass' : 'fail',
     d1b: f.radar && f.chart ? 'pass' : f.chart ? 'partial' : 'fail',
     d2a: f.teacherView ? 'pass' : 'fail',
     d2b: f.teacherView && f.chart ? 'pass' : f.teacherView ? 'partial' : 'fail',
-    d3a: f.aiCall ? 'pass' : 'fail',
+    d3a: f.aiCall && f.items3.length === 3 ? 'pass' : f.aiCall ? 'partial' : 'fail',
     d3b: f.aiCall && f.scriptProps && !f.hardKey ? 'pass' : f.aiCall && !f.hardKey ? 'partial' : 'fail',
   };
   const why = {
-    b1: f.readSheet ? '시트에서 값을 읽는 코드(getValues)가 있어요.' : '시트에서 명단을 읽는 코드가 보이지 않아요.',
+    b1: !ready ? '웹앱 화면 연결(doGet·google.script.run)이 덜 됐어요.' : f.readSheet ? '시트에서 명단을 읽고 화면과 연결돼 있어요.' : '시트에서 명단을 읽는 코드가 보이지 않아요.',
     b2: f.writeSheet ? '시트에 쓰는 코드(appendRow·setValues)가 있어요.' : '시트에 쓰는 코드가 없어요.',
-    b3: f.writeSheet && f.readSheet ? '시트에 저장하고 다시 읽어 와요.' : '시트 저장·조회 중 하나가 보이지 않아요.',
-    b4: ready ? 'doGet 과 google.script.run 연결이 있어요.' : '화면 제공(doGet·HtmlService) 또는 연결(google.script.run)이 빠졌어요.' + (f.missingFns.length ? ` (code.gs 에 없는 함수: ${f.missingFns.join(', ')})` : ''),
     d1a: f.chart ? '그래프를 그리는 코드가 있어요.' : '그래프 코드가 없어요.',
     d1b: f.radar ? '방사형(radar) 그래프예요.' : f.chart ? '그래프는 있지만 방사형이 아니에요.' : '그래프 코드가 없어요.',
     d2a: f.teacherView ? '교사용·대시보드 화면 글자가 있어요.' : '교사용 화면이 보이지 않아요.',
     d2b: f.teacherView && f.chart ? '교사 화면과 그래프가 있어요.' : '비교 분석 화면이 뚜렷하지 않아요.',
-    d3a: f.aiCall ? 'UrlFetchApp 으로 AI API 를 불러요.' : 'AI API 를 부르는 코드가 없어요.',
+    d3a: !f.aiCall ? 'AI API 를 부르는 코드가 없어요.' : f.items3.length === 3 ? '타격·수비·참여도와 AI 호출이 있어요.' : '기록 항목 중 ' + ['타격', '수비', '참여'].filter((w) => f.items3.indexOf(w) < 0).join('·') + ' 이(가) 안 보여요.',
     d3b: f.hardKey ? '코드에 API 키가 그대로 적혀 있어요.' : f.scriptProps ? '키를 스크립트 속성에서 꺼내요.' : f.aiCall ? '키를 스크립트 속성에서 꺼내는 코드가 보이지 않아요.' : 'AI API 를 부르지 않아요.',
   };
-  return RUBRIC.map((r) => ({ id: r.id, level: r.level, text: r.text, status: st[r.id], reason: '🔎 ' + why[r.id] }));
+  return RUBRIC.map((r) => ({ id: r.id, level: r.level, text: r.text, pts: r.pts, status: st[r.id], reason: '🔎 ' + why[r.id] }));
 }
 
-// 점수 — 기준 10개 × 10점 = 100점 (통과 10, 부분 5, 미흡 0)
+// 점수 — 기준마다 배점(pts), 통과는 전부·부분은 절반·미흡은 0 → 합계 100점
 function scoreOf(items) {
-  const pt = (s) => (s === 'pass' ? 10 : s === 'partial' ? 5 : 0);
+  const ptsOf = (id) => (RUBRIC.find((r) => r.id === id) || {}).pts || 10;
+  const pt = (i) => (i.status === 'pass' ? ptsOf(i.id) : i.status === 'partial' ? ptsOf(i.id) / 2 : 0);
   const by = {};
-  items.forEach((i) => { by[i.level] = by[i.level] || { got: 0, max: 0 }; by[i.level].got += pt(i.status); by[i.level].max += 10; });
-  return { score: items.reduce((a, i) => a + pt(i.status), 0), max: items.length * 10, byLevel: by };
+  items.forEach((i) => { by[i.level] = by[i.level] || { got: 0, max: 0 }; by[i.level].got += pt(i); by[i.level].max += ptsOf(i.id); });
+  return { score: items.reduce((a, i) => a + pt(i), 0), max: RUBRIC.reduce((a, r) => a + r.pts, 0), byLevel: by };
 }
 
 function makePrompt(gs, html, f) {
   return `너는 고등학교 체육 교사 연수의 채점관이야. 연수생(체육 교사)이 AI 에게 부탁해 만든 구글 앱스크립트 웹앱 코드를 읽고,
 기준마다 코드가 그 기능을 "실제로 동작하게" 구현했는지 엄격하고 정확하게 판단해.
 
-[과제] 티볼(야구) 단원 두 반의 기록을 수업 중 폰으로 입력해 한곳에 쌓는 웹앱. 기록 항목(타격·수비·참여도 등)은 연수생이 직접 설계한다.
+[과제] 티볼(야구) 단원 두 반의 기록을 수업 중 폰으로 입력해 한곳(구글 시트)에 쌓는 웹앱. 기록 항목은 타격·수비·참여도.
 명렬표 시트 열: 반, 번호, 이름 (1반·2반 각 5명). 시트 탭 이름은 사람마다 다를 수 있다.
 
 [기준] id: 내용 — 판정 기준
@@ -164,7 +161,7 @@ ${factLines(f)}
   마지막 줄에 "code.gs 와 index.html 전체를 생략 없이 각각 다른 코드블록으로 다시 줘"를 붙여. 모든 기준이 pass 면 더 다듬을 점 하나를 부탁해.
 
 [출력] 아래 JSON 만:
-{"items":[{"id":"b1","status":"pass|partial|fail","evidence":"근거가 된 코드 한 줄(80자 이내, 없으면 빈칸)","reason":"..."}, ... 10개 모두], "record_fields":"앱이 기록하는 항목을 짧게(예: 타격, 수비, 참여도)", "strengths":["..."], "feedback":"...", "next_prompt":"..."}
+{"items":[{"id":"b1","status":"pass|partial|fail","evidence":"근거가 된 코드 한 줄(80자 이내, 없으면 빈칸)","reason":"..."}, ... 8개 모두], "record_fields":"앱이 기록하는 항목을 짧게(예: 타격, 수비, 참여도)", "strengths":["..."], "feedback":"...", "next_prompt":"..."}
 
 ===== code.gs =====
 ${gs}
@@ -182,7 +179,7 @@ function clean(out, c) {
     let status = ok[it.status] ? it.status : 'partial';
     let reason = String(it.reason || 'AI가 판단을 남기지 않았어요.').slice(0, 300);
     if (c[r.id] && rankOf(status) > rankOf(c[r.id].max)) { status = c[r.id].max; reason = '🔎 ' + c[r.id].why + ' ' + reason; }
-    return { id: r.id, level: r.level, text: r.text, status, reason, evidence: String(it.evidence || '').slice(0, 120) };
+    return { id: r.id, level: r.level, text: r.text, pts: r.pts, status, reason, evidence: String(it.evidence || '').slice(0, 120) };
   });
   return {
     items,
@@ -225,3 +222,4 @@ module.exports.caps = caps;
 module.exports.clean = clean;
 module.exports.staticGrade = staticGrade;
 module.exports.scoreOf = scoreOf;
+module.exports.factLines = factLines;
