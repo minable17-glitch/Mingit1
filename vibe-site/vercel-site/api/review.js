@@ -45,7 +45,7 @@ function facts(gs, html, rawAll) {
     textNameInput: /<input[^>]*(name|placeholder|id)\s*=\s*["'][^"']*(이름|name)[^"']*["']/i.test(html),
     chart: /new\s+Chart\s*\(|google\.visualization|chart\.js|<canvas|d3\.|echarts|apexcharts/i.test(html),
     radar: /type\s*:\s*['"]radar['"]|RadarChart|['"]radar['"]|polygon/i.test(html),
-    teacherView: /교사|선생님|teacher|dashboard|대시보드|관리자|admin/i.test(html),
+    teacherView: /교사|teacher|dashboard|대시보드|관리자|admin/i.test(html),
     aiCall: /UrlFetchApp\.fetch/.test(gs) && /generativelanguage\.googleapis\.com|gemini|openai|groq|anthropic/i.test(gs),
     scriptProps: /getScriptProperties\s*\(\s*\)[\s\S]{0,120}getProperty/.test(gs),
     hardKey: KEY_RE.test(rawAll),
@@ -100,6 +100,45 @@ function caps(f) {
   return c;
 }
 function rankOf(s) { return s === 'pass' ? 2 : s === 'partial' ? 1 : 0; }
+
+
+// AI 없이 기계 점검만으로 매기는 판정 (사이트에 AI 키가 없거나 AI 가 답하지 못할 때)
+function staticGrade(f) {
+  const ready = f.doGet && f.htmlService && f.scriptRun && !f.missingFns.length;
+  const st = {
+    b1: f.readSheet && !f.textNameInput ? 'pass' : f.textNameInput && !f.readSheet ? 'fail' : 'partial',
+    b2: f.writeSheet ? 'pass' : 'fail',
+    b3: f.writeSheet && f.readSheet ? 'pass' : f.writeSheet ? 'partial' : 'fail',
+    b4: ready ? 'pass' : f.doGet ? 'partial' : 'fail',
+    d1a: f.chart ? 'pass' : 'fail',
+    d1b: f.radar && f.chart ? 'pass' : f.chart ? 'partial' : 'fail',
+    d2a: f.teacherView ? 'pass' : 'fail',
+    d2b: f.teacherView && f.chart ? 'pass' : f.teacherView ? 'partial' : 'fail',
+    d3a: f.aiCall ? 'pass' : 'fail',
+    d3b: f.aiCall && f.scriptProps && !f.hardKey ? 'pass' : f.aiCall && !f.hardKey ? 'partial' : 'fail',
+  };
+  const why = {
+    b1: f.readSheet ? '시트에서 값을 읽는 코드(getValues)가 있어요.' : '시트에서 명단을 읽는 코드가 보이지 않아요.',
+    b2: f.writeSheet ? '시트에 쓰는 코드(appendRow·setValues)가 있어요.' : '시트에 쓰는 코드가 없어요.',
+    b3: f.writeSheet && f.readSheet ? '시트에 저장하고 다시 읽어 와요.' : '시트 저장·조회 중 하나가 보이지 않아요.',
+    b4: ready ? 'doGet 과 google.script.run 연결이 있어요.' : '화면 제공(doGet·HtmlService) 또는 연결(google.script.run)이 빠졌어요.' + (f.missingFns.length ? ` (code.gs 에 없는 함수: ${f.missingFns.join(', ')})` : ''),
+    d1a: f.chart ? '그래프를 그리는 코드가 있어요.' : '그래프 코드가 없어요.',
+    d1b: f.radar ? '방사형(radar) 그래프예요.' : f.chart ? '그래프는 있지만 방사형이 아니에요.' : '그래프 코드가 없어요.',
+    d2a: f.teacherView ? '교사용·대시보드 화면 글자가 있어요.' : '교사용 화면이 보이지 않아요.',
+    d2b: f.teacherView && f.chart ? '교사 화면과 그래프가 있어요.' : '비교 분석 화면이 뚜렷하지 않아요.',
+    d3a: f.aiCall ? 'UrlFetchApp 으로 AI API 를 불러요.' : 'AI API 를 부르는 코드가 없어요.',
+    d3b: f.hardKey ? '코드에 API 키가 그대로 적혀 있어요.' : f.scriptProps ? '키를 스크립트 속성에서 꺼내요.' : f.aiCall ? '키를 스크립트 속성에서 꺼내는 코드가 보이지 않아요.' : 'AI API 를 부르지 않아요.',
+  };
+  return RUBRIC.map((r) => ({ id: r.id, level: r.level, text: r.text, status: st[r.id], reason: '🔎 ' + why[r.id] }));
+}
+
+// 점수 — 기준 10개 × 10점 = 100점 (통과 10, 부분 5, 미흡 0)
+function scoreOf(items) {
+  const pt = (s) => (s === 'pass' ? 10 : s === 'partial' ? 5 : 0);
+  const by = {};
+  items.forEach((i) => { by[i.level] = by[i.level] || { got: 0, max: 0 }; by[i.level].got += pt(i.status); by[i.level].max += 10; });
+  return { score: items.reduce((a, i) => a + pt(i.status), 0), max: items.length * 10, byLevel: by };
+}
 
 function makePrompt(gs, html, f) {
   return `너는 고등학교 체육 교사 연수의 채점관이야. 연수생(체육 교사)이 AI 에게 부탁해 만든 구글 앱스크립트 웹앱 코드를 읽고,
@@ -163,20 +202,26 @@ module.exports = async (req, res) => {
   if (gs.length + html.length > 120000) return res.status(400).json({ error: '코드가 너무 길어요. (두 파일 합쳐 12만 글자까지)' });
   if (limited(req)) return res.status(429).json({ error: '한 시간에 30번까지만 채점할 수 있어요. 잠시 뒤 다시 해 주세요.' });
   const f = facts(gs, html, rawAll);
+  // AI 를 못 쓰면 기계 점검만으로 점수를 낸다 (정확도는 AI 채점보다 낮다)
+  const fallback = (why) => {
+    const items = staticGrade(f);
+    return res.status(200).json(Object.assign({ items, mode: 'static', notice: why + ' 그래서 이번에는 코드 속 키워드만 보고 점수를 냈어요. AI 채점보다 덜 정확해요.',
+      record_fields: '', strengths: [], feedback: '', next_prompt: '' }, scoreOf(items)));
+  };
+  if (!process.env.GEMINI_API_KEY) return fallback('사이트에 AI 키가 아직 없어요.');
   try {
     const a = await askGemini(makePrompt(gs, html, f), { json: true, temperature: 0, maxTokens: 4000, timeout: 55000, quality: true, thinking: 'low' });
     let out;
-    try { out = JSON.parse(a.text.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { return res.status(502).json({ error: 'AI 답을 읽지 못했어요. 다시 눌러 주세요.' }); }
-    return res.status(200).json(Object.assign(clean(out, caps(f)), { model: a.model }));
+    try { out = JSON.parse(a.text.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { return fallback('AI 답을 읽지 못했어요.'); }
+    const r = clean(out, caps(f));
+    return res.status(200).json(Object.assign(r, scoreOf(r.items), { model: a.model, mode: 'ai' }));
   } catch (e) {
-    const msg = e.message === 'no key' ? '사이트에 AI 키(GEMINI_API_KEY)가 아직 없어요. 관리자에게 알려 주세요.'
-      : e.status === 429 ? 'AI 사용량이 잠시 꽉 찼어요. 1분 뒤 다시 눌러 주세요.'
-      : e.status === 401 || e.status === 403 ? '사이트의 AI 키가 맞지 않아요. 관리자에게 알려 주세요.'
-      : 'AI가 지금 답하지 못했어요. 잠시 뒤 다시 눌러 주세요.';
-    return res.status(503).json({ error: msg });
+    return fallback(e.status === 429 ? 'AI 사용량이 잠시 꽉 찼어요.' : e.status === 401 || e.status === 403 ? '사이트의 AI 키가 맞지 않아요.' : 'AI가 지금 답하지 못했어요.');
   }
 };
 module.exports.RUBRIC = RUBRIC;
 module.exports.facts = facts;
 module.exports.caps = caps;
 module.exports.clean = clean;
+module.exports.staticGrade = staticGrade;
+module.exports.scoreOf = scoreOf;
