@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 채점 봇</title>
+<style>
+  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--bg:#f4f7fb;--acc:#7c3aed;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:16px}
+  .wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:21px;margin:0}
+  .sub{margin:2px 0 0;color:var(--muted);font-size:14px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:700px){.two{grid-template-columns:1fr}}
+  label.f{display:block;font-weight:800;font-size:14px;margin-bottom:4px}
+  textarea{width:100%;height:200px;font-family:var(--mono);font-size:12px;line-height:1.5;border:1px solid var(--line);border-radius:10px;padding:8px;resize:vertical;background:#fbfcfe}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{font:inherit;font-weight:800;font-size:15px;padding:11px 18px;border:0;border-radius:10px;background:var(--acc);color:#fff;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:700;font-size:13px;padding:8px 12px}
+  .btn:disabled{opacity:.6;cursor:default}
+  .muted{color:var(--muted);font-size:13px}
+  .warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:8px 12px;font-size:13px}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 12px;font-size:14px}
+  .score{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .score b{font-size:44px;font-weight:900;color:var(--acc);line-height:1}
+  .score span{font-size:16px;color:var(--muted);font-weight:700}
+  .score em{font-style:normal;font-size:13px;padding:3px 10px;border-radius:999px;background:#f3e8ff;color:#6b21a8;font-weight:800}
+  .levels{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  @media(max-width:700px){.levels{grid-template-columns:repeat(2,1fr)}}
+  .lv{border-radius:12px;padding:10px;text-align:center;border:2px solid var(--line);background:#f9fafb}
+  .lv b{display:block;font-size:13px;color:var(--muted)}
+  .lv span{font-size:20px;font-weight:900}
+  .lv.done{border-color:#86efac;background:#f0fdf4}.lv.done span{color:var(--ok)}
+  .lv.part{border-color:#fcd34d;background:#fffbeb}.lv.part span{color:var(--warn)}
+  .grp{margin-top:12px}
+  .grp h3{font-size:14px;margin:0 0 6px;color:var(--muted)}
+  .item{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:6px}
+  .item.pass{background:#f0fdf4}.item.fail{background:#fef2f2}.item.partial{background:#fffbeb}
+  .item b{font-size:14.5px}
+  .item code.ev{display:block;margin-top:4px;font-family:var(--mono);font-size:11.5px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 6px;white-space:pre-wrap;word-break:break-all;color:#374151}
+  .item p{margin:2px 0 0;font-size:13px;color:#374151}
+  .fb{background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:14.5px;white-space:pre-wrap}
+  .fb ul{margin:6px 0 0;padding-left:20px}
+  pre{margin:8px 0 0;background:#0e131b;color:#e6ecf3;font-family:var(--mono);font-size:12px;line-height:1.55;padding:10px 12px;border-radius:10px;white-space:pre-wrap;word-break:break-all}
+  .dots::after{content:'';animation:d 1.2s infinite}
+  @keyframes d{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>🤖 종합 실습 AI 채점기</h1>
+    <p class="sub">만든 웹앱의 code.gs와 index.html을 붙여 넣으면 <b>Gemini</b>가 코드를 읽고 단계별 목표(기본·심화 1~3)를 얼마나 이뤘는지 알려 줘요. 그리고 다음에 AI에게 부탁할 프롬프트까지 만들어 줘요.</p>
+  </div>
+  <div class="card">
+    <div class="two">
+      <div><label class="f" for="gs">① code.gs</label><textarea id="gs" spellcheck="false" placeholder="code.gs 코드를 붙여 넣으세요.&#10;(AI 답 전체를 여기 통째로 붙여 넣어도 두 파일로 나눠 줘요)"></textarea></div>
+      <div><label class="f" for="html">② index.html</label><textarea id="html" spellcheck="false" placeholder="index.html 코드를 붙여 넣으세요."></textarea></div>
+    </div>
+    <div id="keywarn" class="warn" hidden style="margin-top:8px">⚠️ 코드에 API 키(AIza… 또는 AQ.…)가 그대로 들어 있어요. 채점할 때는 가려서 보내지만, 키는 스크립트 속성에 넣고 코드에서는 빼 주세요.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="go">🤖 AI 채점 받기</button>
+      <button class="btn ghost" id="clear">지우기</button>
+      <span class="muted" id="status"></span>
+    </div>
+    <p class="muted" style="margin:8px 0 0">점수: 기준 10개 × 10점(✅ 10 · △ 5 · ❌ 0) = 100점. AI가 코드를 읽고 판단하는 것이라 가끔 틀릴 수 있어요. 마지막 확인은 배포한 웹앱을 직접 눌러 보는 거예요. 학생 실명이 든 코드는 넣지 마세요.</p>
+  </div>
+  <div class="card" id="result" hidden>
+    <div class="score" id="score"></div><div class="warn" id="notice" hidden style="margin-bottom:10px"></div>
+    <div class="levels" id="levels"></div>
+    <p class="muted" id="fields" style="margin:10px 0 0"></p>
+    <div id="groups"></div>
+    <div class="fb" id="fb"></div>
+    <div style="margin-top:12px">
+      <div class="row"><b style="font-size:14px">🔧 다음에 AI에게 부탁할 프롬프트</b><button class="btn ghost" id="copy">복사</button></div>
+      <pre id="next"></pre>
+    </div>
+    <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">🔎 기계 점검 결과 보기</summary><pre id="checks"></pre></details>
+    <p class="muted" id="model" style="margin:8px 0 0;text-align:right"></p>
+  </div>
+</div>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var LV = [['basic', '기본'], ['d1', '심화 1 · 시각화'], ['d2', '심화 2 · 대시보드'], ['d3', '심화 3 · AI 활용']];
+function strip(t) { return String(t || '').replace(/^\s*```[\w.-]*\s*\n/, '').replace(/\n```\s*$/, '').trim(); }
+function split(t) {
+  var gm = /=+\s*code\.gs\s*=+/i.exec(t), hm = /=+\s*index\.html\s*=+/i.exec(t);
+  if (!gm || !hm) return null;
+  function block(a, b) { var s = t.slice(a, b), f = /```[^\n]*\n([\s\S]*?)```/.exec(s); return (f ? f[1] : s).trim(); }
+  return gm.index < hm.index ? { gs: block(gm.index + gm[0].length, hm.index), html: block(hm.index + hm[0].length) } : { html: block(hm.index + hm[0].length, gm.index), gs: block(gm.index + gm[0].length) };
+}
+function keyCheck() { $('keywarn').hidden = !/(AIza[0-9A-Za-z_\-]{10,}|AQ\.[0-9A-Za-z_\-.]{20,})/.test($('gs').value + $('html').value); }
+$('gs').addEventListener('input', function () { var s = split(this.value); if (s && s.gs && s.html) { this.value = s.gs; $('html').value = s.html; $('status').textContent = 'AI 답을 두 파일로 나눠 넣었어요.'; } keyCheck(); });
+$('html').addEventListener('input', keyCheck);
+$('clear').onclick = function () { $('gs').value = ''; $('html').value = ''; $('result').hidden = true; $('status').textContent = ''; keyCheck(); };
+function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+
+$('go').onclick = async function () {
+  var gs = strip($('gs').value), html = strip($('html').value);
+  if (!gs || !html) { $('status').textContent = 'code.gs와 index.html을 둘 다 붙여 넣어 주세요.'; return; }
+  var b = this; b.disabled = true; b.textContent = 'AI가 코드를 읽는 중'; b.classList.add('dots'); $('status').textContent = 'AI가 꼼꼼히 읽느라 30초~1분쯤 걸려요.';
+  var r = await new Promise(function (ok) {
+    google.script.run.withSuccessHandler(function (j) { ok({ j: j }); }).withFailureHandler(function (e) { ok({ e: e }); }).grade(gs, html);
+  });
+  if (r.j) { show(r.j); $('status').textContent = ''; }
+  else {
+    $('result').hidden = false; $('levels').textContent = ''; $('groups').textContent = ''; $('fields').textContent = ''; $('score').textContent = ''; $('notice').hidden = true; $('fb').hidden = false;
+    $('fb').className = 'err'; $('fb').textContent = (r.e && r.e.message) || '채점하지 못했어요. 잠시 뒤 다시 눌러 주세요.';
+    $('next').parentNode.hidden = true; $('model').textContent = ''; $('status').textContent = '';
+  }
+  b.disabled = false; b.textContent = '🤖 다시 채점 받기'; b.classList.remove('dots');
+};
+
+function show(j) {
+  $('result').hidden = false; $('fb').className = 'fb'; $('next').parentNode.hidden = !j.next_prompt; $('fb').hidden = !j.feedback;
+  var sc = $('score'); sc.textContent = '';
+  if (j.score != null) sc.append(h('b', null, j.score), h('span', null, '/ ' + j.max + '점'), h('em', null, j.mode === 'ai' ? '🤖 AI 채점' : '🔎 기계 점검만'));
+  $('notice').hidden = !j.notice; $('notice').textContent = j.notice || '';
+  var lv = $('levels'); lv.textContent = '';
+  LV.forEach(function (L) {
+    var its = j.items.filter(function (i) { return i.level === L[0]; });
+    var pass = its.filter(function (i) { return i.status === 'pass'; }).length, part = its.filter(function (i) { return i.status !== 'fail'; }).length;
+    var st = pass === its.length ? 'done' : part ? 'part' : '';
+    var pt = j.byLevel && j.byLevel[L[0]];
+    var box = h('div', 'lv ' + st); box.append(h('b', null, L[1]), h('span', null, st === 'done' ? '✅ 달성' : st === 'part' ? '△ 일부' : '—'), pt ? h('b', null, pt.got + ' / ' + pt.max + '점') : '');
+    lv.append(box);
+  });
+  $('fields').textContent = j.record_fields ? '📋 이 앱의 기록 항목: ' + j.record_fields : '';
+  var g = $('groups'); g.textContent = '';
+  LV.forEach(function (L) {
+    var d = h('div', 'grp'); d.append(h('h3', null, L[1]));
+    j.items.filter(function (i) { return i.level === L[0]; }).forEach(function (i) {
+      var it = h('div', 'item ' + i.status), body = h('div');
+      body.append(h('b', null, i.text), h('p', null, i.reason));
+      if (i.evidence) body.append(h('code', 'ev', i.evidence));
+      it.append(h('div', null, i.status === 'pass' ? '✅' : i.status === 'partial' ? '△' : '❌'), body); d.append(it);
+    });
+    g.append(d);
+  });
+  var fb = $('fb'); fb.textContent = '';
+  fb.append(h('b', null, '💬 AI 선생님 피드백'), h('div', null, j.feedback || ''));
+  if (j.strengths && j.strengths.length) { var ul = h('ul'); j.strengths.forEach(function (s) { ul.append(h('li', null, '👍 ' + s)); }); fb.append(ul); }
+  $('next').textContent = j.next_prompt || '';
+  $('model').textContent = j.model ? '채점 모델: ' + j.model : '';
+  $('checks').textContent = j.checks || '';
+}
+$('copy').onclick = function () {
+  var t = $('next').textContent, b = this;
+  function ok() { b.textContent = '복사됨!'; setTimeout(function () { b.textContent = '복사'; }, 1500); }
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, fb); else fb();
+  function fb() { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
+};
+</script>
+</body>
+</html>
