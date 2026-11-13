@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 83,
+ "rev": 84,
  "pages": [
   {
    "id": "home",
@@ -1706,6 +1706,159 @@
    ]
   },
   {
+   "id": "api-concept",
+   "title": "API 개념",
+   "parent": "api",
+   "tag": "",
+   "desc": "남이 만든 기능과 데이터를 약속된 방식으로 빌려 쓰는 창구",
+   "blocks": [
+    {
+     "t": "h",
+     "text": "API 개념"
+    },
+    {
+     "t": "p",
+     "text": "웹앱을 만들다 보면 \"날씨를 보여 주고 싶다\", \"지도를 띄우고 싶다\", \"AI가 사진 속 글자를 읽어 줬으면\" 하는 순간이 와요. 이걸 전부 직접 만들 수는 없죠.\n이때 쓰는 것이 **API**예요. 이미 누군가 만들어 둔 기능과 데이터를, **정해진 방식으로 부탁해서 빌려 쓰는 창구**예요."
+    },
+    {
+     "t": "box",
+     "title": "한 줄로 말하면",
+     "text": "**API = 프로그램끼리 주고받는 약속된 창구.**\n정해진 모양으로 **요청**하면, 정해진 모양으로 **응답**이 돌아와요.\n(Application Programming Interface — '프로그램과 프로그램 사이의 접점')",
+     "tone": "accent"
+    },
+    {
+     "t": "h",
+     "text": "쇼핑몰 결제로 비유하면"
+    },
+    {
+     "t": "p",
+     "text": "쇼핑몰은 **카드 결제 기능을 직접 만들지 않아요.**\n\"결제하기\"를 누르면 결제 회사에 **\"39,000원 결제해 주세요\"라고 부탁(요청)**하고, **\"결제됐어요\"라는 답(응답)**만 받아요.\n이렇게 **부탁하고 답을 받는 약속된 창구가 API**예요."
+    },
+    {
+     "t": "cards",
+     "items": [
+      {
+       "title": "🛍 쇼핑몰 = 내 웹앱",
+       "body": "부탁하는 쪽"
+      },
+      {
+       "title": "🔌 결제 회사 창구 = API",
+       "body": "부탁을 받아 처리하고 답해 주는 곳"
+      },
+      {
+       "title": "🔑 가맹점 키 = API 키",
+       "body": "등록된 가게인지 확인하는 열쇠"
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "직접 해 보기 — 쇼핑몰에서 결제하기"
+    },
+    {
+     "t": "p",
+     "text": "**결제하기** → 카드 번호 넣고 **이 카드로 결제**를 눌러 보세요. 요청(📨)이 쇼핑몰 → 결제 API → 카드사로 가고, 응답(✅/❌)이 거꾸로 돌아와요.\n위의 **상황** 단추로 한도 초과·API 키 틀림·카드사 응답 없음도 바꿔 보세요. 실패도 정해진 모양(오류 코드)으로 돌아와서, 쇼핑몰이 알맞은 안내를 띄울 수 있어요."
+    },
+    {
+     "t": "html",
+     "title": "API 체험 — 쇼핑몰에서 결제하기",
+     "height": 1000,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>API 체험 — 쇼핑몰 결제</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--shop:#ff6b35;--api:#7c3aed;--bank:#0f766e;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5;padding:16px}\n  h1{font-size:19px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 12px}\n  .scen{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}\n  .scen b{font-size:13px;color:var(--muted);margin-right:2px}\n  .scen button{font:inherit;font-size:13px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}\n  .scen button.on{background:var(--ink);color:#fff;border-color:var(--ink)}\n\n  /* 세 칸 + 사이 연결선 */\n  .flow{display:grid;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr) 54px minmax(0,1fr);align-items:stretch}\n  .node{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:border-color .2s,box-shadow .2s}\n  .node .who{font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px}\n  .node .who small{font-weight:500;color:var(--muted);font-size:11.5px}\n  .node.shop{border-top:6px solid var(--shop)}.node.api{border-top:6px solid var(--api)}.node.bank{border-top:6px solid var(--bank)}\n  .node.act.shop{border-color:var(--shop);box-shadow:0 0 0 4px rgba(255,107,53,.15)}\n  .node.act.api{border-color:var(--api);box-shadow:0 0 0 4px rgba(124,58,237,.15)}\n  .node.act.bank{border-color:var(--bank);box-shadow:0 0 0 4px rgba(15,118,110,.15)}\n  .wire{position:relative;display:flex;align-items:center;justify-content:center}\n  .wire::before{content:\"\";position:absolute;left:4px;right:4px;top:50%;border-top:2px dashed #b8c2cd}\n  .pkt{position:absolute;top:50%;left:0;width:30px;height:30px;margin-top:-15px;border-radius:50%;display:grid;place-items:center;font-size:15px;\n       background:#fff;border:2px solid var(--ink);opacity:0;z-index:2;box-shadow:0 3px 8px rgba(0,0,0,.15)}\n  @media (max-width:640px){\n    .flow{grid-template-columns:1fr;grid-template-rows:auto 44px auto 44px auto}\n    .wire::before{left:50%;right:auto;top:4px;bottom:4px;border-top:0;border-left:2px dashed #b8c2cd}\n    .pkt{left:50%;top:0;margin-top:0;margin-left:-15px}\n    body{padding:12px}\n  }\n\n  /* 쇼핑몰 화면 */\n  .item{display:flex;gap:10px;align-items:center;background:#fff7f2;border-radius:12px;padding:8px}\n  .item .pic{width:46px;height:46px;border-radius:10px;background:#ffe0d1;display:grid;place-items:center;font-size:26px;flex:none}\n  .item b{display:block;font-size:14px}.item span{font-size:13px;color:var(--muted)}\n  .pay{font:inherit;font-weight:800;font-size:15px;padding:11px;border:0;border-radius:12px;background:var(--shop);color:#fff;cursor:pointer}\n  .pay:disabled{opacity:.55;cursor:wait}\n  .screen{border-radius:12px;padding:10px;text-align:center;font-size:14px;background:#f8fafc;border:1px dashed var(--line);min-height:62px;display:grid;place-items:center}\n  .screen.ok{background:#f0fdf4;border:2px solid var(--ok);color:#14532d;font-weight:700}\n  .screen.bad{background:#fef2f2;border:2px solid var(--bad);color:#7f1d1d;font-weight:700}\n  .knows{font-size:12px;color:var(--muted)}\n  .knows i{font-style:normal;background:#f1f5f9;border-radius:6px;padding:1px 6px;margin:2px;display:inline-block}\n  .knows i.no{text-decoration:line-through;color:#b91c1c;background:#fee2e2}\n\n  /* 결제창(결제 회사가 띄움) */\n  .popup{border:2px solid var(--api);border-radius:12px;padding:10px;background:#faf7ff;display:none;flex-direction:column;gap:6px}\n  .popup.show{display:flex}\n  .popup .t{font-size:12px;font-weight:800;color:var(--api)}\n  .popup input{font:inherit;font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid #d4c5fb;border-radius:8px;width:100%}\n  .popup button{font:inherit;font-weight:700;padding:8px;border:0;border-radius:9px;background:var(--api);color:#fff;cursor:pointer}\n\n  .msg{font-family:var(--mono);font-size:11.5px;background:var(--code);color:var(--code-ink);border-radius:9px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;min-height:80px}\n  .msg .k{color:#7dd3fc}.msg .v{color:#fde68a}.msg .r{color:#fca5a5}.msg .g{color:#86efac}\n  .bankbox{display:flex;flex-direction:column;gap:6px;font-size:13px}\n  .chk{display:flex;gap:6px;align-items:center;color:var(--muted)}\n  .chk .d{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:11px}\n  .chk.ok{color:var(--ink)}.chk.ok .d{border-color:var(--ok);background:var(--ok);color:#fff}\n  .chk.no{color:var(--bad)}.chk.no .d{border-color:var(--bad);background:var(--bad);color:#fff}\n\n  .log{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}\n  .log h2{font-size:14px;margin:0 0 8px}\n  .log ol{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:4px}\n  .log li b{font-family:var(--mono);font-size:12px}\n  .lesson{margin-top:12px;font-size:14px;line-height:1.6;background:linear-gradient(135deg,#f5f3ff,#eef2ff);border:1px solid #ddd6fe;border-radius:14px;padding:12px 14px 12px 44px;position:relative}\n  .lesson::before{content:'💡';position:absolute;left:14px;top:11px;font-size:18px}\n</style>\n</head>\n<body>\n  <h1>🛍 API 체험 — 쇼핑몰에서 결제하기</h1>\n  <p class=\"lede\"><b>결제하기</b>를 누르고 카드 정보를 넣어 보세요. 쇼핑몰(내 웹앱) → 결제 API → 카드사로 <b>요청</b>이 가고, <b>응답</b>이 되돌아오는 길이 보여요.</p>\n\n  <div class=\"scen\" role=\"group\" aria-label=\"상황 고르기\">\n    <b>상황</b>\n    <button data-s=\"ok\" class=\"on\">✅ 정상 결제</button>\n    <button data-s=\"limit\">💳 한도 초과</button>\n    <button data-s=\"key\">🔑 API 키가 틀림</button>\n    <button data-s=\"down\">⏳ 카드사 응답 없음</button>\n  </div>\n\n  <div class=\"flow\" id=\"flow\">\n    <div class=\"node shop\" id=\"nShop\">\n      <div class=\"who\">🛍 쇼핑몰 <small>= 내 웹앱</small></div>\n      <div class=\"item\"><div class=\"pic\">👟</div><div><b>러닝화 (270mm)</b><span>39,000원</span></div></div>\n      <button class=\"pay\" id=\"pay\">39,000원 결제하기</button>\n      <div class=\"popup\" id=\"popup\">\n        <div class=\"t\">🔒 결제 회사 결제창 — 쇼핑몰은 이 칸을 못 봐요</div>\n        <input id=\"card\" value=\"1234-5678-9012-3456\" aria-label=\"카드 번호\">\n        <button id=\"confirm\">이 카드로 결제</button>\n      </div>\n      <div class=\"screen\" id=\"shopScreen\">장바구니에 1개</div>\n      <div class=\"knows\">쇼핑몰이 아는 것: <i>주문번호</i><i>금액</i><i>결과</i> <i class=\"no\">카드 번호</i></div>\n    </div>\n    <div class=\"wire\" id=\"w1\"><div class=\"pkt\" id=\"p1\">📨</div></div>\n    <div class=\"node api\" id=\"nApi\">\n      <div class=\"who\">🔌 결제 API <small>= 결제 회사 창구</small></div>\n      <div class=\"msg\" id=\"apiMsg\">요청을 기다려요…</div>\n    </div>\n    <div class=\"wire\" id=\"w2\"><div class=\"pkt\" id=\"p2\">📨</div></div>\n    <div class=\"node bank\" id=\"nBank\">\n      <div class=\"who\">🏦 카드사 서버 <small>= 안은 못 봐요</small></div>\n      <div class=\"bankbox\">\n        <div class=\"chk\" id=\"c1\"><span class=\"d\"></span>가맹점(쇼핑몰) 확인</div>\n        <div class=\"chk\" id=\"c2\"><span class=\"d\"></span>카드가 진짜인가</div>\n        <div class=\"chk\" id=\"c3\"><span class=\"d\"></span>한도가 남았나</div>\n        <div class=\"chk\" id=\"c4\"><span class=\"d\"></span>승인</div>\n      </div>\n      <div class=\"msg\" id=\"bankMsg\">—</div>\n    </div>\n  </div>\n\n  <div class=\"log\">\n    <h2>📋 오간 순서</h2>\n    <ol id=\"log\"><li style=\"color:var(--muted);list-style:none;margin-left:-20px\">결제하기를 누르면 여기에 차례로 적혀요.</li></ol>\n  </div>\n  <div class=\"lesson\" id=\"lesson\">쇼핑몰은 결제 기능을 만들지 않았어요. <b>정해진 모양으로 부탁(요청)하고, 정해진 모양으로 결과(응답)를 받기만</b> 해요. 이 약속이 API예요.</div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nlet scen = 'ok', busy = false;\nconst vertical = () => matchMedia('(max-width:640px)').matches;\n\ndocument.querySelectorAll('.scen button').forEach((b) => b.onclick = () => {\n  if (busy) return;\n  document.querySelectorAll('.scen button').forEach((x) => x.classList.toggle('on', x === b));\n  scen = b.dataset.s; reset();\n});\n\nfunction act(id) { ['nShop', 'nApi', 'nBank'].forEach((n) => $(n).classList.toggle('act', n === id)); }\nfunction j(o) {\n  return JSON.stringify(o, null, 1).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:').replace(/: (\"[^\"]*\"|\\d+)/g, ': <span class=\"v\">$1</span>');\n}\nfunction log(html) { const l = $('log'); if (l.dataset.fresh !== '1') { l.innerHTML = ''; l.dataset.fresh = '1'; } const li = document.createElement('li'); li.innerHTML = html; l.append(li); }\nfunction chk(id, st) { const c = $(id); c.className = 'chk' + (st ? ' ' + st : ''); c.querySelector('.d').textContent = st === 'ok' ? '✓' : st === 'no' ? '✕' : ''; }\nasync function fly(pid, back, icon) {\n  const p = $(pid), w = p.parentElement, v = vertical();\n  const len = (v ? w.clientHeight : w.clientWidth) - 30;\n  p.textContent = icon; p.style.transition = 'none';\n  const at = (x) => p.style.transform = v ? `translateY(${x}px)` : `translateX(${x}px)`;\n  at(back ? len : 0); p.style.opacity = 1; p.getBoundingClientRect();\n  p.style.transition = 'transform .7s ease-in-out'; at(back ? 0 : len);\n  await sleep(750); p.style.opacity = 0;\n}\nfunction reset() {\n  ['c1', 'c2', 'c3', 'c4'].forEach((c) => chk(c, ''));\n  $('apiMsg').textContent = '요청을 기다려요…'; $('bankMsg').textContent = '—';\n  $('shopScreen').className = 'screen'; $('shopScreen').textContent = '장바구니에 1개';\n  $('popup').classList.remove('show'); $('pay').disabled = false; $('pay').textContent = '39,000원 결제하기';\n  $('log').dataset.fresh = ''; act(null);\n}\n\n$('pay').onclick = () => { if (busy) return; reset(); $('popup').classList.add('show'); act('nShop'); $('card').focus(); log('손님이 <b>결제하기</b>를 눌러요. 결제 회사가 결제창을 띄워요 (카드 번호는 결제 회사만 받아요)'); };\n$('confirm').onclick = run;\n\nasync function run() {\n  if (busy) return; busy = true;\n  const card = $('card').value.replace(/\\D/g, '');\n  const masked = card.slice(0, 4) + '-****-****-' + card.slice(-4);\n  $('popup').classList.remove('show'); $('pay').disabled = true; $('pay').textContent = '결제 중…';\n  $('shopScreen').textContent = '⏳ 결제 결과를 기다려요…';\n  const orderId = 'ORDER-' + String(Date.now()).slice(-6);\n\n  // 1. 쇼핑몰 → 결제 API\n  log('쇼핑몰 → 결제 API: <b>POST /v1/payments/confirm</b> (주문번호·금액 + 가맹점 키)');\n  await fly('p1', false, '📨');\n  act('nApi');\n  const req = { orderId, amount: 39000, orderName: '러닝화 270mm' };\n  $('apiMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j(req) + '\\n<span class=\"k\">Authorization</span>: ' + (scen === 'key' ? '<span class=\"r\">sk_live_틀린키</span>' : 'sk_live_••••');\n  await sleep(700);\n\n  if (scen === 'key') {\n    $('apiMsg').innerHTML += '\\n\\n<span class=\"r\">✕ 등록되지 않은 가맹점 키</span>';\n    log('결제 API: 가맹점 키가 틀려서 <b>카드사에 묻지도 않고</b> 거절해요');\n    return finish(false, { status: 401, code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 키예요' }, '🔑 결제 설정 오류 — 가게에 문의하세요');\n  }\n\n  // 2. 결제 API → 카드사\n  log('결제 API → 카드사: 카드 <b>' + masked + '</b> 로 39,000원 승인해 줄 수 있나요?');\n  await fly('p2', false, '💳');\n  act('nBank');\n  $('bankMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j({ card: masked, amount: 39000, merchant: '러닝샵' });\n  chk('c1', 'ok'); await sleep(450);\n\n  if (scen === 'down') {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"r\">… (응답 없음)</span>';\n    log('카드사: <b>10초 동안 답이 없어요</b> (점검·장애)');\n    await sleep(900); act('nApi');\n    log('결제 API: 기다리다 포기하고 쇼핑몰에 <b>시간 초과</b>를 알려요');\n    return finish(false, { status: 504, code: 'PROVIDER_TIMEOUT', message: '카드사 응답이 없어요' }, '⏳ 지금은 결제가 안 돼요 — 잠시 뒤 다시 시도');\n  }\n\n  const fake = card.length < 15;\n  chk('c2', fake ? 'no' : 'ok'); await sleep(450);\n  if (fake) {\n    log('카드사: <b>카드 번호가 올바르지 않아요</b>');\n    return back(false, { status: 'REJECTED', reason: 'INVALID_CARD' }, { status: 400, code: 'INVALID_CARD', message: '카드 번호를 확인해 주세요' }, '💳 카드 번호를 다시 확인해 주세요');\n  }\n  if (scen === 'limit') {\n    chk('c3', 'no'); await sleep(300);\n    log('카드사: 한도가 모자라요 → <b>거절</b>');\n    return back(false, { status: 'REJECTED', reason: 'EXCEED_LIMIT' }, { status: 400, code: 'EXCEED_LIMIT', message: '카드 한도를 넘었어요' }, '💳 한도 초과 — 다른 카드로 결제해 주세요');\n  }\n  chk('c3', 'ok'); await sleep(350); chk('c4', 'ok');\n  log('카드사: 확인 끝 → <b>승인</b>');\n  return back(true, { status: 'APPROVED', approvalNo: '30' + String(Date.now()).slice(-6) }, { status: 'DONE', orderId, amount: 39000, method: '카드', approvedAt: new Date().toLocaleTimeString('ko-KR') }, '✅ 결제 완료! 내일 도착 예정');\n\n  async function back(ok, bankRes, apiRes, screen) {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">보낸 응답</span>\\n' + j(bankRes);\n    await sleep(500);\n    await fly('p2', true, ok ? '✅' : '❌');\n    act('nApi');\n    log('결제 API: 카드사 답을 <b>정해진 모양(JSON)</b>으로 바꿔 쇼핑몰에 돌려줘요');\n    return finish(ok, apiRes, screen);\n  }\n}\n\nasync function finish(ok, res, screen) {\n  $('apiMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">돌려줄 응답</span>\\n' + j(res);\n  await sleep(600);\n  await fly('p1', true, ok ? '✅' : '❌');\n  act('nShop');\n  $('shopScreen').className = 'screen ' + (ok ? 'ok' : 'bad'); $('shopScreen').textContent = screen;\n  log('쇼핑몰: 응답의 <b>' + (res.status === 'DONE' ? 'status: \"DONE\"' : 'code: \"' + res.code + '\"') + '</b> 만 보고 화면을 바꿔요');\n  $('lesson').innerHTML = ok\n    ? '쇼핑몰은 카드 번호도, 카드사 안쪽도 몰라요. <b>\"DONE\"이라는 응답 하나</b>로 결제 완료 화면을 띄웠을 뿐이에요. 이게 API를 쓴다는 뜻이에요.'\n    : '실패도 <b>정해진 모양</b>(코드·메시지)으로 와요. 그래서 쇼핑몰은 상황에 맞는 안내를 띄울 수 있어요. API 문서에는 이런 오류 코드 목록이 적혀 있어요.';\n  $('pay').disabled = false; $('pay').textContent = '다시 결제하기'; busy = false;\n}\n</script>\n</body>\n</html>\n",
+     "fit": true
+    },
+    {
+     "t": "note",
+     "tone": "tip",
+     "text": "그래서 작은 쇼핑몰도 안전한 카드 결제를 붙일 수 있어요. **남이 잘 만든 기능을 약속된 방식으로 빌려 쓰는 것**, 그게 API예요. 바이브 코딩에서는 AI에게 \"○○ API를 써서 만들어 줘\"라고만 해도 연결 코드를 짜 줘요."
+    },
+    {
+     "t": "h",
+     "text": "우리가 이미 쓰고 있는 API"
+    },
+    {
+     "t": "cols",
+     "items": [
+      {
+       "title": "📱 생활 속 앱에서",
+       "text": "**🛵 배달·쇼핑 앱 — 결제**\n카드 결제는 앱이 직접 하지 않고 **결제 회사의 결제 API**에 부탁해요. 앞에서 본 쇼핑몰 결제와 같아요.\n\n**🗺 배달·택시 앱 — 지도**\n가게·기사님 위치가 움직이는 지도는 **지도 API**(카카오맵·네이버 지도·구글 지도)를 불러와 그려요."
+      },
+      {
+       "title": "🏫 연수에서 본 사례",
+       "text": "**🏃 파라런 — 지도·AI 피드백**\n달린 경로 아래 지도는 **OpenStreetMap 지도 API**, 구간 기록 피드백은 **AI API**로 해요. → [API활용 예시](#api-ex)\n\n**📚 새싹책방 — 책 검색**\n제목만 쳐도 책이 나오는 건 **책 검색 API**, 구절 사진을 글자로 바꾸는 건 **OCR API**예요."
+      }
+     ]
+    },
+    {
+     "t": "h",
+     "text": "API 키 — 꼭 지킬 것"
+    },
+    {
+     "t": "note",
+     "tone": "warn",
+     "text": "**API 키는 비밀번호와 같아요.** 남이 내 키로 마구 부르면 요금이 나오거나 막혀요.\n- 화면 코드(HTML·자바스크립트)에 그대로 넣지 않기 — 누구나 브라우저에서 볼 수 있어요\n- 깃허브·카톡·캡처 화면에 올리지 않기\n- 앱스크립트는 **스크립트 속성**, Vercel은 **환경 변수**에 넣고 코드에서는 이름으로만 불러요\n- 새 나갔다 싶으면 바로 **새로 발급(재발급)**하고 옛 키는 지우기"
+    },
+    {
+     "t": "fold",
+     "title": "자주 나오는 말 (눌러서 보기)",
+     "text": "- **JSON** — `이름: 값` 짝으로 적은 데이터 모양. API 응답 대부분이 이 모양이에요\n- **엔드포인트** — API의 주소 하나. 날씨용, 미세먼지용처럼 기능마다 주소가 달라요\n- **요청 제한** — 무료 API는 \"하루 1,000번\"처럼 부를 수 있는 횟수가 정해져 있어요\n- **공공데이터포털** (data.go.kr) — 기상청·에어코리아·학교 급식 같은 나라 데이터를 API로 무료로 열어 둔 곳이에요. 회원가입 후 키를 받아요\n- **오류 코드** — 401·403은 키 문제, 429는 너무 많이 부름, 500번대는 상대 서버 문제"
+    },
+    {
+     "t": "h",
+     "text": "확인 퀴즈"
+    },
+    {
+     "t": "quizset",
+     "title": "4문제 · 풀고 옆으로 넘겨요",
+     "items": [
+      {
+       "q": "쇼핑몰 결제 비유에서 'API'에 해당하는 것은?",
+       "opts": [
+        "쇼핑몰 (내 웹앱)",
+        "결제 회사가 열어 둔 결제 창구",
+        "카드사의 서버",
+        "가맹점 키"
+       ],
+       "a": 1,
+       "why": "API는 쇼핑몰(내 웹앱)의 요청을 받아 카드사(다른 회사의 서버)에 전하고, 승인 결과를 돌려주는 창구예요."
+      },
+      {
+       "q": "날씨 앱이 기상청 숫자를 받아 와 보여 주는 것처럼, 남이 열어 둔 기능·데이터를 약속된 방식으로 받아 쓰는 창구는?",
+       "opts": [
+        "앱스토어",
+        "API",
+        "와이파이",
+        "클라우드"
+       ],
+       "a": 1,
+       "why": "API는 프로그램끼리 정해진 모양으로 부탁하고 답을 받는 약속된 창구예요."
+      },
+      {
+       "q": "API를 부르면 돌아오는 `\"이름\": 값` 모양의 데이터를 무엇이라고 할까요?",
+       "opts": [
+        "HTML",
+        "URL",
+        "JSON",
+        "PDF"
+       ],
+       "a": 2,
+       "why": "JSON은 프로그램이 읽기 좋은 데이터 모양이에요. API 응답 대부분이 JSON으로 와요."
+      },
+      {
+       "q": "API 키를 다루는 방법으로 알맞은 것은?",
+       "opts": [
+        "HTML 코드 맨 위에 적어 둔다",
+        "동료와 카톡으로 나눠 쓴다",
+        "스크립트 속성이나 환경 변수에 넣고 이름으로 부른다",
+        "잊지 않게 화면 캡처해 둔다"
+       ],
+       "a": 2,
+       "why": "키는 비밀번호와 같아요. 코드나 대화방이 아니라 스크립트 속성·환경 변수처럼 남이 볼 수 없는 곳에 둬요."
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "api-key",
    "title": "API 키 발급 (Google AI Studio)",
    "parent": "api",
@@ -1875,155 +2028,96 @@
    ]
   },
   {
-   "id": "api-concept",
-   "title": "API 개념",
+   "id": "api-ex",
+   "title": "API활용 예시",
    "parent": "api",
    "tag": "",
-   "desc": "남이 만든 기능과 데이터를 약속된 방식으로 빌려 쓰는 창구",
+   "desc": "파라런 — 1km 구간 기록을 AI API에 보내 러닝 코치 피드백 받기",
    "blocks": [
     {
      "t": "h",
-     "text": "API 개념"
+     "text": "파라런 AI 코치 — 구간 기록으로 피드백 받기"
     },
     {
      "t": "p",
-     "text": "웹앱을 만들다 보면 \"날씨를 보여 주고 싶다\", \"지도를 띄우고 싶다\", \"AI가 사진 속 글자를 읽어 줬으면\" 하는 순간이 와요. 이걸 전부 직접 만들 수는 없죠.\n이때 쓰는 것이 **API**예요. 이미 누군가 만들어 둔 기능과 데이터를, **정해진 방식으로 부탁해서 빌려 쓰는 창구**예요."
-    },
-    {
-     "t": "box",
-     "title": "한 줄로 말하면",
-     "text": "**API = 프로그램끼리 주고받는 약속된 창구.**\n정해진 모양으로 **요청**하면, 정해진 모양으로 **응답**이 돌아와요.\n(Application Programming Interface — '프로그램과 프로그램 사이의 접점')",
-     "tone": "accent"
-    },
-    {
-     "t": "h",
-     "text": "쇼핑몰 결제로 비유하면"
-    },
-    {
-     "t": "p",
-     "text": "쇼핑몰은 **카드 결제 기능을 직접 만들지 않아요.**\n\"결제하기\"를 누르면 결제 회사에 **\"39,000원 결제해 주세요\"라고 부탁(요청)**하고, **\"결제됐어요\"라는 답(응답)**만 받아요.\n이렇게 **부탁하고 답을 받는 약속된 창구가 API**예요."
+     "text": "파라런(달리기 수업 웹앱)에서 학생이 레벨 달리기를 마치고 **\"AI 피드백 받기\"**를 누르면, 1km마다 걸린 시간을 보고 AI가 **다음 달리기 조언**을 써 줘요.\n앱이 AI를 직접 만든 게 아니라, 기록 숫자를 **AI API(Gemini)**에 보내고 답을 받아 보여 주는 거예요. 앞에서 본 쇼핑몰 결제와 같은 구조예요."
     },
     {
      "t": "cards",
+     "num": true,
      "items": [
       {
-       "title": "🛍 쇼핑몰 = 내 웹앱",
-       "body": "부탁하는 쪽"
+       "title": "학생 화면",
+       "body": "\"AI 피드백 받기\" 단추. 구간 시간·지난 최고 페이스 **숫자만** 보내요. 이름·학번은 안 보내요"
       },
       {
-       "title": "🔌 결제 회사 창구 = API",
-       "body": "부탁을 받아 처리하고 답해 주는 곳"
+       "title": "우리 서버",
+       "body": "숫자를 **코치 프롬프트**로 바꾸고, 숨겨 둔 **API 키**를 붙여 AI에게 보내요"
       },
       {
-       "title": "🔑 가맹점 키 = API 키",
-       "body": "등록된 가게인지 확인하는 열쇠"
+       "title": "AI API (Groq)",
+       "body": "프롬프트를 읽고 3~4문장 피드백을 써서 돌려줘요"
+      },
+      {
+       "title": "AI가 안 될 때",
+       "body": "앱에 넣어 둔 **규칙**(지난 기록과 비교, 전반·후반 페이스 비교)으로 피드백을 만들어 보여 줘요. 학생은 늘 답을 받아요"
       }
      ]
     },
     {
      "t": "h",
-     "text": "직접 해 보기 — 쇼핑몰에서 결제하기"
+     "text": "직접 해 보기"
     },
     {
      "t": "p",
-     "text": "**결제하기** → 카드 번호 넣고 **이 카드로 결제**를 눌러 보세요. 요청(📨)이 쇼핑몰 → 결제 API → 카드사로 가고, 응답(✅/❌)이 거꾸로 돌아와요.\n위의 **상황** 단추로 한도 초과·API 키 틀림·카드사 응답 없음도 바꿔 보세요. 실패도 정해진 모양(오류 코드)으로 돌아와서, 쇼핑몰이 알맞은 안내를 띄울 수 있어요."
+     "text": "왼쪽에 1km 구간 시간을 넣고(예: 5:40) **🤖 AI 피드백 받기**를 누르세요. 오른쪽에 ① 보낸 숫자 → ② AI에게 간 프롬프트 → ③ 돌아온 피드백이 차례로 켜져요. \"예시\" 단추로 초반 오버페이스·후반 스퍼트 기록도 넣어 보세요."
     },
     {
      "t": "html",
-     "title": "API 체험 — 쇼핑몰에서 결제하기",
-     "height": 1000,
-     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>API 체험 — 쇼핑몰 결제</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--shop:#ff6b35;--api:#7c3aed;--bank:#0f766e;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5;padding:16px}\n  h1{font-size:19px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 12px}\n  .scen{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}\n  .scen b{font-size:13px;color:var(--muted);margin-right:2px}\n  .scen button{font:inherit;font-size:13px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}\n  .scen button.on{background:var(--ink);color:#fff;border-color:var(--ink)}\n\n  /* 세 칸 + 사이 연결선 */\n  .flow{display:grid;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr) 54px minmax(0,1fr);align-items:stretch}\n  .node{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;transition:border-color .2s,box-shadow .2s}\n  .node .who{font-weight:800;font-size:14px;display:flex;align-items:center;gap:6px}\n  .node .who small{font-weight:500;color:var(--muted);font-size:11.5px}\n  .node.shop{border-top:6px solid var(--shop)}.node.api{border-top:6px solid var(--api)}.node.bank{border-top:6px solid var(--bank)}\n  .node.act.shop{border-color:var(--shop);box-shadow:0 0 0 4px rgba(255,107,53,.15)}\n  .node.act.api{border-color:var(--api);box-shadow:0 0 0 4px rgba(124,58,237,.15)}\n  .node.act.bank{border-color:var(--bank);box-shadow:0 0 0 4px rgba(15,118,110,.15)}\n  .wire{position:relative;display:flex;align-items:center;justify-content:center}\n  .wire::before{content:\"\";position:absolute;left:4px;right:4px;top:50%;border-top:2px dashed #b8c2cd}\n  .pkt{position:absolute;top:50%;left:0;width:30px;height:30px;margin-top:-15px;border-radius:50%;display:grid;place-items:center;font-size:15px;\n       background:#fff;border:2px solid var(--ink);opacity:0;z-index:2;box-shadow:0 3px 8px rgba(0,0,0,.15)}\n  @media (max-width:640px){\n    .flow{grid-template-columns:1fr;grid-template-rows:auto 44px auto 44px auto}\n    .wire::before{left:50%;right:auto;top:4px;bottom:4px;border-top:0;border-left:2px dashed #b8c2cd}\n    .pkt{left:50%;top:0;margin-top:0;margin-left:-15px}\n    body{padding:12px}\n  }\n\n  /* 쇼핑몰 화면 */\n  .item{display:flex;gap:10px;align-items:center;background:#fff7f2;border-radius:12px;padding:8px}\n  .item .pic{width:46px;height:46px;border-radius:10px;background:#ffe0d1;display:grid;place-items:center;font-size:26px;flex:none}\n  .item b{display:block;font-size:14px}.item span{font-size:13px;color:var(--muted)}\n  .pay{font:inherit;font-weight:800;font-size:15px;padding:11px;border:0;border-radius:12px;background:var(--shop);color:#fff;cursor:pointer}\n  .pay:disabled{opacity:.55;cursor:wait}\n  .screen{border-radius:12px;padding:10px;text-align:center;font-size:14px;background:#f8fafc;border:1px dashed var(--line);min-height:62px;display:grid;place-items:center}\n  .screen.ok{background:#f0fdf4;border:2px solid var(--ok);color:#14532d;font-weight:700}\n  .screen.bad{background:#fef2f2;border:2px solid var(--bad);color:#7f1d1d;font-weight:700}\n  .knows{font-size:12px;color:var(--muted)}\n  .knows i{font-style:normal;background:#f1f5f9;border-radius:6px;padding:1px 6px;margin:2px;display:inline-block}\n  .knows i.no{text-decoration:line-through;color:#b91c1c;background:#fee2e2}\n\n  /* 결제창(결제 회사가 띄움) */\n  .popup{border:2px solid var(--api);border-radius:12px;padding:10px;background:#faf7ff;display:none;flex-direction:column;gap:6px}\n  .popup.show{display:flex}\n  .popup .t{font-size:12px;font-weight:800;color:var(--api)}\n  .popup input{font:inherit;font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid #d4c5fb;border-radius:8px;width:100%}\n  .popup button{font:inherit;font-weight:700;padding:8px;border:0;border-radius:9px;background:var(--api);color:#fff;cursor:pointer}\n\n  .msg{font-family:var(--mono);font-size:11.5px;background:var(--code);color:var(--code-ink);border-radius:9px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;min-height:80px}\n  .msg .k{color:#7dd3fc}.msg .v{color:#fde68a}.msg .r{color:#fca5a5}.msg .g{color:#86efac}\n  .bankbox{display:flex;flex-direction:column;gap:6px;font-size:13px}\n  .chk{display:flex;gap:6px;align-items:center;color:var(--muted)}\n  .chk .d{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;font-size:11px}\n  .chk.ok{color:var(--ink)}.chk.ok .d{border-color:var(--ok);background:var(--ok);color:#fff}\n  .chk.no{color:var(--bad)}.chk.no .d{border-color:var(--bad);background:var(--bad);color:#fff}\n\n  .log{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}\n  .log h2{font-size:14px;margin:0 0 8px}\n  .log ol{margin:0;padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:4px}\n  .log li b{font-family:var(--mono);font-size:12px}\n  .lesson{margin-top:12px;font-size:14px;line-height:1.6;background:linear-gradient(135deg,#f5f3ff,#eef2ff);border:1px solid #ddd6fe;border-radius:14px;padding:12px 14px 12px 44px;position:relative}\n  .lesson::before{content:'💡';position:absolute;left:14px;top:11px;font-size:18px}\n</style>\n</head>\n<body>\n  <h1>🛍 API 체험 — 쇼핑몰에서 결제하기</h1>\n  <p class=\"lede\"><b>결제하기</b>를 누르고 카드 정보를 넣어 보세요. 쇼핑몰(내 웹앱) → 결제 API → 카드사로 <b>요청</b>이 가고, <b>응답</b>이 되돌아오는 길이 보여요.</p>\n\n  <div class=\"scen\" role=\"group\" aria-label=\"상황 고르기\">\n    <b>상황</b>\n    <button data-s=\"ok\" class=\"on\">✅ 정상 결제</button>\n    <button data-s=\"limit\">💳 한도 초과</button>\n    <button data-s=\"key\">🔑 API 키가 틀림</button>\n    <button data-s=\"down\">⏳ 카드사 응답 없음</button>\n  </div>\n\n  <div class=\"flow\" id=\"flow\">\n    <div class=\"node shop\" id=\"nShop\">\n      <div class=\"who\">🛍 쇼핑몰 <small>= 내 웹앱</small></div>\n      <div class=\"item\"><div class=\"pic\">👟</div><div><b>러닝화 (270mm)</b><span>39,000원</span></div></div>\n      <button class=\"pay\" id=\"pay\">39,000원 결제하기</button>\n      <div class=\"popup\" id=\"popup\">\n        <div class=\"t\">🔒 결제 회사 결제창 — 쇼핑몰은 이 칸을 못 봐요</div>\n        <input id=\"card\" value=\"1234-5678-9012-3456\" aria-label=\"카드 번호\">\n        <button id=\"confirm\">이 카드로 결제</button>\n      </div>\n      <div class=\"screen\" id=\"shopScreen\">장바구니에 1개</div>\n      <div class=\"knows\">쇼핑몰이 아는 것: <i>주문번호</i><i>금액</i><i>결과</i> <i class=\"no\">카드 번호</i></div>\n    </div>\n    <div class=\"wire\" id=\"w1\"><div class=\"pkt\" id=\"p1\">📨</div></div>\n    <div class=\"node api\" id=\"nApi\">\n      <div class=\"who\">🔌 결제 API <small>= 결제 회사 창구</small></div>\n      <div class=\"msg\" id=\"apiMsg\">요청을 기다려요…</div>\n    </div>\n    <div class=\"wire\" id=\"w2\"><div class=\"pkt\" id=\"p2\">📨</div></div>\n    <div class=\"node bank\" id=\"nBank\">\n      <div class=\"who\">🏦 카드사 서버 <small>= 안은 못 봐요</small></div>\n      <div class=\"bankbox\">\n        <div class=\"chk\" id=\"c1\"><span class=\"d\"></span>가맹점(쇼핑몰) 확인</div>\n        <div class=\"chk\" id=\"c2\"><span class=\"d\"></span>카드가 진짜인가</div>\n        <div class=\"chk\" id=\"c3\"><span class=\"d\"></span>한도가 남았나</div>\n        <div class=\"chk\" id=\"c4\"><span class=\"d\"></span>승인</div>\n      </div>\n      <div class=\"msg\" id=\"bankMsg\">—</div>\n    </div>\n  </div>\n\n  <div class=\"log\">\n    <h2>📋 오간 순서</h2>\n    <ol id=\"log\"><li style=\"color:var(--muted);list-style:none;margin-left:-20px\">결제하기를 누르면 여기에 차례로 적혀요.</li></ol>\n  </div>\n  <div class=\"lesson\" id=\"lesson\">쇼핑몰은 결제 기능을 만들지 않았어요. <b>정해진 모양으로 부탁(요청)하고, 정해진 모양으로 결과(응답)를 받기만</b> 해요. 이 약속이 API예요.</div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nlet scen = 'ok', busy = false;\nconst vertical = () => matchMedia('(max-width:640px)').matches;\n\ndocument.querySelectorAll('.scen button').forEach((b) => b.onclick = () => {\n  if (busy) return;\n  document.querySelectorAll('.scen button').forEach((x) => x.classList.toggle('on', x === b));\n  scen = b.dataset.s; reset();\n});\n\nfunction act(id) { ['nShop', 'nApi', 'nBank'].forEach((n) => $(n).classList.toggle('act', n === id)); }\nfunction j(o) {\n  return JSON.stringify(o, null, 1).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:').replace(/: (\"[^\"]*\"|\\d+)/g, ': <span class=\"v\">$1</span>');\n}\nfunction log(html) { const l = $('log'); if (l.dataset.fresh !== '1') { l.innerHTML = ''; l.dataset.fresh = '1'; } const li = document.createElement('li'); li.innerHTML = html; l.append(li); }\nfunction chk(id, st) { const c = $(id); c.className = 'chk' + (st ? ' ' + st : ''); c.querySelector('.d').textContent = st === 'ok' ? '✓' : st === 'no' ? '✕' : ''; }\nasync function fly(pid, back, icon) {\n  const p = $(pid), w = p.parentElement, v = vertical();\n  const len = (v ? w.clientHeight : w.clientWidth) - 30;\n  p.textContent = icon; p.style.transition = 'none';\n  const at = (x) => p.style.transform = v ? `translateY(${x}px)` : `translateX(${x}px)`;\n  at(back ? len : 0); p.style.opacity = 1; p.getBoundingClientRect();\n  p.style.transition = 'transform .7s ease-in-out'; at(back ? 0 : len);\n  await sleep(750); p.style.opacity = 0;\n}\nfunction reset() {\n  ['c1', 'c2', 'c3', 'c4'].forEach((c) => chk(c, ''));\n  $('apiMsg').textContent = '요청을 기다려요…'; $('bankMsg').textContent = '—';\n  $('shopScreen').className = 'screen'; $('shopScreen').textContent = '장바구니에 1개';\n  $('popup').classList.remove('show'); $('pay').disabled = false; $('pay').textContent = '39,000원 결제하기';\n  $('log').dataset.fresh = ''; act(null);\n}\n\n$('pay').onclick = () => { if (busy) return; reset(); $('popup').classList.add('show'); act('nShop'); $('card').focus(); log('손님이 <b>결제하기</b>를 눌러요. 결제 회사가 결제창을 띄워요 (카드 번호는 결제 회사만 받아요)'); };\n$('confirm').onclick = run;\n\nasync function run() {\n  if (busy) return; busy = true;\n  const card = $('card').value.replace(/\\D/g, '');\n  const masked = card.slice(0, 4) + '-****-****-' + card.slice(-4);\n  $('popup').classList.remove('show'); $('pay').disabled = true; $('pay').textContent = '결제 중…';\n  $('shopScreen').textContent = '⏳ 결제 결과를 기다려요…';\n  const orderId = 'ORDER-' + String(Date.now()).slice(-6);\n\n  // 1. 쇼핑몰 → 결제 API\n  log('쇼핑몰 → 결제 API: <b>POST /v1/payments/confirm</b> (주문번호·금액 + 가맹점 키)');\n  await fly('p1', false, '📨');\n  act('nApi');\n  const req = { orderId, amount: 39000, orderName: '러닝화 270mm' };\n  $('apiMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j(req) + '\\n<span class=\"k\">Authorization</span>: ' + (scen === 'key' ? '<span class=\"r\">sk_live_틀린키</span>' : 'sk_live_••••');\n  await sleep(700);\n\n  if (scen === 'key') {\n    $('apiMsg').innerHTML += '\\n\\n<span class=\"r\">✕ 등록되지 않은 가맹점 키</span>';\n    log('결제 API: 가맹점 키가 틀려서 <b>카드사에 묻지도 않고</b> 거절해요');\n    return finish(false, { status: 401, code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 키예요' }, '🔑 결제 설정 오류 — 가게에 문의하세요');\n  }\n\n  // 2. 결제 API → 카드사\n  log('결제 API → 카드사: 카드 <b>' + masked + '</b> 로 39,000원 승인해 줄 수 있나요?');\n  await fly('p2', false, '💳');\n  act('nBank');\n  $('bankMsg').innerHTML = '<span class=\"g\">받은 요청</span>\\n' + j({ card: masked, amount: 39000, merchant: '러닝샵' });\n  chk('c1', 'ok'); await sleep(450);\n\n  if (scen === 'down') {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"r\">… (응답 없음)</span>';\n    log('카드사: <b>10초 동안 답이 없어요</b> (점검·장애)');\n    await sleep(900); act('nApi');\n    log('결제 API: 기다리다 포기하고 쇼핑몰에 <b>시간 초과</b>를 알려요');\n    return finish(false, { status: 504, code: 'PROVIDER_TIMEOUT', message: '카드사 응답이 없어요' }, '⏳ 지금은 결제가 안 돼요 — 잠시 뒤 다시 시도');\n  }\n\n  const fake = card.length < 15;\n  chk('c2', fake ? 'no' : 'ok'); await sleep(450);\n  if (fake) {\n    log('카드사: <b>카드 번호가 올바르지 않아요</b>');\n    return back(false, { status: 'REJECTED', reason: 'INVALID_CARD' }, { status: 400, code: 'INVALID_CARD', message: '카드 번호를 확인해 주세요' }, '💳 카드 번호를 다시 확인해 주세요');\n  }\n  if (scen === 'limit') {\n    chk('c3', 'no'); await sleep(300);\n    log('카드사: 한도가 모자라요 → <b>거절</b>');\n    return back(false, { status: 'REJECTED', reason: 'EXCEED_LIMIT' }, { status: 400, code: 'EXCEED_LIMIT', message: '카드 한도를 넘었어요' }, '💳 한도 초과 — 다른 카드로 결제해 주세요');\n  }\n  chk('c3', 'ok'); await sleep(350); chk('c4', 'ok');\n  log('카드사: 확인 끝 → <b>승인</b>');\n  return back(true, { status: 'APPROVED', approvalNo: '30' + String(Date.now()).slice(-6) }, { status: 'DONE', orderId, amount: 39000, method: '카드', approvedAt: new Date().toLocaleTimeString('ko-KR') }, '✅ 결제 완료! 내일 도착 예정');\n\n  async function back(ok, bankRes, apiRes, screen) {\n    $('bankMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">보낸 응답</span>\\n' + j(bankRes);\n    await sleep(500);\n    await fly('p2', true, ok ? '✅' : '❌');\n    act('nApi');\n    log('결제 API: 카드사 답을 <b>정해진 모양(JSON)</b>으로 바꿔 쇼핑몰에 돌려줘요');\n    return finish(ok, apiRes, screen);\n  }\n}\n\nasync function finish(ok, res, screen) {\n  $('apiMsg').innerHTML += '\\n\\n<span class=\"' + (ok ? 'g' : 'r') + '\">돌려줄 응답</span>\\n' + j(res);\n  await sleep(600);\n  await fly('p1', true, ok ? '✅' : '❌');\n  act('nShop');\n  $('shopScreen').className = 'screen ' + (ok ? 'ok' : 'bad'); $('shopScreen').textContent = screen;\n  log('쇼핑몰: 응답의 <b>' + (res.status === 'DONE' ? 'status: \"DONE\"' : 'code: \"' + res.code + '\"') + '</b> 만 보고 화면을 바꿔요');\n  $('lesson').innerHTML = ok\n    ? '쇼핑몰은 카드 번호도, 카드사 안쪽도 몰라요. <b>\"DONE\"이라는 응답 하나</b>로 결제 완료 화면을 띄웠을 뿐이에요. 이게 API를 쓴다는 뜻이에요.'\n    : '실패도 <b>정해진 모양</b>(코드·메시지)으로 와요. 그래서 쇼핑몰은 상황에 맞는 안내를 띄울 수 있어요. API 문서에는 이런 오류 코드 목록이 적혀 있어요.';\n  $('pay').disabled = false; $('pay').textContent = '다시 결제하기'; busy = false;\n}\n</script>\n</body>\n</html>\n",
-     "fit": true
-    },
-    {
-     "t": "note",
-     "tone": "tip",
-     "text": "그래서 작은 쇼핑몰도 안전한 카드 결제를 붙일 수 있어요. **남이 잘 만든 기능을 약속된 방식으로 빌려 쓰는 것**, 그게 API예요. 바이브 코딩에서는 AI에게 \"○○ API를 써서 만들어 줘\"라고만 해도 연결 코드를 짜 줘요."
+     "title": "파라런 AI 코치 — 랩별 기록으로 피드백 받기",
+     "height": 980,
+     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>파라런 AI 코치 — 랩별 기록으로 피드백 받기</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--acc:#ff6b35;--acc-ink:#b8410f;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:18px}\n  h1{font-size:20px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 14px}\n  .grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:14px;align-items:start}\n  @media (max-width:640px){.grid{grid-template-columns:1fr}body{padding:12px}}\n  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}\n  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}\n  .lap{display:grid;grid-template-columns:52px 1fr 64px 28px;gap:8px;align-items:center;margin-bottom:6px}\n  .lap b{font-size:13px;color:var(--muted)}\n  .lap input{width:100%;font:inherit;font-size:16px;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  .bar{height:10px;border-radius:6px;background:var(--acc);opacity:.85;transition:width .2s}\n  .x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}\n  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}\n  .row label{font-size:13px;color:var(--muted)}\n  .row input{width:90px;font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  button.small{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer}\n  button.go{width:100%;margin-top:12px;font:inherit;font-size:16px;font-weight:800;padding:12px;border:0;border-radius:12px;background:var(--acc);color:#fff;cursor:pointer}\n  button.go:disabled{opacity:.6;cursor:wait}\n  .sum{margin-top:10px;font-size:13px;color:var(--muted)}\n  .sum b{color:var(--ink)}\n  .err{color:var(--bad);font-size:13px;margin-top:6px;min-height:1em}\n  .steps{display:flex;flex-direction:column;gap:10px}\n  .step{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;transition:border-color .2s,box-shadow .2s}\n  .step.on{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.15)}\n  .step h3{font-size:13px;margin:0 0 6px;display:flex;gap:8px;align-items:center}\n  .step h3 .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;font-size:11px}\n  .step p{margin:0 0 6px;font-size:12.5px;color:var(--muted)}\n  pre{margin:0;background:var(--code);color:var(--code-ink);font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:9px 11px;border-radius:9px;white-space:pre-wrap;word-break:break-all;max-height:190px;overflow:auto}\n  .k{color:#7dd3fc}.v{color:#fde68a}.hide{color:#f87171}\n  .fb{font-size:15px;line-height:1.7;white-space:pre-wrap}\n  .badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:auto}\n  .badge.ai{background:#ede9fe;color:#5b21b6}.badge.rule{background:#f1f5f9;color:#475569}\n  .why{font-size:12px;color:var(--muted);margin-top:6px}\n</style>\n</head>\n<body>\n  <h1>🏃 파라런 AI 코치 — 랩별 기록으로 피드백 받기</h1>\n  <p class=\"lede\">1km마다 걸린 시간을 넣고 <b>AI 피드백 받기</b>를 누르면, 실제 파라런 앱처럼 <b>AI API</b>가 다음 달리기 조언을 써 줘요. 오른쪽에서 무엇이 오가는지 확인해 보세요.</p>\n\n  <div class=\"grid\">\n    <div class=\"card\">\n      <h2>⏱ 1km 구간 기록</h2>\n      <div id=\"laps\"></div>\n      <div class=\"row\">\n        <button class=\"small\" type=\"button\" id=\"add\">＋ 구간 추가</button>\n        <button class=\"small\" type=\"button\" id=\"ex1\">예시: 초반 오버페이스</button>\n        <button class=\"small\" type=\"button\" id=\"ex2\">예시: 후반 스퍼트</button>\n      </div>\n      <div class=\"row\">\n        <label for=\"best\">지난 최고 페이스</label>\n        <input id=\"best\" value=\"6:00\" placeholder=\"없으면 비움\">\n        <label>/km</label>\n      </div>\n      <div class=\"sum\" id=\"sum\"></div>\n      <button class=\"go\" id=\"go\" type=\"button\">🤖 AI 피드백 받기</button>\n      <div class=\"err\" id=\"err\"></div>\n    </div>\n\n    <div class=\"steps\">\n      <div class=\"step\" id=\"s1\">\n        <h3><span class=\"n\">1</span>내 화면 → 우리 서버 <small style=\"color:var(--muted);font-weight:400\">· 숫자만 보내요</small></h3>\n        <p>이름·학번 없이 구간 시간(초)과 지난 최고 페이스만 보내요.</p>\n        <pre id=\"req\">아직 보내지 않았어요.</pre>\n      </div>\n      <div class=\"step\" id=\"s2\">\n        <h3><span class=\"n\">2</span>우리 서버 → AI API (Gemini)</h3>\n        <p>서버가 숫자를 <b>프롬프트</b>로 바꿔 보내요. <b>API 키는 서버에만</b> 있어서 화면에는 안 보여요.</p>\n        <pre id=\"prompt\">—</pre>\n      </div>\n      <div class=\"step\" id=\"s3\">\n        <h3><span class=\"n\">3</span>AI 응답 → 학생 화면 <span class=\"badge\" id=\"badge\" hidden></span></h3>\n        <div class=\"fb\" id=\"fb\">여기에 피드백이 나와요.</div>\n        <div class=\"why\" id=\"why\"></div>\n      </div>\n    </div>\n  </div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nconst ENDPOINT = new URL('/api/feedback', document.baseURI).href;\nlet laps = ['5:40', '5:52', '6:05', '6:21'];\n\nfunction toSec(t) {\n  t = String(t).trim().replace(/[’'′]/g, ':').replace(/[\"″]/g, '');\n  const m = /^(\\d{1,2})[:.](\\d{1,2})$/.exec(t);\n  if (m) return +m[1] * 60 + +m[2];\n  if (/^\\d{1,2}$/.test(t)) return +t * 60;\n  return NaN;\n}\nfunction fmt(sec) { const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60; return `${m}'${String(s).padStart(2, '0')}\"`; }\nfunction on(id) { ['s1', 's2', 's3'].forEach((s) => $(s).classList.toggle('on', s === id)); }\n\nfunction draw() {\n  const box = $('laps'); box.textContent = '';\n  laps.forEach((v, i) => {\n    const row = document.createElement('div'); row.className = 'lap';\n    const inp = document.createElement('input'); inp.value = v; inp.inputMode = 'numeric'; inp.setAttribute('aria-label', (i + 1) + 'km 구간 시간');\n    inp.addEventListener('input', () => { laps[i] = inp.value; summary(); bars(); });\n    const bar = document.createElement('div'); bar.className = 'bar';\n    const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '✕'; x.title = '구간 빼기';\n    x.onclick = () => { if (laps.length > 1) { laps.splice(i, 1); draw(); } };\n    const lab = document.createElement('b'); lab.textContent = (i + 1) + 'km';\n    row.append(lab, inp, bar, x); box.append(row);\n  });\n  bars(); summary();\n  function bars() {\n    const s2 = laps.map(toSec), ok2 = s2.filter((s) => s > 0), mx = Math.max(...ok2, 1), mn = Math.min(...ok2, mx);\n    box.querySelectorAll('.bar').forEach((b, i) => { const s = s2[i]; b.style.width = s > 0 ? (30 + 70 * (s - mn) / Math.max(1, mx - mn)) + '%' : '0'; });\n  }\n}\nfunction summary() {\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s > 0))) { $('sum').textContent = '시간은 5:40 처럼 분:초로 적어요.'; return; }\n  const avg = secs.reduce((a, b) => a + b, 0) / secs.length;\n  $('sum').innerHTML = `거리 <b>${secs.length}km</b> · 평균 페이스 <b>${fmt(avg)}</b>/km · ${avg > 600 ? '<b style=\"color:#dc2626\">걷기 기준(10\\'00\") 넘음</b>' : '달리기'}`;\n}\n$('add').onclick = () => { if (laps.length < 10) { laps.push(laps[laps.length - 1] || '6:00'); draw(); } };\n$('ex1').onclick = () => { laps = ['5:10', '5:35', '6:10', '6:45']; $('best').value = '5:45'; draw(); };\n$('ex2').onclick = () => { laps = ['6:20', '6:15', '6:02', '5:41']; $('best').value = '6:10'; draw(); };\n\nasync function ask() {\n  $('err').textContent = '';\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s >= 120 && s <= 1800))) { $('err').textContent = '구간 시간은 2:00 ~ 30:00 사이로, 5:40 처럼 적어 주세요.'; return; }\n  const best = $('best').value.trim() ? toSec($('best').value) : 0;\n  const body = { laps: secs, best: best > 0 ? best : 0 };\n  $('go').disabled = true; $('go').textContent = '🤖 AI가 쓰는 중…';\n  on('s1');\n  $('req').innerHTML = `<span class=\"k\">POST</span> /api/feedback\\n` + JSON.stringify(body, null, 1)\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:') + `\\n\\n<span class=\"k\">// 구간 시간은 초 단위 (5:40 → 340)</span>`;\n  $('prompt').textContent = '서버가 프롬프트를 만드는 중…'; $('fb').textContent = '…'; $('badge').hidden = true; $('why').textContent = '';\n  await sleep(500);\n  on('s2');\n  let r;\n  try {\n    const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n    r = await res.json();\n    if (!res.ok) throw new Error(r.error || '서버 오류');\n  } catch (e) {\n    $('prompt').textContent = '—'; $('fb').textContent = '서버에 연결하지 못했어요.'; $('err').textContent = e.message || '';\n    $('go').disabled = false; $('go').textContent = '🤖 AI 피드백 받기'; return;\n  }\n  const esc = (t) => t.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));\n  $('prompt').innerHTML = `<span class=\"k\">POST</span> https://api.groq.com/openai/v1/chat/completions\\n<span class=\"k\">Authorization:</span> Bearer <span class=\"hide\">gsk_•••••••• (서버에만 있음)</span>\\n\\n` + esc(r.prompt);\n  await sleep(600);\n  on('s3');\n  $('fb').textContent = r.feedback;\n  $('badge').hidden = false;\n  $('badge').className = 'badge ' + (r.source === 'ai' ? 'ai' : 'rule');\n  $('badge').textContent = r.source === 'ai' ? '🤖 AI가 쓴 피드백' : '📏 규칙 피드백';\n  $('why').textContent = r.source === 'ai' ? `모델: ${r.model}` : `${r.reason ? r.reason + ' — ' : ''}AI 대신 앱에 넣어 둔 규칙(페이스 비교·전후반 배분)으로 만든 피드백이에요. 실제 앱도 AI가 안 될 때 이렇게 해요.`;\n  $('go').disabled = false; $('go').textContent = '🤖 다시 받기';\n}\n$('go').onclick = ask;\ndraw();\n</script>\n</body>\n</html>\n"
     },
     {
      "t": "h",
-     "text": "우리가 이미 쓰고 있는 API"
+     "text": "AI에게 보낸 프롬프트의 핵심"
+    },
+    {
+     "t": "box",
+     "title": "좋은 피드백을 받으려고 넣은 규칙",
+     "text": "- **역할**: \"너는 중고생 러닝 코치야\"\n- **분량**: 3~4문장, 한국어\n- **금지**: 기록 숫자를 그대로 읊지 않기 (\"5분에서 6분으로 느려졌어요\" ✕)\n- **꼭**: \"다음번엔 이렇게 해 보자\"로 끝내기, 다정한 말투\n- **구간 기록이 있으면**: 초반 오버페이스·후반 처짐·꾸준함 중 무엇인지 보고 **페이스 배분** 조언 넣기",
+     "tone": "soft"
+    },
+    {
+     "t": "note",
+     "tone": "info",
+     "text": "파라런 관리자 화면에는 **\"AI 피드백 방향/스타일\"** 칸이 있어서, 선생님이 \"칭찬을 먼저 해 줘\" 같은 지침을 적으면 프롬프트에 그대로 덧붙여져요. 프롬프트도 결국 수업 설계예요."
+    },
+    {
+     "t": "h",
+     "text": "이 예시에서 볼 점"
     },
     {
      "t": "cols",
      "items": [
       {
-       "title": "📱 생활 속 앱에서",
-       "text": "**🛵 배달·쇼핑 앱 — 결제**\n카드 결제는 앱이 직접 하지 않고 **결제 회사의 결제 API**에 부탁해요. 앞에서 본 쇼핑몰 결제와 같아요.\n\n**🗺 배달·택시 앱 — 지도**\n가게·기사님 위치가 움직이는 지도는 **지도 API**(카카오맵·네이버 지도·구글 지도)를 불러와 그려요."
+       "title": "🔑 키는 서버에만",
+       "text": "API 키를 화면 코드에 넣으면 누구나 볼 수 있어요. 그래서 화면 → **우리 서버** → AI 순서로 보내고, 키는 Vercel **환경 변수**에만 둬요."
       },
       {
-       "title": "🏫 연수에서 본 사례",
-       "text": "**🏃 파라런 — 지도·AI 피드백**\n달린 경로 아래 지도는 **OpenStreetMap 지도 API**, 구간 기록 피드백은 **AI API**로 해요. → [API활용 예시](#api-ex)\n\n**📚 새싹책방 — 책 검색**\n제목만 쳐도 책이 나오는 건 **책 검색 API**, 구절 사진을 글자로 바꾸는 건 **OCR API**예요."
+       "title": "🙈 개인정보는 안 보내기",
+       "text": "AI 회사로 가는 건 **숫자뿐**이에요. 학생 이름·학번·소감 글은 보내지 않아요. 학생 데이터를 외부 API에 보낼 때 가장 먼저 챙길 것이에요."
+      },
+      {
+       "title": "🛟 실패해도 답하기",
+       "text": "AI 서비스가 느리거나 멈출 수 있어요. 그래서 **규칙 피드백**을 대신 준비해 뒀어요. 외부 API를 쓰는 앱이라면 \"안 될 때\"를 꼭 정해 둬요."
       }
      ]
-    },
-    {
-     "t": "h",
-     "text": "API 키 — 꼭 지킬 것"
-    },
-    {
-     "t": "note",
-     "tone": "warn",
-     "text": "**API 키는 비밀번호와 같아요.** 남이 내 키로 마구 부르면 요금이 나오거나 막혀요.\n- 화면 코드(HTML·자바스크립트)에 그대로 넣지 않기 — 누구나 브라우저에서 볼 수 있어요\n- 깃허브·카톡·캡처 화면에 올리지 않기\n- 앱스크립트는 **스크립트 속성**, Vercel은 **환경 변수**에 넣고 코드에서는 이름으로만 불러요\n- 새 나갔다 싶으면 바로 **새로 발급(재발급)**하고 옛 키는 지우기"
     },
     {
      "t": "fold",
-     "title": "자주 나오는 말 (눌러서 보기)",
-     "text": "- **JSON** — `이름: 값` 짝으로 적은 데이터 모양. API 응답 대부분이 이 모양이에요\n- **엔드포인트** — API의 주소 하나. 날씨용, 미세먼지용처럼 기능마다 주소가 달라요\n- **요청 제한** — 무료 API는 \"하루 1,000번\"처럼 부를 수 있는 횟수가 정해져 있어요\n- **공공데이터포털** (data.go.kr) — 기상청·에어코리아·학교 급식 같은 나라 데이터를 API로 무료로 열어 둔 곳이에요. 회원가입 후 키를 받아요\n- **오류 코드** — 401·403은 키 문제, 429는 너무 많이 부름, 500번대는 상대 서버 문제"
-    },
-    {
-     "t": "h",
-     "text": "확인 퀴즈"
-    },
-    {
-     "t": "quizset",
-     "title": "4문제 · 풀고 옆으로 넘겨요",
-     "items": [
-      {
-       "q": "쇼핑몰 결제 비유에서 'API'에 해당하는 것은?",
-       "opts": [
-        "쇼핑몰 (내 웹앱)",
-        "결제 회사가 열어 둔 결제 창구",
-        "카드사의 서버",
-        "가맹점 키"
-       ],
-       "a": 1,
-       "why": "API는 쇼핑몰(내 웹앱)의 요청을 받아 카드사(다른 회사의 서버)에 전하고, 승인 결과를 돌려주는 창구예요."
-      },
-      {
-       "q": "날씨 앱이 기상청 숫자를 받아 와 보여 주는 것처럼, 남이 열어 둔 기능·데이터를 약속된 방식으로 받아 쓰는 창구는?",
-       "opts": [
-        "앱스토어",
-        "API",
-        "와이파이",
-        "클라우드"
-       ],
-       "a": 1,
-       "why": "API는 프로그램끼리 정해진 모양으로 부탁하고 답을 받는 약속된 창구예요."
-      },
-      {
-       "q": "API를 부르면 돌아오는 `\"이름\": 값` 모양의 데이터를 무엇이라고 할까요?",
-       "opts": [
-        "HTML",
-        "URL",
-        "JSON",
-        "PDF"
-       ],
-       "a": 2,
-       "why": "JSON은 프로그램이 읽기 좋은 데이터 모양이에요. API 응답 대부분이 JSON으로 와요."
-      },
-      {
-       "q": "API 키를 다루는 방법으로 알맞은 것은?",
-       "opts": [
-        "HTML 코드 맨 위에 적어 둔다",
-        "동료와 카톡으로 나눠 쓴다",
-        "스크립트 속성이나 환경 변수에 넣고 이름으로 부른다",
-        "잊지 않게 화면 캡처해 둔다"
-       ],
-       "a": 2,
-       "why": "키는 비밀번호와 같아요. 코드나 대화방이 아니라 스크립트 속성·환경 변수처럼 남이 볼 수 없는 곳에 둬요."
-      }
-     ]
+     "title": "선생님용 — 이 체험의 AI 연결 켜기",
+     "text": "이 체험과 [종합 실습]의 AI 채점 봇은 연수 사이트의 서버 함수(`api/feedback.js`, `api/review.js`)가 **Gemini API**를 불러요.\n1. Google AI Studio에서 API 키 만들기 ([API 키 발급] 페이지)\n2. Vercel 프로젝트(pevibecode) → Settings → Environment Variables 에 `GEMINI_API_KEY` 이름으로 넣기\n3. Deployments 에서 다시 배포(Redeploy)\n키가 없으면 러닝 코치는 \"📏 규칙 피드백\"으로, 채점 봇은 안내 문구로 나와요. 한 사람이 한 시간에 30번까지만 AI를 불러요."
     }
    ]
   },
@@ -2165,100 +2259,6 @@
      "t": "fold",
      "title": "막혔을 때 (눌러서 보기)",
      "text": "- **'AI 선생님이 계획을 짜는 중…'에서 안 넘어가요** — 초가 올라가고 있으면 AI가 생각하는 중이에요(20~40초, 붐비면 1분 넘게). 편집기 왼쪽 ☰ **실행** 기록에서 getPrescription이 실행 중인지·실패했는지 보고, 편집기에서 **testGemini** 함수를 골라 ▶ 실행하면 걸린 시간과 오류를 바로 볼 수 있어요. 코드를 고쳤다면 **배포 관리 → 새 버전**으로 다시 배포했는지도 확인해요\n- **\"API 키가 없어요\"** — 스크립트 속성 이름이 `GEMINI_API_KEY` 와 글자 하나까지 같은지 확인해요\n- **오류 400** — 요청 모양이 틀렸어요. Code.gs를 다시 통째로 붙여 넣어요\n- **\"쓸 수 있는 Gemini 모델을 찾지 못했어요\"** — 모델은 코드가 알아서 찾지만, 그래도 안 되면 스크립트 속성에 `GEMINI_MODEL` 이름으로 AI Studio 화면에 보이는 모델 이름(예: gemini-3.8-flash)을 넣어요\n- **오류 401·403** — 키가 틀렸거나 지워졌어요. 키를 다시 복사해 넣어요\n- **\"AI가 지금 너무 바빠요\" (오류 503)** — 구글 서버가 붐비는 거예요. 코드가 다른 모델로도 시도해 보니, 잠시 뒤 다시 누르면 대부분 돼요\n- **오류 429** — 너무 자주 불렀어요. 잠깐 뒤 다시 눌러요\n- **권한 화면에서 '확인되지 않은 앱'** — 고급 → (프로젝트 이름)으로 이동 → 허용. 내가 만든 앱이라 괜찮아요\n- **고쳤는데 그대로예요** — 배포 → 배포 관리 → ✏ → 버전: **새 버전**으로 다시 배포해야 바뀌어요\n- **시트에 기록이 안 쌓여요** — 스프레드시트에서 **확장 프로그램 → Apps Script** 로 만든 프로젝트여야 해요(script.google.com에서 따로 만들면 시트와 연결이 안 돼요)"
-    }
-   ]
-  },
-  {
-   "id": "api-ex",
-   "title": "API활용 예시",
-   "parent": "api",
-   "tag": "",
-   "desc": "파라런 — 1km 구간 기록을 AI API에 보내 러닝 코치 피드백 받기",
-   "blocks": [
-    {
-     "t": "h",
-     "text": "파라런 AI 코치 — 구간 기록으로 피드백 받기"
-    },
-    {
-     "t": "p",
-     "text": "파라런(달리기 수업 웹앱)에서 학생이 레벨 달리기를 마치고 **\"AI 피드백 받기\"**를 누르면, 1km마다 걸린 시간을 보고 AI가 **다음 달리기 조언**을 써 줘요.\n앱이 AI를 직접 만든 게 아니라, 기록 숫자를 **AI API(Gemini)**에 보내고 답을 받아 보여 주는 거예요. 앞에서 본 쇼핑몰 결제와 같은 구조예요."
-    },
-    {
-     "t": "cards",
-     "num": true,
-     "items": [
-      {
-       "title": "학생 화면",
-       "body": "\"AI 피드백 받기\" 단추. 구간 시간·지난 최고 페이스 **숫자만** 보내요. 이름·학번은 안 보내요"
-      },
-      {
-       "title": "우리 서버",
-       "body": "숫자를 **코치 프롬프트**로 바꾸고, 숨겨 둔 **API 키**를 붙여 AI에게 보내요"
-      },
-      {
-       "title": "AI API (Groq)",
-       "body": "프롬프트를 읽고 3~4문장 피드백을 써서 돌려줘요"
-      },
-      {
-       "title": "AI가 안 될 때",
-       "body": "앱에 넣어 둔 **규칙**(지난 기록과 비교, 전반·후반 페이스 비교)으로 피드백을 만들어 보여 줘요. 학생은 늘 답을 받아요"
-      }
-     ]
-    },
-    {
-     "t": "h",
-     "text": "직접 해 보기"
-    },
-    {
-     "t": "p",
-     "text": "왼쪽에 1km 구간 시간을 넣고(예: 5:40) **🤖 AI 피드백 받기**를 누르세요. 오른쪽에 ① 보낸 숫자 → ② AI에게 간 프롬프트 → ③ 돌아온 피드백이 차례로 켜져요. \"예시\" 단추로 초반 오버페이스·후반 스퍼트 기록도 넣어 보세요."
-    },
-    {
-     "t": "html",
-     "title": "파라런 AI 코치 — 랩별 기록으로 피드백 받기",
-     "height": 980,
-     "code": "<!DOCTYPE html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>파라런 AI 코치 — 랩별 기록으로 피드백 받기</title>\n<style>\n  :root{--ink:#16202b;--muted:#5b6b7b;--line:#d7dee6;--stage:#eef2f6;--acc:#ff6b35;--acc-ink:#b8410f;--ok:#16a34a;--bad:#dc2626;\n        --code:#0e131b;--code-ink:#e6ecf3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n  *{box-sizing:border-box}\n  body{margin:0;background:var(--stage);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.55;padding:18px}\n  h1{font-size:20px;margin:0 0 4px}\n  .lede{color:var(--muted);font-size:14px;margin:0 0 14px}\n  .grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:14px;align-items:start}\n  @media (max-width:640px){.grid{grid-template-columns:1fr}body{padding:12px}}\n  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}\n  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}\n  .lap{display:grid;grid-template-columns:52px 1fr 64px 28px;gap:8px;align-items:center;margin-bottom:6px}\n  .lap b{font-size:13px;color:var(--muted)}\n  .lap input{width:100%;font:inherit;font-size:16px;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  .bar{height:10px;border-radius:6px;background:var(--acc);opacity:.85;transition:width .2s}\n  .x{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}\n  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}\n  .row label{font-size:13px;color:var(--muted)}\n  .row input{width:90px;font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:9px;text-align:center;font-family:var(--mono)}\n  button.small{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer}\n  button.go{width:100%;margin-top:12px;font:inherit;font-size:16px;font-weight:800;padding:12px;border:0;border-radius:12px;background:var(--acc);color:#fff;cursor:pointer}\n  button.go:disabled{opacity:.6;cursor:wait}\n  .sum{margin-top:10px;font-size:13px;color:var(--muted)}\n  .sum b{color:var(--ink)}\n  .err{color:var(--bad);font-size:13px;margin-top:6px;min-height:1em}\n  .steps{display:flex;flex-direction:column;gap:10px}\n  .step{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;transition:border-color .2s,box-shadow .2s}\n  .step.on{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,107,53,.15)}\n  .step h3{font-size:13px;margin:0 0 6px;display:flex;gap:8px;align-items:center}\n  .step h3 .n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--acc);color:#fff;font-size:11px}\n  .step p{margin:0 0 6px;font-size:12.5px;color:var(--muted)}\n  pre{margin:0;background:var(--code);color:var(--code-ink);font-family:var(--mono);font-size:11.5px;line-height:1.55;padding:9px 11px;border-radius:9px;white-space:pre-wrap;word-break:break-all;max-height:190px;overflow:auto}\n  .k{color:#7dd3fc}.v{color:#fde68a}.hide{color:#f87171}\n  .fb{font-size:15px;line-height:1.7;white-space:pre-wrap}\n  .badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:auto}\n  .badge.ai{background:#ede9fe;color:#5b21b6}.badge.rule{background:#f1f5f9;color:#475569}\n  .why{font-size:12px;color:var(--muted);margin-top:6px}\n</style>\n</head>\n<body>\n  <h1>🏃 파라런 AI 코치 — 랩별 기록으로 피드백 받기</h1>\n  <p class=\"lede\">1km마다 걸린 시간을 넣고 <b>AI 피드백 받기</b>를 누르면, 실제 파라런 앱처럼 <b>AI API</b>가 다음 달리기 조언을 써 줘요. 오른쪽에서 무엇이 오가는지 확인해 보세요.</p>\n\n  <div class=\"grid\">\n    <div class=\"card\">\n      <h2>⏱ 1km 구간 기록</h2>\n      <div id=\"laps\"></div>\n      <div class=\"row\">\n        <button class=\"small\" type=\"button\" id=\"add\">＋ 구간 추가</button>\n        <button class=\"small\" type=\"button\" id=\"ex1\">예시: 초반 오버페이스</button>\n        <button class=\"small\" type=\"button\" id=\"ex2\">예시: 후반 스퍼트</button>\n      </div>\n      <div class=\"row\">\n        <label for=\"best\">지난 최고 페이스</label>\n        <input id=\"best\" value=\"6:00\" placeholder=\"없으면 비움\">\n        <label>/km</label>\n      </div>\n      <div class=\"sum\" id=\"sum\"></div>\n      <button class=\"go\" id=\"go\" type=\"button\">🤖 AI 피드백 받기</button>\n      <div class=\"err\" id=\"err\"></div>\n    </div>\n\n    <div class=\"steps\">\n      <div class=\"step\" id=\"s1\">\n        <h3><span class=\"n\">1</span>내 화면 → 우리 서버 <small style=\"color:var(--muted);font-weight:400\">· 숫자만 보내요</small></h3>\n        <p>이름·학번 없이 구간 시간(초)과 지난 최고 페이스만 보내요.</p>\n        <pre id=\"req\">아직 보내지 않았어요.</pre>\n      </div>\n      <div class=\"step\" id=\"s2\">\n        <h3><span class=\"n\">2</span>우리 서버 → AI API (Gemini)</h3>\n        <p>서버가 숫자를 <b>프롬프트</b>로 바꿔 보내요. <b>API 키는 서버에만</b> 있어서 화면에는 안 보여요.</p>\n        <pre id=\"prompt\">—</pre>\n      </div>\n      <div class=\"step\" id=\"s3\">\n        <h3><span class=\"n\">3</span>AI 응답 → 학생 화면 <span class=\"badge\" id=\"badge\" hidden></span></h3>\n        <div class=\"fb\" id=\"fb\">여기에 피드백이 나와요.</div>\n        <div class=\"why\" id=\"why\"></div>\n      </div>\n    </div>\n  </div>\n\n<script>\nconst $ = (id) => document.getElementById(id);\nconst sleep = (ms) => new Promise((r) => setTimeout(r, ms));\nconst ENDPOINT = new URL('/api/feedback', document.baseURI).href;\nlet laps = ['5:40', '5:52', '6:05', '6:21'];\n\nfunction toSec(t) {\n  t = String(t).trim().replace(/[’'′]/g, ':').replace(/[\"″]/g, '');\n  const m = /^(\\d{1,2})[:.](\\d{1,2})$/.exec(t);\n  if (m) return +m[1] * 60 + +m[2];\n  if (/^\\d{1,2}$/.test(t)) return +t * 60;\n  return NaN;\n}\nfunction fmt(sec) { const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60; return `${m}'${String(s).padStart(2, '0')}\"`; }\nfunction on(id) { ['s1', 's2', 's3'].forEach((s) => $(s).classList.toggle('on', s === id)); }\n\nfunction draw() {\n  const box = $('laps'); box.textContent = '';\n  laps.forEach((v, i) => {\n    const row = document.createElement('div'); row.className = 'lap';\n    const inp = document.createElement('input'); inp.value = v; inp.inputMode = 'numeric'; inp.setAttribute('aria-label', (i + 1) + 'km 구간 시간');\n    inp.addEventListener('input', () => { laps[i] = inp.value; summary(); bars(); });\n    const bar = document.createElement('div'); bar.className = 'bar';\n    const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '✕'; x.title = '구간 빼기';\n    x.onclick = () => { if (laps.length > 1) { laps.splice(i, 1); draw(); } };\n    const lab = document.createElement('b'); lab.textContent = (i + 1) + 'km';\n    row.append(lab, inp, bar, x); box.append(row);\n  });\n  bars(); summary();\n  function bars() {\n    const s2 = laps.map(toSec), ok2 = s2.filter((s) => s > 0), mx = Math.max(...ok2, 1), mn = Math.min(...ok2, mx);\n    box.querySelectorAll('.bar').forEach((b, i) => { const s = s2[i]; b.style.width = s > 0 ? (30 + 70 * (s - mn) / Math.max(1, mx - mn)) + '%' : '0'; });\n  }\n}\nfunction summary() {\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s > 0))) { $('sum').textContent = '시간은 5:40 처럼 분:초로 적어요.'; return; }\n  const avg = secs.reduce((a, b) => a + b, 0) / secs.length;\n  $('sum').innerHTML = `거리 <b>${secs.length}km</b> · 평균 페이스 <b>${fmt(avg)}</b>/km · ${avg > 600 ? '<b style=\"color:#dc2626\">걷기 기준(10\\'00\") 넘음</b>' : '달리기'}`;\n}\n$('add').onclick = () => { if (laps.length < 10) { laps.push(laps[laps.length - 1] || '6:00'); draw(); } };\n$('ex1').onclick = () => { laps = ['5:10', '5:35', '6:10', '6:45']; $('best').value = '5:45'; draw(); };\n$('ex2').onclick = () => { laps = ['6:20', '6:15', '6:02', '5:41']; $('best').value = '6:10'; draw(); };\n\nasync function ask() {\n  $('err').textContent = '';\n  const secs = laps.map(toSec);\n  if (secs.some((s) => !(s >= 120 && s <= 1800))) { $('err').textContent = '구간 시간은 2:00 ~ 30:00 사이로, 5:40 처럼 적어 주세요.'; return; }\n  const best = $('best').value.trim() ? toSec($('best').value) : 0;\n  const body = { laps: secs, best: best > 0 ? best : 0 };\n  $('go').disabled = true; $('go').textContent = '🤖 AI가 쓰는 중…';\n  on('s1');\n  $('req').innerHTML = `<span class=\"k\">POST</span> /api/feedback\\n` + JSON.stringify(body, null, 1)\n    .replace(/\"(\\w+)\":/g, '<span class=\"k\">\"$1\"</span>:') + `\\n\\n<span class=\"k\">// 구간 시간은 초 단위 (5:40 → 340)</span>`;\n  $('prompt').textContent = '서버가 프롬프트를 만드는 중…'; $('fb').textContent = '…'; $('badge').hidden = true; $('why').textContent = '';\n  await sleep(500);\n  on('s2');\n  let r;\n  try {\n    const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });\n    r = await res.json();\n    if (!res.ok) throw new Error(r.error || '서버 오류');\n  } catch (e) {\n    $('prompt').textContent = '—'; $('fb').textContent = '서버에 연결하지 못했어요.'; $('err').textContent = e.message || '';\n    $('go').disabled = false; $('go').textContent = '🤖 AI 피드백 받기'; return;\n  }\n  const esc = (t) => t.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));\n  $('prompt').innerHTML = `<span class=\"k\">POST</span> https://api.groq.com/openai/v1/chat/completions\\n<span class=\"k\">Authorization:</span> Bearer <span class=\"hide\">gsk_•••••••• (서버에만 있음)</span>\\n\\n` + esc(r.prompt);\n  await sleep(600);\n  on('s3');\n  $('fb').textContent = r.feedback;\n  $('badge').hidden = false;\n  $('badge').className = 'badge ' + (r.source === 'ai' ? 'ai' : 'rule');\n  $('badge').textContent = r.source === 'ai' ? '🤖 AI가 쓴 피드백' : '📏 규칙 피드백';\n  $('why').textContent = r.source === 'ai' ? `모델: ${r.model}` : `${r.reason ? r.reason + ' — ' : ''}AI 대신 앱에 넣어 둔 규칙(페이스 비교·전후반 배분)으로 만든 피드백이에요. 실제 앱도 AI가 안 될 때 이렇게 해요.`;\n  $('go').disabled = false; $('go').textContent = '🤖 다시 받기';\n}\n$('go').onclick = ask;\ndraw();\n</script>\n</body>\n</html>\n"
-    },
-    {
-     "t": "h",
-     "text": "AI에게 보낸 프롬프트의 핵심"
-    },
-    {
-     "t": "box",
-     "title": "좋은 피드백을 받으려고 넣은 규칙",
-     "text": "- **역할**: \"너는 중고생 러닝 코치야\"\n- **분량**: 3~4문장, 한국어\n- **금지**: 기록 숫자를 그대로 읊지 않기 (\"5분에서 6분으로 느려졌어요\" ✕)\n- **꼭**: \"다음번엔 이렇게 해 보자\"로 끝내기, 다정한 말투\n- **구간 기록이 있으면**: 초반 오버페이스·후반 처짐·꾸준함 중 무엇인지 보고 **페이스 배분** 조언 넣기",
-     "tone": "soft"
-    },
-    {
-     "t": "note",
-     "tone": "info",
-     "text": "파라런 관리자 화면에는 **\"AI 피드백 방향/스타일\"** 칸이 있어서, 선생님이 \"칭찬을 먼저 해 줘\" 같은 지침을 적으면 프롬프트에 그대로 덧붙여져요. 프롬프트도 결국 수업 설계예요."
-    },
-    {
-     "t": "h",
-     "text": "이 예시에서 볼 점"
-    },
-    {
-     "t": "cols",
-     "items": [
-      {
-       "title": "🔑 키는 서버에만",
-       "text": "API 키를 화면 코드에 넣으면 누구나 볼 수 있어요. 그래서 화면 → **우리 서버** → AI 순서로 보내고, 키는 Vercel **환경 변수**에만 둬요."
-      },
-      {
-       "title": "🙈 개인정보는 안 보내기",
-       "text": "AI 회사로 가는 건 **숫자뿐**이에요. 학생 이름·학번·소감 글은 보내지 않아요. 학생 데이터를 외부 API에 보낼 때 가장 먼저 챙길 것이에요."
-      },
-      {
-       "title": "🛟 실패해도 답하기",
-       "text": "AI 서비스가 느리거나 멈출 수 있어요. 그래서 **규칙 피드백**을 대신 준비해 뒀어요. 외부 API를 쓰는 앱이라면 \"안 될 때\"를 꼭 정해 둬요."
-      }
-     ]
-    },
-    {
-     "t": "fold",
-     "title": "선생님용 — 이 체험의 AI 연결 켜기",
-     "text": "이 체험과 [종합 실습]의 AI 채점 봇은 연수 사이트의 서버 함수(`api/feedback.js`, `api/review.js`)가 **Gemini API**를 불러요.\n1. Google AI Studio에서 API 키 만들기 ([API 키 발급] 페이지)\n2. Vercel 프로젝트(pevibecode) → Settings → Environment Variables 에 `GEMINI_API_KEY` 이름으로 넣기\n3. Deployments 에서 다시 배포(Redeploy)\n키가 없으면 러닝 코치는 \"📏 규칙 피드백\"으로, 채점 봇은 안내 문구로 나와요. 한 사람이 한 시간에 30번까지만 AI를 불러요."
     }
    ]
   },
@@ -2937,5 +2937,5 @@
    ]
   }
  ],
- "updated": "2026-10-26T06:06:40.790Z"
+ "updated": "2026-11-13T03:27:25.214Z"
 }
