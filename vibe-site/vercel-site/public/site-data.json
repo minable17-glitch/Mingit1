@@ -2587,31 +2587,6 @@
      "_model": true
     },
     {
-     "t": "h",
-     "size": "sm",
-     "text": "완성된 모범 앱 (기본 + 심화 1·2·3)",
-     "_model": true
-    },
-    {
-     "t": "carousel",
-     "tall": true,
-     "items": [
-      {
-       "src": "images/tball-1.jpg",
-       "caption": "✏️ 기록 입력 — 반 → 학생 → 6개 능력치"
-      },
-      {
-       "src": "images/tball-2.jpg",
-       "caption": "📊 학생 그래프 — 레이더 + 🤖 AI 피드백"
-      },
-      {
-       "src": "images/tball-3.jpg",
-       "caption": "👩‍🏫 교사 대시보드 — 반별·학생별 비교"
-      }
-     ],
-     "_model": true
-    },
-    {
      "t": "prompt",
      "label": "모범 code.gs",
      "hide": true,
@@ -3107,5 +3082,5 @@
    ]
   }
  ],
- "updated": "2026-11-13T04:14:50.363Z"
+ "updated": "2026-11-13T04:18:21.428Z"
 }
