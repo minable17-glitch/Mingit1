@@ -210,7 +210,7 @@ module.exports = async (req, res) => {
   };
   if (!process.env.GEMINI_API_KEY) return fallback('사이트에 AI 키가 아직 없어요.');
   try {
-    const a = await askGemini(makePrompt(gs, html, f), { json: true, temperature: 0, maxTokens: 3000, timeout: 55000, quality: true, thinking: 'low' });
+    const a = await askGemini(makePrompt(gs, html, f), { json: true, temperature: 0, maxTokens: 3000, timeout: 55000, quality: true, thinking: 'off' });
     let out;
     try { out = JSON.parse(a.text.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { return fallback('AI 답을 읽지 못했어요.'); }
     const r = clean(out, caps(f));

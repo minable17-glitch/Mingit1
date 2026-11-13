@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 32,
+ "rev": 33,
  "pages": [
   {
    "id": "home",
@@ -2493,10 +2493,6 @@
       {
        "label": "📋 명렬표 사본 만들기 (내 드라이브로 복사)",
        "url": "https://docs.google.com/spreadsheets/d/1kLFLyM2MnZNk0pBuBoIYWC6szMcMFSTwEdU85mqG-44/copy"
-      },
-      {
-       "label": "명렬표 보기만",
-       "url": "https://docs.google.com/spreadsheets/d/1kLFLyM2MnZNk0pBuBoIYWC6szMcMFSTwEdU85mqG-44/edit?usp=sharing"
       }
      ]
     },
