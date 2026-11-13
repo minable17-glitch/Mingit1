@@ -86,14 +86,22 @@
 var $ = function (id) { return document.getElementById(id); };
 var LV = [['basic', '기본'], ['d1', '심화 1 · 시각화'], ['d2', '심화 2 · 대시보드'], ['d3', '심화 3 · AI 활용']];
 function strip(t) { return String(t || '').replace(/^\s*```[\w.-]*\s*\n/, '').replace(/\n```\s*$/, '').trim(); }
+// AI 답 전체를 붙여 넣었을 때만 두 파일로 나눈다:
+// "===== code.gs =====" 같은 제목 줄 바로 다음에 ``` 코드블록이 와야 한다 (코드 속에 같은 글자가 있어도 나누지 않게)
 function split(t) {
-  var gm = /=+\s*code\.gs\s*=+/i.exec(t), hm = /=+\s*index\.html\s*=+/i.exec(t);
-  if (!gm || !hm) return null;
-  function block(a, b) { var s = t.slice(a, b), f = /```[^\n]*\n([\s\S]*?)```/.exec(s); return (f ? f[1] : s).trim(); }
-  return gm.index < hm.index ? { gs: block(gm.index + gm[0].length, hm.index), html: block(hm.index + hm[0].length) } : { html: block(hm.index + hm[0].length, gm.index), gs: block(gm.index + gm[0].length) };
+  function find(re) {
+    var m, r = new RegExp(re.source, 'gim');
+    while ((m = r.exec(t))) {
+      var rest = t.slice(m.index + m[0].length), f = /^[ \t*#:]*\r?\n?\s{0,40}```[^\n]*\n([\s\S]*?)\n\s*```/.exec(rest);
+      if (f) return { at: m.index, code: f[1].trim() };
+    }
+    return null;
+  }
+  var g = find(/^[ \t#*]*=+\s*code\.gs\s*=+/), h = find(/^[ \t#*]*=+\s*index\.html\s*=+/);
+  return g && h ? { gs: g.code, html: h.code } : null;
 }
 function keyCheck() { $('keywarn').hidden = !/(AIza[0-9A-Za-z_\-]{10,}|AQ\.[0-9A-Za-z_\-.]{20,})/.test($('gs').value + $('html').value); }
-$('gs').addEventListener('input', function () { var s = split(this.value); if (s && s.gs && s.html) { this.value = s.gs; $('html').value = s.html; $('status').textContent = 'AI 답을 두 파일로 나눠 넣었어요.'; } keyCheck(); });
+$('gs').addEventListener('input', function () { var s = !$('html').value.trim() && split(this.value); if (s && s.gs && s.html) { this.value = s.gs; $('html').value = s.html; $('status').textContent = 'AI 답을 두 파일로 나눠 넣었어요.'; } keyCheck(); });
 $('html').addEventListener('input', keyCheck);
 $('clear').onclick = function () { $('gs').value = ''; $('html').value = ''; $('result').hidden = true; $('status').textContent = ''; keyCheck(); };
 function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
