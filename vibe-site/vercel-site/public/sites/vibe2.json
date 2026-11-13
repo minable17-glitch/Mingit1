@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 29,
+ "rev": 30,
  "pages": [
   {
    "id": "home",
@@ -2491,7 +2491,11 @@
      "join": true,
      "items": [
       {
-       "label": "제공자료 : 수업 명렬표 (구글 시트)",
+       "label": "📋 명렬표 사본 만들기 (내 드라이브로 복사)",
+       "url": "https://docs.google.com/spreadsheets/d/1kLFLyM2MnZNk0pBuBoIYWC6szMcMFSTwEdU85mqG-44/copy"
+      },
+      {
+       "label": "명렬표 보기만",
        "url": "https://docs.google.com/spreadsheets/d/1kLFLyM2MnZNk0pBuBoIYWC6szMcMFSTwEdU85mqG-44/edit?usp=sharing"
       }
      ]
@@ -2507,7 +2511,7 @@
      "t": "note",
      "join": true,
      "tone": "tip",
-     "text": "명렬표 시트를 열고 **파일 → 사본 만들기**로 내 드라이브에 복사한 뒤, 그 시트에서 **확장 프로그램 → Apps Script**로 시작하면 명단을 바로 읽을 수 있어요."
+     "text": "위 **📋 명렬표 사본 만들기** 단추를 누르고 **사본 만들기**를 누르면 내 드라이브에 복사돼요. 그 사본에서 **확장 프로그램 → Apps Script**로 시작하면 명단을 바로 읽을 수 있어요."
     },
     {
      "t": "h",
