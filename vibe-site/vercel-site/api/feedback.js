@@ -7,7 +7,7 @@
 const WALK_PACE = 600; // 10'00"/km 보다 느리면 걷기 (파라런 학생 기준)
 const { askGroq, limited, cors, bodyOf } = require('./_groq');
 const { askGemini } = require('./_gemini');
-const askAI = (p) => (process.env.GEMINI_API_KEY ? askGemini(p, { temperature: 0.7, maxTokens: 700 }) : askGroq(p));
+const askAI = (p) => (process.env.GEMINI_API_KEY ? askGemini(p, { temperature: 0.7, maxTokens: 700, thinking: 'off' }) : askGroq(p));
 
 function pace(sec) {
   const t = Math.round(sec), m = Math.floor(t / 60), s = t % 60;
