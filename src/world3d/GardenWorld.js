@@ -1,7 +1,7 @@
 // 정원 3D 장면 엔진 — 나무 표시, 내 캐릭터, 물주기 연출, 터치
 // 보는 방법: 위에서(전체·내 나무 가까이) / 내 캐릭터 뒤에서(3인칭) / 내 눈으로(1인칭). 캐릭터 시점에서는 조이스틱으로 걸어 다님.
 import * as THREE from 'three';
-import { buildGarden, CENTER } from './garden.js';
+import { buildGarden, CENTER, YARD } from './garden.js';
 import { nameTag, makeAvatar } from './LibraryWorld.js';
 import { NavGrid, CameraRig, stepJoystick } from './roam.js';
 import { buildDecor, disposeDecor, cleanPlaced } from './decor.js';
@@ -46,11 +46,11 @@ export class GardenWorld {
     const g = this.garden;
     this.studentSlots = g.trees.filter((t) => !t.teacher).length;   // 학생 화분 수(맨 끝 한 자리는 선생님 나무)
     this._buildNav(false);
-    this.rig = new CameraRig(this.camera, { box: { x0: -6, x1: 6, z0: -9, z1: 10, y1: 4 }, solid: g.cameraSolid });
+    this.rig = new CameraRig(this.camera, { box: { x0: -YARD.rx - 1.6, x1: YARD.rx + 1.6, z0: YARD.cz - YARD.rz - 1.6, z1: YARD.cz + YARD.rz + 1.6, y1: 4 }, solid: g.cameraSolid });
     this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
     if (opts.me) {
       // 도서관 문 앞에서 나타나, 탁 트인 가운데 길까지 걸어 들어와 우리 반 나무를 바라봄
-      const me = this._person(opts.me.id, opts.me.nick, true, opts.me.dress), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 6.0 + Math.random() * 0.3);   // 학생이 32명을 넘으면 생기는 앞쪽 화단(z≈4.9)보다 앞
+      const me = this._person(opts.me.id, opts.me.nick, true, opts.me.dress), d = this.nav.nearest(g.doorSpot.x, g.doorSpot.z), st = this.nav.nearest((Math.random() - 0.5) * 0.6, 6.2 + Math.random() * 0.3);   // 학생이 32명을 넘으면 생기는 앞쪽 화단(z≈4.9)보다 앞
       me.avatar.root.position.set(d.x, 0, d.z); me.avatar.root.rotation.y = Math.atan2(st.x - d.x, st.z - d.z);
       this._walk(me, this.nav.path(d, st) || [st], () => { me.avatar.root.rotation.y = Math.PI; this._announce(); });
       this.me = me; me.goal = st; this.rig.snapTo(0);
@@ -62,7 +62,7 @@ export class GardenWorld {
   // 걷기 지도: 선생님 나무가 보일 때만 그 화분도 막힘
   _buildNav(withTeacher) {
     const g = this.garden; this._navTeacher = withTeacher;
-    this.nav = new NavGrid({ x0: -4.6, x1: 4.6, z0: -7.4, z1: 8.2 }, 0.1, g.inside);
+    this.nav = new NavGrid({ x0: -YARD.rx - 0.4, x1: YARD.rx + 0.4, z0: YARD.cz - YARD.rz - 0.4, z1: YARD.cz + YARD.rz + 0.6 }, 0.1, g.inside);
     for (const o of g.obstacles) { if (o.kind === 'rect') this.nav.rect(o.x, o.z, o.w, o.d, o.ry, 0.15); else this.nav.circle(o.x, o.z, o.r, 0.15); }
     if (withTeacher) { const t = g.trees.find((x) => x.teacher); this.nav.circle(t.x, t.z, 0.4, 0.15); }
   }
@@ -102,14 +102,15 @@ export class GardenWorld {
   // 화단 꾸미기: 나무마다 화분 바깥쪽 둘레 3자리(가운데·양옆)에 소품. 정원 전체를 한 번에 합쳐 다시 그림(바뀔 때만)
   decorSlots(i) {
     const t = this.garden.trees[i], base = Math.atan2(t.ux, t.uz);
-    return [-0.78, 0, 0.78].map((da) => ({ x: t.x + Math.sin(base + da) * 0.47, z: t.z + Math.cos(base + da) * 0.47 }));
+    const r = (t.bedR || 0.6) * 0.72;   // 내 화단 안: 나무 왼쪽·앞·오른쪽
+    return [-1.35, 0, 1.35].map((da) => ({ x: t.x + Math.sin(base + da) * r, z: t.z + Math.cos(base + da) * r }));
   }
   _updateDecor(list) {
     const items = [];
     list.forEach((t, i) => {
       if (!t || !t.deco || i >= this.garden.trees.length) return;
       const slots = this.decorSlots(i);
-      cleanPlaced(t.deco).forEach((id, k) => { if (id) items.push({ id, x: slots[k].x, z: slots[k].z, ry: 0, s: 1.3 }); });
+      cleanPlaced(t.deco).forEach((id, k) => { if (id) items.push({ id, x: slots[k].x, z: slots[k].z, ry: 0, s: 1.1 * ((t.bedR || this.garden.trees[i].bedR || 0.6) / 0.6) }); });
     });
     const key = items.map((it) => it.id + '@' + it.x.toFixed(2) + ',' + it.z.toFixed(2)).join('|');
     if (key === this._decorKey) return;
@@ -146,7 +147,7 @@ export class GardenWorld {
   setMyDress(dress) { if (this.me) this._swapLook(this.me, dress); }
   // 나무 앞에 서는 곳: 마당 가운데 쪽에서 나무를 바라봄(막혀 있으면 둘레에서 찾음)
   _treeSpot(slot) {
-    const t = this.garden.trees[slot], side = t.x < 0 ? -1 : 1, base = Math.atan2(-side, 0.2);
+    const t = this.garden.trees[slot], base = 0.35;   // 화단 앞쪽(살짝 오른쪽)에 서서 나무를 바라봄
     for (const da of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, 2.6, -2.6, 3.14]) { const a = base + da, x = t.x + Math.sin(a) * 0.62, z = t.z + Math.cos(a) * 0.62; if (this.nav.walkable(x, z)) return { x, z }; }
     return this.nav.nearest(t.x, t.z);
   }
@@ -321,14 +322,14 @@ export class GardenWorld {
     this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
     const half = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
     // 전체 보기: 정원 전체(폭 약 9, 깊이 약 15.5)가 들어오는 거리. 가까이 보기: 폭 약 5가 보이는 거리
-    this.distFar = Math.max(4.6 / (half * this.camera.aspect), (15.5 * Math.sin(PITCH)) / (2 * half));
+    this.distFar = Math.max((YARD.rx + 0.2) / (half * this.camera.aspect), (14.5 * Math.sin(PITCH)) / (2 * half));   // 화단이 있는 곳이 다 들어오게(앞마당은 조금 잘려도 됨)
     this.distNear = Math.max(9, 2.5 / (half * this.camera.aspect));
     this._dirty = true;
   }
   _updateCamera(dt) {
     const mine = this.slots.findIndex((s) => s && s.me), t = mine >= 0 ? this.garden.trees[mine] : null;
     const near = this.near && t;
-    const want = near ? { x: THREE.MathUtils.clamp(t.x * 0.8, -2.0, 2.0), z: t.z + 0.5, dist: this.distNear } : { x: 0, z: 0.1, dist: this.distFar };
+    const want = near ? { x: THREE.MathUtils.clamp(t.x * 0.8, -3.0, 3.0), z: t.z + 0.5, dist: this.distNear } : { x: 0, z: -0.9, dist: this.distFar };
     const k = this._camInit ? Math.min(1, dt * 4) : 1; this._camInit = true;
     const c = this.cam, before = c.x + c.z + c.dist;
     c.x += (want.x - c.x) * k; c.z += (want.z - c.z) * k; c.dist += (want.dist - c.dist) * k;

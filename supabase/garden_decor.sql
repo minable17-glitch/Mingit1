@@ -3,7 +3,8 @@
 -- · 받는 법(악세서리처럼 보상): 자유롭게 읽기로 목표보다 20분 더 읽을 때마다 1개, 책을 완독할 때마다 1개(그 책으로 남긴 기록이 있을 때, 책마다 한 번)
 -- · 귀함 단계: 기본 65% / 조금 귀함 27% / 귀함 8%
 -- · 처음에는 모두 "이름 팻말" 1개를 선물로 받음
--- · 화분 둘레 3자리에 놓음(decor_placed: 길이 3 배열, 빈자리는 null)
+-- · 화분 둘레 3자리에 놓음(decor_placed: 길이 3 배열, 빈자리는 null). 선생님 자리(is_teacher)는 14종 모두 놓아 볼 수 있음
+-- · supabase/teacher_reader.sql 을 먼저 실행해 둘 것(is_teacher 칸 사용)
 
 alter table students add column if not exists decor_counts jsonb not null default '{"prop_name_sign": 1}'::jsonb;
 alter table students add column if not exists decor_placed jsonb not null default '[null, null, null]'::jsonb;
@@ -88,7 +89,9 @@ begin
     v_item := case when i <= coalesce(array_length(v_items, 1), 0) then v_items[i] else null end;
     if v_item is not null then
       if not (v_item = any(v_catalog)) then raise exception '알 수 없는 소품이에요'; end if;
-      if (select count(*) from unnest(v_items) x where x = v_item) > coalesce((v_student.decor_counts ->> v_item)::int, 0) then
+      -- 선생님 자리(선생님도 함께 읽기, is_teacher)는 모든 소품을 놓아 볼 수 있음
+      if not coalesce(v_student.is_teacher, false)
+         and (select count(*) from unnest(v_items) x where x = v_item) > coalesce((v_student.decor_counts ->> v_item)::int, 0) then
         raise exception '가지고 있지 않은 소품이에요';
       end if;
     end if;

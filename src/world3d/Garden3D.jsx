@@ -7,6 +7,7 @@ import { connectRoom } from "./realtime.js";
 import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
 import DressUp from "./DressUp.jsx";
 import DecorUp from "./DecorUp.jsx";
+import { DECOR } from "./decor.js";
 import { cleanDress, dressKey } from "./avatar.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
@@ -65,7 +66,8 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
     showToast?.(ok === false ? "이 기기에 저장했어요 👕" : "새 모습으로 바꿨어요 👕");
   };
   // 화분 개수가 달라질 때만 장면을 다시 지음(학생이 32명을 넘으면 화단이 늘어남)
-  const islands = Math.max(8, Math.ceil((trees?.length || 0) / 4));
+  // 학생 수만큼 화단(학생이 들어오면 정원을 다시 지음)
+  const beds = Math.max(12, trees?.length || 0);
 
   useEffect(() => {
     if (!classId || !canvasRef.current) return undefined;
@@ -73,7 +75,7 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
     let world;
     try {
       world = new GardenWorld(canvasRef.current, {
-        students: islands * 4, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname, dress: myDress } : canWalk ? { id: "teacher-me", nick: "선생님" } : null, view,
+        students: beds, me: isStudent ? { id: studentInfo.id, nick: studentInfo.nickname, dress: myDress } : canWalk ? { id: "teacher-me", nick: "선생님" } : null, view,
         onEvent: (type, payload) => {
           if (type === "tapTree") cb.current.onTapTree?.(payload.id);
           else if (type === "tapClassTree") cb.current.onTapClassTree?.();
@@ -96,7 +98,7 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
     roomRef.current = room;
     return () => { room.close(); world.dispose(); worldRef.current = null; roomRef.current = null; setReady(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, isStudent, studentInfo?.id, islands]);
+  }, [classId, isStudent, studentInfo?.id, beds]);
 
   // 학생 화분 수만큼 채우고(빈 화분은 null) 맨 끝에 선생님 나무(없으면 null)
   useEffect(() => {
@@ -164,7 +166,8 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
           )}
         </div>
       )}
-      {decorOpen && myDecor && <DecorUp counts={myDecor.counts} placed={myDecor.placed} onSave={saveDecor} onClose={() => setDecorOpen(false)} />}
+      {decorOpen && myDecor && <DecorUp counts={studentInfo?.isTeacher ? Object.fromEntries(DECOR.map((d) => [d.id, 3])) : myDecor.counts} placed={myDecor.placed}
+        teacher={!!studentInfo?.isTeacher} onSave={saveDecor} onClose={() => setDecorOpen(false)} />}
       {dressOpen && <DressUp initial={myDress} firstTime={!cleanDress(myDress)} onSave={saveDress} onClose={() => setDressOpen(false)} />}
     </div>
   );
