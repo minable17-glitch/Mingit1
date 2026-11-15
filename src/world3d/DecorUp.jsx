@@ -6,7 +6,7 @@ const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7
 const TIER_STYLE = [{ bg: "#EAF4DF", fg: "#4E8A45" }, { bg: "#FFF1CF", fg: "#B7801F" }, { bg: "#FFE1E6", fg: "#C24E67" }];
 const SLOT_NAMES = ["왼쪽", "가운데", "오른쪽"];
 
-export default function DecorUp({ counts = {}, placed = [null, null, null], onSave, onClose }) {
+export default function DecorUp({ counts = {}, placed = [null, null, null], teacher = false, onSave, onClose }) {
   const [slots, setSlots] = useState(() => cleanPlaced(placed));
   const [sel, setSel] = useState(() => { const i = cleanPlaced(placed).findIndex((x) => !x); return i < 0 ? 0 : i; });
   const [saving, setSaving] = useState(false);
@@ -30,7 +30,7 @@ export default function DecorUp({ counts = {}, placed = [null, null, null], onSa
           <button onClick={onClose} aria-label="닫기" style={{ border: "none", background: "transparent", fontSize: 20, color: C.inkSoft, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 3, lineHeight: 1.6 }}>
-          내 나무 화분 둘레에 소품 3개를 놓을 수 있어요. 자유롭게 읽기로 목표보다 20분 더 읽거나, 책을 완독하면 소품을 하나씩 받아요.</div>
+          {teacher ? "선생님은 모든 소품을 놓아 볼 수 있어요(종류마다 3개까지)." : "내 나무 화분 둘레에 소품 3개를 놓을 수 있어요. 자유롭게 읽기로 목표보다 20분 더 읽거나, 책을 완독하면 소품을 하나씩 받아요."}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           {slots.map((id, i) => (
             <button key={i} onClick={() => setSel(i)} data-slot={i} aria-pressed={sel === i}

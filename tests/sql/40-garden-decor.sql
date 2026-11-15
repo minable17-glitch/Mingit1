@@ -1,4 +1,4 @@
--- 화단 꾸미기 SQL 점검: 00-local-stubs.sql → supabase/schema.sql → supabase/garden_watering.sql → supabase/garden_decor.sql(두 번) → 이 파일
+-- 화단 꾸미기 SQL 점검: 00-local-stubs.sql → supabase/schema.sql → supabase/garden_watering.sql → supabase/teacher_reader.sql → supabase/garden_decor.sql(두 번) → 이 파일
 -- 각 줄 끝 괄호 안이 기대값
 insert into classes (id, code, name, admin_password_hash, start_date) values ('11111111-1111-1111-1111-111111111111', 'GD1', '1반', 'x', current_date - 5);
 insert into students (id, class_id, nickname, pin_hash, auth_user_id) values
@@ -32,3 +32,8 @@ set role authenticated;
 do $$ begin update students set decor_counts = '{"prop_firefly_jar": 99}' where nickname = '민수'; raise notice '❌ 학생이 보유 개수를 직접 바꿈'; exception when others then raise notice '✅ 보유 개수 직접 수정 막힘(권한): %', sqlerrm; end $$;
 reset role;
 select '지우는 그대로 (빈 자리)' as t, decor_placed from students where nickname = '지우';
+-- 선생님 자리는 가진 것 없이도 모든 소품을 놓아 볼 수 있음
+insert into students (id, class_id, nickname, pin_hash, auth_user_id, is_teacher) values ('77777777-7777-7777-7777-777777777777', '11111111-1111-1111-1111-111111111111', '선생님', 'x', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', true);
+set test.uid = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+select student_set_decor(array['prop_firefly_jar', 'prop_bunny_doll', 'prop_firefly_jar']);
+select '선생님은 귀한 소품도 놓음 (["prop_firefly_jar", "prop_bunny_doll", "prop_firefly_jar"])' as t, decor_placed from students where nickname = '선생님';
