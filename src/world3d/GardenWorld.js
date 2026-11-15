@@ -5,6 +5,7 @@ import { buildGarden, CENTER, YARD } from './garden.js';
 import { nameTag, makeAvatar } from './LibraryWorld.js';
 import { NavGrid, CameraRig, stepJoystick } from './roam.js';
 import { buildDecor, disposeDecor, cleanPlaced } from './decor.js';
+import { isAcc } from './accessories.js';
 
 const PITCH = THREE.MathUtils.degToRad(50), FOV = 30, WALK_SPEED = 1.9, POS_EVERY = 1.2;
 const VIEW_FOV = { top: FOV, third: 55, first: 62 };
@@ -16,15 +17,6 @@ const ACC_SLOTS = (stage) => {
   if (stage === 2) return [[-0.19, 0.5], [0.19, 0.5], [-0.19, 0.28], [0.19, 0.28]];
   return [[-0.23, 0.82], [0.23, 0.82], [-0.27, 0.55], [0.27, 0.55]];
 };
-// 이모지 악세서리 그림(같은 이모지는 한 번만 그림)
-const EMOJI = new Map();
-function emojiMat(e) {
-  if (EMOJI.has(e)) return EMOJI.get(e);
-  const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
-  g.font = "70px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 48, 54);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const m = new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }); EMOJI.set(e, m); return m;
-}
 
 export class GardenWorld {
   // opts: { students, me: { id, nick } | null, onEvent(type, payload) }
@@ -85,15 +77,8 @@ export class GardenWorld {
       } else cur.stage = stage;
       const s = this.slots[i], p = this.garden.trees[i];
       if (s.tag) s.tag.position.set(p.x, TAG_Y[Math.max(0, stage)], p.z);
-      // 악세서리: 바뀌었거나 단계가 바뀌면 다시 담
-      if (s.accKey !== accKey + '|' + stage) {
-        for (const a of s.accs) this.scene.remove(a); s.accs = [];
-        if (t && t.acc && stage >= 0) {
-          const slots = ACC_SLOTS(stage), size = stage <= 1 ? 0.17 : 0.22;
-          t.acc.slice(0, 4).forEach((e, k) => { const sp = new THREE.Sprite(emojiMat(e)); sp.scale.set(size, size, 1); sp.position.set(p.x + slots[k][0], 0.07 + slots[k][1], p.z + 0.2); sp.renderOrder = 6; this.scene.add(sp); s.accs.push(sp); });
-        }
-        s.accKey = accKey + '|' + stage; this._dirty = true;
-      }
+      // 악세서리(3D): 화단 소품과 함께 정원 전체를 한 번에 합쳐 그림(_updateDecor)
+      s.accKey = accKey + '|' + stage;
       if (grew) this._sparkle(p.x, TAG_Y[stage] - 0.15, p.z);
     }
     this._updateDecor(list);
@@ -108,17 +93,23 @@ export class GardenWorld {
   _updateDecor(list) {
     const items = [];
     list.forEach((t, i) => {
-      if (!t || !t.deco || i >= this.garden.trees.length) return;
-      const slots = this.decorSlots(i);
-      cleanPlaced(t.deco).forEach((id, k) => { if (id) items.push({ id, x: slots[k].x, z: slots[k].z, ry: 0, s: 1.1 * ((t.bedR || this.garden.trees[i].bedR || 0.6) / 0.6) }); });
+      if (!t || i >= this.garden.trees.length) return;
+      const p = this.garden.trees[i];
+      if (t.deco) { const slots = this.decorSlots(i); cleanPlaced(t.deco).forEach((id, k) => { if (id) items.push({ id, x: slots[k].x, z: slots[k].z, ry: 0, s: 1.1 * ((p.bedR || 0.6) / 0.6) }); }); }
+      // 나무 악세서리: 잎 덩어리 겉면 4자리(왼쪽 위·오른쪽 위·왼쪽 아래·오른쪽 아래), 나무가 작을 때는 작게
+      const stage = Math.max(0, Math.min(5, t.stage)), acc = (t.acc || []).filter(isAcc).slice(0, 4);
+      if (acc.length) {
+        const slots = ACC_SLOTS(stage), z = stage >= 3 ? 0.3 : stage === 2 ? 0.13 : 0.1, sc = stage >= 3 ? 1.65 : stage === 2 ? 1.2 : 0.9;
+        acc.forEach((key, k) => items.push({ id: 'acc_' + key, x: p.x + slots[k][0], y: 0.07 + slots[k][1], z: p.z + z, ry: 0, s: sc }));
+      }
     });
-    const key = items.map((it) => it.id + '@' + it.x.toFixed(2) + ',' + it.z.toFixed(2)).join('|');
+    const key = items.map((it) => it.id + '@' + it.x.toFixed(2) + ',' + (it.y || 0).toFixed(2) + ',' + it.z.toFixed(2)).join('|');
     if (key === this._decorKey) return;
-    const fresh = this._decorKey != null ? items.filter((it) => !(this._decorKey || '').includes(it.id + '@' + it.x.toFixed(2) + ',' + it.z.toFixed(2))) : [];
+    const fresh = this._decorKey != null ? items.filter((it) => !(this._decorKey || '').includes(it.id + '@' + it.x.toFixed(2) + ',' + (it.y || 0).toFixed(2) + ',' + it.z.toFixed(2))) : [];
     this._decorKey = key;
     if (this.decor) { this.scene.remove(this.decor); disposeDecor(this.decor); this.decor = null; }
     if (items.length) { this.decor = buildDecor(items); this.scene.add(this.decor); }
-    for (const it of fresh) this._sparkle(it.x, 0.25, it.z);      // 새로 놓은 소품은 반짝
+    for (const it of fresh) this._sparkle(it.x, (it.y || 0) + 0.2, it.z);      // 새로 놓은 소품·악세서리는 반짝
     this._dirty = true;
   }
   setClassStage(stage) { if (this.garden.setClassStage(stage)) this._dirty = true; }
@@ -390,7 +381,6 @@ export class GardenWorld {
     window.removeEventListener('keydown', this._key); window.removeEventListener('keyup', this._key); window.removeEventListener('blur', this._blur);
     window.removeEventListener('resize', this._resize); document.removeEventListener('visibilitychange', this._vis);
     for (const s of this.slots) if (s && s.tag) { s.tag.material.map.dispose(); s.tag.material.dispose(); }
-    for (const m of EMOJI.values()) { m.map.dispose(); m.dispose(); } EMOJI.clear();
     for (const p of this.people.values()) { p.avatar.root.traverse((o) => o.geometry?.dispose?.()); if (p.tag) { p.tag.material.map.dispose(); p.tag.material.dispose(); } }
     if (this.decor) disposeDecor(this.decor);
     this.garden.dispose(); this.renderer.dispose();

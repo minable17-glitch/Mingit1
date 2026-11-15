@@ -191,6 +191,9 @@ const ACCESSORY_CATALOG = {
   snowflake: { emoji: "❄️", name: "눈꽃" },
   blossom: { emoji: "🌸", name: "벚꽃" },
   ladybug: { emoji: "🐞", name: "무당벌레" },
+  clover: { emoji: "🍀", name: "클로버" },
+  acorn: { emoji: "🌰", name: "도토리" },
+  bird: { emoji: "🐤", name: "작은 새" },
 };
 const MAX_EQUIPPED_ACCESSORIES = 4;
 const ACCESSORY_SLOTS = [[-0.55, -0.15], [0.55, -0.15], [-0.35, 0.6], [0.35, 0.6]];
@@ -2109,8 +2112,8 @@ export default function App() {
                         classInfo={classInfo} studentInfo={studentInfo} role={isReader ? "student" : role}
                         myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
                         myDecor={myDecor} onSaveDecor={saveDecor}
-                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter((t) => t && !t.teacher).map((t) => ({ id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
-                        teacherTree={(() => { const t = allTrees.find((x) => x.teacher); return t ? { id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean)  } : null; })()}
+                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter((t) => t && !t.teacher).map((t) => ({ id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES) }))}
+                        teacherTree={(() => { const t = allTrees.find((x) => x.teacher); return t ? { id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES)  } : null; })()}
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
                         onTapClassTree={() => setShowCommunalDetail(true)}

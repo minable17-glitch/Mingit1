@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { accParts } from './accessories.js';
 
 export const DECOR = [
   { id: 'prop_wood_chair', name: '작은 나무 의자', tier: 0 },
@@ -37,6 +38,7 @@ const PARTS = new Map();
 // 소품 하나의 부품 목록: { color, geo, m(행렬), kind: 's'(보통) | 'glow'(빛나는 부분) | 'glass'(유리) }
 export function decorParts(id) {
   if (PARTS.has(id)) return PARTS.get(id);
+  if (id.startsWith('acc_')) { const parts = accParts(id.slice(4)); PARTS.set(id, parts); return parts; }   // 나무 악세서리도 같은 방식으로 합쳐 그림
   const out = [];
   const P = (color, geo, x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0, kind = 's') => out.push({ color, geo, kind,
     m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz)) });
