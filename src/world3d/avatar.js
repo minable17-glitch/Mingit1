@@ -306,7 +306,9 @@ export class Avatar {
     }
 
     // ── 머리
-    const head = (this.head = new THREE.Group()); head.position.set(0, 0.762, 0); torso.add(head);
+    // 목: 턱과 칼라 사이가 비어 머리가 떠 보이지 않도록 짧고 통통한 목으로 이어 줌
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.09, 16), M.skin); neck.position.set(0, 0.55, -0.01); torso.add(neck);
+    const head = (this.head = new THREE.Group()); head.position.set(0, 0.772, 0); torso.add(head);
     head.scale.set(1.0, 0.985, 1);
     head.add(new THREE.Mesh(puffGeometry(new THREE.SphereGeometry(HEAD_R, 36, 26)), M.skin));
     for (const s of [-1, 1]) {

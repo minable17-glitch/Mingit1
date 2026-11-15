@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { buildGarden, CENTER } from './garden.js';
 import { nameTag, makeAvatar } from './LibraryWorld.js';
 import { NavGrid, CameraRig, stepJoystick } from './roam.js';
+import { buildDecor, disposeDecor, cleanPlaced } from './decor.js';
 
 const PITCH = THREE.MathUtils.degToRad(50), FOV = 30, WALK_SPEED = 1.9, POS_EVERY = 1.2;
 const VIEW_FOV = { top: FOV, third: 55, first: 62 };
@@ -95,6 +96,28 @@ export class GardenWorld {
       }
       if (grew) this._sparkle(p.x, TAG_Y[stage] - 0.15, p.z);
     }
+    this._updateDecor(list);
+    this._dirty = true;
+  }
+  // 화단 꾸미기: 나무마다 화분 바깥쪽 둘레 3자리(가운데·양옆)에 소품. 정원 전체를 한 번에 합쳐 다시 그림(바뀔 때만)
+  decorSlots(i) {
+    const t = this.garden.trees[i], base = Math.atan2(t.ux, t.uz);
+    return [-0.78, 0, 0.78].map((da) => ({ x: t.x + Math.sin(base + da) * 0.47, z: t.z + Math.cos(base + da) * 0.47 }));
+  }
+  _updateDecor(list) {
+    const items = [];
+    list.forEach((t, i) => {
+      if (!t || !t.deco || i >= this.garden.trees.length) return;
+      const slots = this.decorSlots(i);
+      cleanPlaced(t.deco).forEach((id, k) => { if (id) items.push({ id, x: slots[k].x, z: slots[k].z, ry: 0, s: 1.3 }); });
+    });
+    const key = items.map((it) => it.id + '@' + it.x.toFixed(2) + ',' + it.z.toFixed(2)).join('|');
+    if (key === this._decorKey) return;
+    const fresh = this._decorKey != null ? items.filter((it) => !(this._decorKey || '').includes(it.id + '@' + it.x.toFixed(2) + ',' + it.z.toFixed(2))) : [];
+    this._decorKey = key;
+    if (this.decor) { this.scene.remove(this.decor); disposeDecor(this.decor); this.decor = null; }
+    if (items.length) { this.decor = buildDecor(items); this.scene.add(this.decor); }
+    for (const it of fresh) this._sparkle(it.x, 0.25, it.z);      // 새로 놓은 소품은 반짝
     this._dirty = true;
   }
   setClassStage(stage) { if (this.garden.setClassStage(stage)) this._dirty = true; }
@@ -368,6 +391,7 @@ export class GardenWorld {
     for (const s of this.slots) if (s && s.tag) { s.tag.material.map.dispose(); s.tag.material.dispose(); }
     for (const m of EMOJI.values()) { m.map.dispose(); m.dispose(); } EMOJI.clear();
     for (const p of this.people.values()) { p.avatar.root.traverse((o) => o.geometry?.dispose?.()); if (p.tag) { p.tag.material.map.dispose(); p.tag.material.dispose(); } }
+    if (this.decor) disposeDecor(this.decor);
     this.garden.dispose(); this.renderer.dispose();
   }
 }

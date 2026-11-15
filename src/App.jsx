@@ -16,7 +16,7 @@ import {
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
-  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter,
+  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter, getMyDecor, saveMyDecor,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -603,6 +603,19 @@ export default function App() {
     }).catch(() => { if (alive) setDressReady(true); });
     return () => { alive = false; };
   }, [screen, role, studentInfo?.id]);
+  // 내 화단 꾸미기(supabase/garden_decor.sql): 가진 소품 개수와 화분 둘레 3자리
+  const [myDecor, setMyDecor] = useState(null);
+  useEffect(() => {
+    if (screen !== "main" || !isReader) { setMyDecor(null); return; }
+    let alive = true;
+    const load = () => getMyDecor(studentInfo.id).then((d) => { if (alive) setMyDecor(d); }).catch(() => {});
+    load(); const t = setInterval(load, 60000);   // 읽고 나서 받은 소품이 보이도록 가끔 다시 불러옴
+    return () => { alive = false; clearInterval(t); };
+  }, [screen, isReader, studentInfo?.id, doneToday]);
+  const saveDecor = async (items) => {
+    await saveMyDecor(items);
+    setMyDecor((d) => ({ ...(d || { counts: {} }), placed: items }));
+  };
   const saveDress = async (d) => {
     setMyDress(d);
     try { if (dressKeyLS) localStorage.setItem(dressKeyLS, JSON.stringify(d)); } catch { /* 무시 */ }
@@ -751,6 +764,7 @@ export default function App() {
           id: s.id,
           nick: s.nickname,
           teacher: !!s.is_teacher,
+          deco: s.decor_placed || null,
           book: books[s.id] || "아직 책을 안 골랐어요",
           stage: stageFromDays(s.total_days, challengeDays),
           totalDays: s.total_days,
@@ -1660,7 +1674,7 @@ export default function App() {
   const myNick = isReader ? studentInfo.nickname : "나";
   const shownClassmates = teacherReads ? classmates : classmates.filter((c) => !c.teacher);   // 선생님 함께 읽기를 끄면 선생님 나무는 숨김
   const allTrees = isReader
-    ? [{ me: true, teacher: role === "teacher", id: studentInfo?.id, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...shownClassmates]
+    ? [{ me: true, teacher: role === "teacher", id: studentInfo?.id, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories, deco: myDecor?.placed || null }, ...shownClassmates]
     : shownClassmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
@@ -2094,8 +2108,9 @@ export default function App() {
                       <Garden3D
                         classInfo={classInfo} studentInfo={studentInfo} role={isReader ? "student" : role}
                         myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
-                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter((t) => t && !t.teacher).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
-                        teacherTree={(() => { const t = allTrees.find((x) => x.teacher); return t ? { id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean)  } : null; })()}
+                        myDecor={myDecor} onSaveDecor={saveDecor}
+                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter((t) => t && !t.teacher).map((t) => ({ id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
+                        teacherTree={(() => { const t = allTrees.find((x) => x.teacher); return t ? { id: t.id, deco: t.deco, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean)  } : null; })()}
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
                         onTapClassTree={() => setShowCommunalDetail(true)}
