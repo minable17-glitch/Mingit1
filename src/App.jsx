@@ -2763,7 +2763,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
                   <input type="number" value={customTargetMinutes} onChange={(e) => setCustomTargetMinutes(e.target.value)}
-                    placeholder={`현재 ${dailyTargetMinutes}분 · 직접 입력`} style={{ flex: 1, padding: "9px 12px", borderRadius: 10,
+                    placeholder={`현재 ${dailyTargetMinutes}분 · 직접 입력`} style={{ flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 10,
                       border: "1.5px solid #d9d2c2", fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
                   <button onClick={handleApplyCustomTargetMinutes} className="cs-jua" style={{ border: "none", background: C.greenDk,
                     color: "#fff", borderRadius: 10, padding: "9px 14px", fontSize: 13, cursor: "pointer" }}>적용</button>
@@ -2783,7 +2783,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
                   <input type="number" value={customChallengeDays} onChange={(e) => setCustomChallengeDays(e.target.value)}
-                    placeholder={`현재 ${challengeDays}일 · 직접 입력`} style={{ flex: 1, padding: "9px 12px", borderRadius: 10,
+                    placeholder={`현재 ${challengeDays}일 · 직접 입력`} style={{ flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 10,
                       border: "1.5px solid #d9d2c2", fontSize: 13.5, fontFamily: "inherit", outline: "none", background: "#fff", color: C.ink }} />
                   <button onClick={handleApplyCustomChallengeDays} className="cs-jua" style={{ border: "none", background: C.greenDk,
                     color: "#fff", borderRadius: 10, padding: "9px 14px", fontSize: 13, cursor: "pointer" }}>적용</button>
@@ -3147,7 +3147,7 @@ export default function App() {
                     setPageCount(v);
                     if (studentInfo?.id) setPendingReflection(studentInfo.id, { minutes: sessionMinutes, note, quote, pages: v });
                   }} placeholder="예: 20"
-                  style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2", fontSize: 14,
+                  style={{ flex: 1, minWidth: 0, width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #d9d2c2", fontSize: 14,
                     fontFamily: "inherit", color: C.ink, outline: "none", background: "#fff" }} />
               </div>
               <button onClick={submit} disabled={note.trim().length < MIN_NOTE_LENGTH || submitBusy} className="cs-jua" style={{ width: "100%", marginTop: 10, padding: 15, borderRadius: 16,
