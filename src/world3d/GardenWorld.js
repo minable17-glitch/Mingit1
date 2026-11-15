@@ -43,8 +43,8 @@ export class GardenWorld {
     this.near = false; this.cam = { x: 0, z: 0.1, dist: 30 }; this._camInit = false;
     // 걸을 수 있는 마당 지도
     const g = this.garden;
-    this.nav = new NavGrid({ x0: -4.6, x1: 4.6, z0: -7.4, z1: 8.2 }, 0.1, g.inside);
-    for (const o of g.obstacles) { if (o.kind === 'rect') this.nav.rect(o.x, o.z, o.w, o.d, o.ry, 0.15); else this.nav.circle(o.x, o.z, o.r, 0.15); }
+    this.studentSlots = g.trees.filter((t) => !t.teacher).length;   // 학생 화분 수(맨 끝 한 자리는 선생님 나무)
+    this._buildNav(false);
     this.rig = new CameraRig(this.camera, { box: { x0: -6, x1: 6, z0: -9, z1: 10, y1: 4 }, solid: g.cameraSolid });
     this.view = 'top'; this.input = { x: 0, y: 0 }; this.keys = new Set(); this._moving = false; this._posT = 0; this._atDoor = true; this.busy = false;
     if (opts.me) {
@@ -58,8 +58,17 @@ export class GardenWorld {
     this._raf = requestAnimationFrame(() => this._frame());
   }
 
-  // 나무 목록(화분 순서): [{ id, nick, stage, me }]
+  // 걷기 지도: 선생님 나무가 보일 때만 그 화분도 막힘
+  _buildNav(withTeacher) {
+    const g = this.garden; this._navTeacher = withTeacher;
+    this.nav = new NavGrid({ x0: -4.6, x1: 4.6, z0: -7.4, z1: 8.2 }, 0.1, g.inside);
+    for (const o of g.obstacles) { if (o.kind === 'rect') this.nav.rect(o.x, o.z, o.w, o.d, o.ry, 0.15); else this.nav.circle(o.x, o.z, o.r, 0.15); }
+    if (withTeacher) { const t = g.trees.find((x) => x.teacher); this.nav.circle(t.x, t.z, 0.4, 0.15); }
+  }
+  // 나무 목록(화분 순서): [{ id, nick, stage, me }] — 학생 화분 수만큼 + 맨 끝은 선생님 나무(없으면 null)
   setTrees(list) {
+    const ti = this.garden.trees.findIndex((t) => t.teacher), hasTeacher = !!(ti >= 0 && list[ti]);
+    if (ti >= 0) { this.garden.trees[ti].bed.visible = hasTeacher; if (hasTeacher !== this._navTeacher) this._buildNav(hasTeacher); }
     const n = this.garden.trees.length;
     for (let i = 0; i < n; i++) {
       const t = list[i], cur = this.slots[i];

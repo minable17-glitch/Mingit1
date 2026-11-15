@@ -10,7 +10,7 @@ import { cleanDress, dressKey } from "./avatar.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
 
-export default function Garden3D({ classInfo, studentInfo, role, myDress = null, dressReady = false, onSaveDress, trees, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
+export default function Garden3D({ classInfo, studentInfo, role, myDress = null, dressReady = false, onSaveDress, trees, teacherTree = null, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -79,7 +79,12 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, isStudent, studentInfo?.id, islands]);
 
-  useEffect(() => { if (ready) worldRef.current?.setTrees(trees || []); }, [trees, ready]);
+  // 학생 화분 수만큼 채우고(빈 화분은 null) 맨 끝에 선생님 나무(없으면 null)
+  useEffect(() => {
+    const w = worldRef.current; if (!ready || !w) return;
+    const list = (trees || []).slice(0, w.studentSlots); while (list.length < w.studentSlots) list.push(null);
+    w.setTrees([...list, teacherTree || null]);
+  }, [trees, teacherTree, ready]);
   useEffect(() => { if (ready) worldRef.current?.setClassStage(classStage ?? 0); }, [classStage, ready]);
   useEffect(() => { if (ready) worldRef.current?.setZoom(near); }, [near, ready]);
 

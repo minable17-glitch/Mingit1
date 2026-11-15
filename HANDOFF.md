@@ -449,6 +449,15 @@ base: process.env.GH_PAGES ? '/저장소이름/' : '/',
 - **코드**: `avatar.js`(`DRESS`·`cleanDress`·`lookFromDress`, 치마·긴바지·머리 모양), `DressUp.jsx`(꾸미기 창), `LibraryWorld.makeAvatar`·`_swapLook`(모습 갈아 끼우기), `App.jsx`(`myDress` 불러오기·저장).
 - **점검**: `tests/lab3d-dress.e2e.cjs`(처음 자동으로 열림 → 고르기 → 서버 저장 → 정원·도서관 반영 → 친구 화면 반영 → 다시 바꾸기).
 
+### 13-0-2. 선생님도 함께 읽기 (반 관리 스위치)
+
+- **켜는 곳**: 반 관리 맨 위 "🌳 선생님도 함께 읽기" 스위치(`supabase/teacher_reader.sql` 적용 후에만 보임).
+- **원리**: 켜면 그 반 학생 표에 선생님 독서 자리 한 줄(`is_teacher = true`, 이름 "선생님", 아무도 모르는 PIN)이 생기고, 선생님 로그인과 연결됨(`teacher_reader_enter`). 그래서 읽기·소감·물주기·악세서리·꾸미기를 학생과 같은 코드로 씀(`App.jsx`의 `isReader`). 끄면 연결만 풀리고 기록은 남음(다시 켜면 이어짐).
+- **통계**: 반 참여율·우리 반 숲(`get_class_progress`)과 랭킹·배지에서 선생님 자리는 빠짐. 반 관리 학생 목록에도 안 보임.
+- **정원**: 우리 반 나무 바로 앞 금빛 돌 화분이 "선생님 나무"(꺼져 있으면 숨김). 학생도 누르면 선생님 나무 창이 열림.
+- **점검**: `tests/lab3d-teacher.e2e.cjs`(11가지), `tests/sql/30-teacher-reader.sql`(로컬 Postgres: 학생은 못 켬·꺼지면 못 들어감·참여율에서 빠짐·선생님 자리로 학생 로그인 막힘).
+- **화단 꾸미기**: GPT 시안 대기 중(요청문 `SAESSAK_GARDEN_DECO_GPT.md`). 소품은 악세서리처럼 보상으로 받기로 결정.
+
 ### 13-1. 3D 정원과 물주기 (같은 스위치 `?lab3d=1`)
 
 - **어디에**: 숲 탭의 숲 그림 자리에 3D 정원이 뜸(위쪽 반 목표·진행률, 아래 앨범 버튼은 그대로). 파일: `src/world3d/garden.js`(장면·나무 6단계·우리 반 나무 단계), `GardenWorld.js`(엔진), `Garden3D.jsx`(화면).
