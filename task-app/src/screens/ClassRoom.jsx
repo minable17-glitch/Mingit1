@@ -7,6 +7,9 @@ import Planner from './Planner.jsx';
 import { periodText, schoolDaysList } from '../lib/schoolAttendance.js';
 import Seating from './Seating.jsx';
 import ClassExport from './ClassExport.jsx';
+import ClassImages, { PickImages, Thumbs } from './ClassImages.jsx';
+import { removeImage, uploadAll, usePasteImages, withUrls } from '../lib/classImages.js';
+import { isImage, nameCapture } from '../lib/files.js';
 import { ATT_REASONS, ATT_TYPES, daySummary, monthSummary, monthSummaryText, noticesText, parseRoster, reasonLabel, typeLabel } from '../lib/classroom.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -192,6 +195,7 @@ function Notices({ kind, day, today, notices, tasks, categories, run }) {
           </div>
         </div>
       )}
+      <ClassImages kind={kind} day={day} title={`${label} 그림`} />
       <p className="small muted">체크 = 학생들에게 전달함. 📋 복사로 칠판·메신저에 붙여넣을 수 있어요.</p>
     </div>
   );
@@ -306,21 +310,60 @@ function Notes({ day, students, notes, run }) {
   const [studentId, setStudentId] = useState('');
   const [text, setText] = useState('');
   const [filter, setFilter] = useState('');
+  const [pending, setPending] = useState([]); // 저장 전 붙인 그림 [{ key, file, url }]
+  const [imgs, setImgs] = useState([]);
+  const [tick, setTick] = useState(0);
+  const [busy, setBusy] = useState(false);
   const byId = Object.fromEntries(students.map((s) => [s.id, s]));
   const shown = notes.filter((n) => !filter || n.student_id === filter);
+
+  useEffect(() => {
+    let alive = true;
+    api.loadClassImages({ kind: 'notes' }).then(withUrls).then((l) => { if (alive) setImgs(l); });
+    return () => { alive = false; };
+  }, [tick, notes]);
+  const refresh = () => setTick((t) => t + 1);
+
+  const addPending = (files) => setPending((p) => [...p, ...files.filter(isImage).map((file) => ({ key: crypto.randomUUID(), file, name: file.name, url: URL.createObjectURL(file) }))]);
+  usePasteImages(addPending);
+  const dropPending = (it) => { URL.revokeObjectURL(it.url); setPending((p) => p.filter((x) => x.key !== it.key)); };
+
+  async function save() {
+    setBusy(true);
+    await run(async () => {
+      const note = await api.addClassNote({ studentId, day, body: text.trim() || '(그림)' });
+      if (pending.length) await uploadAll(pending.map((p) => p.file), { kind: 'notes', day, noteId: note.id });
+      pending.forEach((p) => URL.revokeObjectURL(p.url));
+      setPending([]);
+      setText('');
+    });
+    setBusy(false);
+    refresh();
+  }
+
+  async function addTo(note, files) {
+    const list = files.filter(isImage);
+    if (!list.length) return;
+    setBusy(true);
+    await uploadAll(list.map((f) => nameCapture(f)), { kind: 'notes', day: note.day, noteId: note.id });
+    setBusy(false);
+    refresh();
+  }
 
   return (
     <div className="block stack">
       <h2>학생 특이사항</h2>
-      <div className="row wrap">
+      <div className="row wrap note-compose">
         <select value={studentId} onChange={(e) => setStudentId(e.target.value)} aria-label="학생">
           <option value="">학생 고르기</option>
           {students.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.number}번 {s.name}</option>)}
         </select>
-        <input className="grow" placeholder="관찰·상담·칭찬 등 (예: 모둠활동에서 친구를 잘 도움)" value={text} onChange={(e) => setText(e.target.value)} />
-        <button className="primary" disabled={!studentId || !text.trim()} onClick={() => run(async () => { await api.addClassNote({ studentId, day, body: text }); setText(''); })}>저장</button>
+        <input className="grow" placeholder="관찰·상담·칭찬 등 (캡처는 Ctrl+V로 같이)" value={text} onChange={(e) => setText(e.target.value)} />
+        <PickImages onImages={addPending} disabled={busy} label="🖼" />
+        <button className="primary" disabled={busy || !studentId || (!text.trim() && !pending.length)} onClick={save}>{busy ? '저장 중…' : '저장'}</button>
       </div>
-      <p className="small muted">고른 날짜({Number(day.slice(5, 7))}/{Number(day.slice(8))})로 저장돼요. 학생부·상담 기록 쓸 때 모아 볼 수 있어요.</p>
+      <Thumbs items={pending} onRemove={dropPending} />
+      <p className="small muted">고른 날짜({Number(day.slice(5, 7))}/{Number(day.slice(8))})로 저장돼요. 캡처한 그림은 Ctrl+V로 붙이면 이 기록에 같이 저장돼요.</p>
 
       <div className="row wrap">
         <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="학생별 보기">
@@ -331,13 +374,20 @@ function Notes({ day, students, notes, run }) {
       </div>
       {shown.length === 0 ? <p className="small muted">아직 적은 특이사항이 없어요.</p> : (
         <ul className="note-list">
-          {shown.map((n) => (
-            <li key={n.id}>
-              <span className="note-date">{Number(n.day.slice(5, 7))}/{Number(n.day.slice(8))}</span>
-              <span className="grow"><b>{byId[n.student_id] ? `${byId[n.student_id].number}번 ${byId[n.student_id].name}` : '—'}</b> {n.body}</span>
-              <button className="icon" onClick={() => confirm('이 특이사항을 지울까요?') && run(() => api.deleteClassNote(n.id))} aria-label="지우기">×</button>
-            </li>
-          ))}
+          {shown.map((n) => {
+            const mine = imgs.filter((i) => i.note_id === n.id);
+            return (
+              <li key={n.id} className="note-with-img">
+                <div className="row">
+                  <span className="note-date">{Number(n.day.slice(5, 7))}/{Number(n.day.slice(8))}</span>
+                  <span className="grow"><b>{byId[n.student_id] ? `${byId[n.student_id].number}번 ${byId[n.student_id].name}` : '—'}</b> {n.body}</span>
+                  <PickImages onImages={(f) => addTo(n, f)} disabled={busy} label="🖼" />
+                  <button className="icon" onClick={() => confirm('이 특이사항을 지울까요? (붙인 그림도 같이 지워져요)') && run(() => api.deleteClassNote(n.id))} aria-label="지우기">×</button>
+                </div>
+                <Thumbs items={mine} onRemove={(it) => removeImage(it, refresh)} />
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

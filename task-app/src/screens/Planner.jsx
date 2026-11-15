@@ -2,6 +2,7 @@
 // 일 / 주 / 월로 보기. 체크리스트는 '오늘 할 일'과 같은 목록(그 날짜 것)이라 브리핑과 이어져요.
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
+import ClassImages from './ClassImages.jsx';
 import { todayKST } from '../lib/date.js';
 import { monthGrid, weekDays } from '../lib/calendar.js';
 import { daySummaryLine, isEmptyDay, periodRows, PERIODS } from '../lib/planner.js';
@@ -185,6 +186,10 @@ function DayPage({ day, saved, items, morning, closing, bellOf, reload }) {
         <span className="pl-label">🌙 하루 기록</span>
         <textarea rows={3} placeholder="오늘 있었던 일, 잘된 점, 내일 챙길 것…" value={reflection} onChange={(e) => setReflection(e.target.value)} onBlur={() => save()} />
       </label>
+
+      <div className="pl-box">
+        <ClassImages kind="planner" day={day} title="🖼 그림" />
+      </div>
     </div>
   );
 }

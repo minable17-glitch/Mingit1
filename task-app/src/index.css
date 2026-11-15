@@ -1462,3 +1462,13 @@ html { font-size: 16px; }
 }
 .quick-add.quick-new select, .quick-add.quick-new input[type="date"] { flex: 1 1 120px; min-height: 44px; }
 .quick-add.quick-new > button.primary { flex: 0 0 auto; min-height: 44px; padding: 0 20px; }
+
+/* 학급 그림 (조회·종례·일지·특이사항) */
+.cls-images { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.cls-images.over { border-color: var(--primary); background: var(--fill, rgba(0,0,0,.03)); }
+.cls-images p { margin: 0; }
+.cls-thumbs { margin: 4px 0 0; }
+.note-list li.note-with-img { display: block; }
+.note-list li.note-with-img > .row { align-items: center; gap: 8px; }
+.note-compose input.grow { flex: 1 1 100%; order: -1; min-height: 44px; }
+.note-compose select { flex: 1 1 auto; }

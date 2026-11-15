@@ -874,10 +874,13 @@ export async function clearAttendance(id) {
 }
 
 export async function addClassNote({ studentId, day, body }) {
-  check(await supabase.from('class_notes').insert({ student_id: studentId, day, body: body.trim() }));
+  const { data, error } = await supabase.from('class_notes').insert({ student_id: studentId, day, body: body.trim() }).select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function deleteClassNote(id) {
+  await removeClassImages((q) => q.eq('note_id', id)).catch(() => {}); // 붙인 그림도 저장소에서
   check(await supabase.from('class_notes').delete().eq('id', id));
 }
 
@@ -894,6 +897,7 @@ export async function saveSeating(data) {
 
 // 학년말 정리: 학급 기록 모두 지우기
 export async function clearClassData() {
+  await removeClassImages((q) => q).catch(() => {}); // 학급 그림 파일도 저장소에서
   check(await supabase.from('class_students').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
   check(await supabase.from('class_notices').delete().neq('id', '00000000-0000-0000-0000-000000000000'));
   await supabase.from('class_seating').delete().neq('user_id', '00000000-0000-0000-0000-000000000000'); // 자리 배치 기록도 (표가 없으면 그냥 넘어감)
@@ -942,4 +946,42 @@ export async function addLink(fromTask, toTask) {
 
 export async function removeLink(linkId) {
   check(await supabase.from('task_links').delete().eq('id', linkId));
+}
+
+// ── 학급 그림(조회·종례·특이사항·일지에 붙인 캡처): 같은 비공개 저장소의 내 폴더 + class_images 표(본인만) ──
+// kind: morning | closing | notes | planner. 특이사항은 noteId 로 그 기록에 붙음. 표가 아직 없으면 빈 목록.
+export async function loadClassImages({ kind, day = null, from = null, to = null }) {
+  let q = supabase.from('class_images').select('*').eq('kind', kind).order('created_at');
+  if (day) q = q.eq('day', day);
+  if (from) q = q.gte('day', from);
+  if (to) q = q.lte('day', to);
+  const { data, error } = await q;
+  return error ? [] : data;
+}
+export async function uploadClassImage(file, { kind, day, noteId = null }) {
+  if (!(file.type || '').startsWith('image/')) throw new Error(`${file.name}: 그림 파일만 넣을 수 있어요`);
+  if (file.size > MAX_FILE_MB * 1024 * 1024) throw new Error(`${file.name}: ${MAX_FILE_MB}MB보다 큰 그림은 넣을 수 없어요`);
+  const uid = (await supabase.auth.getUser()).data.user.id;
+  const ext = ((file.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '')) || 'png';
+  const path = `${uid}/${crypto.randomUUID()}.${ext}`;
+  const up = await supabase.storage.from(FILES).upload(path, file, { contentType: file.type, upsert: false });
+  if (up.error) throw new Error(up.error.message.includes('Bucket not found') ? '그림 저장소를 준비하는 중이에요. 잠시 뒤 다시 해 주세요.' : up.error.message);
+  const { data, error } = await supabase.from('class_images')
+    .insert({ kind, day, note_id: noteId, path, name: (file.name || `캡처.${ext}`).slice(0, 200), mime: file.type, size: file.size })
+    .select().single();
+  if (error) {
+    await supabase.storage.from(FILES).remove([path]);
+    throw new Error(error.message.includes('class_images') ? '학급 그림 기능을 준비하는 중이에요. 잠시 뒤 다시 해 주세요.' : error.message);
+  }
+  return data;
+}
+export async function deleteClassImage(img) {
+  await supabase.storage.from(FILES).remove([img.path]);
+  check(await supabase.from('class_images').delete().eq('id', img.id));
+}
+async function removeClassImages(filter) {
+  const { data, error } = await filter(supabase.from('class_images').select('id, path'));
+  if (error || !data?.length) return;
+  await supabase.storage.from(FILES).remove(data.map((i) => i.path));
+  check(await supabase.from('class_images').delete().in('id', data.map((i) => i.id)));
 }
