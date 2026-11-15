@@ -16,7 +16,7 @@ import {
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
-  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar,
+  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -428,7 +428,9 @@ export default function App() {
   // ── 역할·학급·학생 세션 ──
   const [role, setRole] = useState(null); // 'teacher' | 'student'
   const [classInfo, setClassInfo] = useState(null); // { id, name, code, start_date, goal_pct }
-  const [studentInfo, setStudentInfo] = useState(null); // { id, nickname }
+  const [studentInfo, setStudentInfo] = useState(null); // { id, nickname } — 선생님 함께 읽기를 켜면 선생님 독서 자리도 여기 들어감
+  // 읽기·소감·물주기·꾸미기를 하는 사람: 학생, 또는 "선생님 함께 읽기"를 켠 선생님
+  const isReader = !!studentInfo?.id && (role === "student" || role === "teacher");
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
   const [teacherForm, setTeacherForm] = useState({ name: "", password: "", goalPct: 80 });
@@ -545,7 +547,7 @@ export default function App() {
   useEffect(() => {
     if (screen !== "main" || !classInfo?.id) return;
     refreshClassProgress(classInfo.id);
-    if (role === "student" && studentInfo?.id) {
+    if (isReader) {
       getTodayLog(studentInfo.id).then((l) => {
         setDoneToday(!!l);
         if (l) {
@@ -570,9 +572,11 @@ export default function App() {
       getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
         setAccessoryCounts(counts); setEquippedAccessories(equipped);
       }).catch(() => {});
-    } else if (role === "teacher" && classInfo?.id) {
+    }
+    if (role === "teacher" && classInfo?.id) {
       getClassLogsForTeacher(classInfo.id).then(setTeacherLogs).catch(() => {});
       getClassRoster(classInfo.id).then((roster) => {
+        roster = roster.filter((st) => !st.is_teacher);   // 반 관리 학생 목록에는 선생님 자리를 넣지 않음
         setTeacherRoster(roster);
         const ids = roster.map((s) => s.id);
         getClassCompletedBookCounts(ids).then(setTeacherCompletedCounts).catch(() => {});
@@ -586,7 +590,7 @@ export default function App() {
   const [dressReady, setDressReady] = useState(false);   // 서버 확인까지 끝났는지(처음 꾸미기 창을 띄울지 정할 때 씀)
   const dressKeyLS = studentInfo?.id ? `saesak_dress_${studentInfo.id}` : null;
   useEffect(() => {
-    if (screen !== "main" || role !== "student" || !studentInfo?.id) { setMyDress(null); setDressReady(false); return; }
+    if (screen !== "main" || !isReader) { setMyDress(null); setDressReady(false); return; }
     let local = null;
     try { local = JSON.parse(localStorage.getItem(`saesak_dress_${studentInfo.id}`) || "null"); } catch { /* 무시 */ }
     setMyDress(local); setDressReady(false);
@@ -605,9 +609,40 @@ export default function App() {
     try { await saveMyAvatar(d); return true; } catch { return false; }   // 서버 저장 실패(SQL 적용 전 등)여도 이 기기에는 저장됨
   };
 
+  // 선생님 함께 읽기(반 관리에서 켜고 끔, supabase/teacher_reader.sql): 켜져 있으면 선생님 독서 자리를 studentInfo 로 써서 학생과 똑같이 읽음
+  const [teacherReads, setTeacherReadsFlag] = useState(null);   // null: 기능 없음(SQL 적용 전)·확인 중
+  const [teacherReadsBusy, setTeacherReadsBusy] = useState(false);
+  useEffect(() => {
+    if (screen !== "main" || !classInfo?.id) { setTeacherReadsFlag(null); return; }
+    let alive = true;
+    getTeacherReads(classInfo.id).then(async (on) => {
+      if (!alive) return;
+      setTeacherReadsFlag(on);
+      if (role !== "teacher") return;     // 학생은 선생님 나무를 보일지만 알면 됨
+      if (on) {
+        try { const r = await teacherReaderEnter(classInfo.id); if (alive && r) setStudentInfo({ id: r.id, nickname: r.nickname, isTeacher: true }); }
+        catch { /* 연결 실패 시 예전처럼 반 관리만 */ }
+      } else setStudentInfo(null);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [screen, role, classInfo?.id]);
+  const toggleTeacherReads = async (on) => {
+    if (!classInfo?.id || teacherReadsBusy) return;
+    setTeacherReadsBusy(true);
+    try {
+      await setTeacherReads(classInfo.id, on); setTeacherReadsFlag(on);
+      if (on) {
+        const r = await teacherReaderEnter(classInfo.id);
+        if (r) setStudentInfo({ id: r.id, nickname: r.nickname, isTeacher: true });
+        showToast("선생님도 함께 읽어요! 정원 가운데에 '선생님 나무'가 생겨요 🌱");
+      } else { setStudentInfo(null); showToast("선생님 함께 읽기를 껐어요. 기록은 그대로 남아 있어요."); }
+    } catch (e) { showToast(e?.message || "바꾸지 못했어요. 다시 시도해 주세요."); }
+    finally { setTeacherReadsBusy(false); }
+  };
+
   // 2D 화면(3D가 안 되는 기기·?lab3d=0)에는 정원 물주기 버튼이 없음 → 3D에서 저장해 두고 아직 안 준 물이 있으면 자동으로 줘서 나무가 자라게 함
   useEffect(() => {
-    if (screen !== "main" || lab3d || role !== "student" || !studentInfo?.id) return;
+    if (screen !== "main" || lab3d || !isReader) return;
     let alive = true;
     probeWatering().then((ok) => (ok ? waterTree(null) : 0)).then((n) => {
       if (!alive || !n) return;
@@ -619,7 +654,7 @@ export default function App() {
   }, [screen, lab3d, role, studentInfo?.id]);
 
   useEffect(() => {
-    if (screen !== "main" || !lab3d || role !== "student" || !studentInfo?.id) { setWaterReady(false); return; }
+    if (screen !== "main" || !lab3d || !isReader) { setWaterReady(false); return; }
     let alive = true;
     probeWatering().then((ok) => {
       if (!alive || !ok) return;
@@ -641,7 +676,7 @@ export default function App() {
       if (today === lastDateRef.current) return;
       lastDateRef.current = today;
       refreshClassProgress(classInfo.id);
-      if (role === "student" && studentInfo?.id) {
+      if (isReader) {
         getTodayLog(studentInfo.id).then((l) => setDoneToday(!!l)).catch(() => {});
       }
     };
@@ -666,7 +701,7 @@ export default function App() {
   useEffect(() => { classmatesRef.current = classmates; }, [classmates]);
 
   const checkNewCheers = async () => {
-    if (role !== "student" || !studentInfo?.id) return;
+    if (!isReader) return;
     try {
       const sinceIso = getCheersSeenAt(studentInfo.id);
       if (!sinceIso) {
@@ -686,7 +721,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (screen !== "main" || role !== "student" || !studentInfo?.id) return;
+    if (screen !== "main" || !isReader) return;
     checkNewCheers();
     const interval = setInterval(checkNewCheers, 30000);
     return () => clearInterval(interval);
@@ -694,10 +729,12 @@ export default function App() {
   }, [screen, role, studentInfo?.id]);
 
   const refreshClassmates = async (classId, myStudentId) => {
+    getTeacherReads(classId).then((v) => { if (v !== null) setTeacherReadsFlag(v); }).catch(() => {});   // 선생님이 켜고 끄면 학생 화면에도 반영
     try {
       const roster = await getClassRoster(classId);
       const allIds = roster.map((s) => s.id);
-      setGardenOrder([...roster].sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).map((s) => s.id));
+      // 정원 화분 순서(가입 순서). 선생님 자리는 화분 대신 가운데 '선생님 나무' 자리에 따로 그림
+      setGardenOrder([...roster].filter((s) => !s.is_teacher).sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id))).map((s) => s.id));
       const others = roster.filter((s) => s.id !== myStudentId);
       const otherIds = others.map((s) => s.id);
       const [books, sessions, completedCounts, cheerCounts, readDays] = await Promise.all([
@@ -713,6 +750,7 @@ export default function App() {
         others.map((s) => ({
           id: s.id,
           nick: s.nickname,
+          teacher: !!s.is_teacher,
           book: books[s.id] || "아직 책을 안 골랐어요",
           stage: stageFromDays(s.total_days, challengeDays),
           totalDays: s.total_days,
@@ -721,8 +759,8 @@ export default function App() {
           accessories: s.equipped_accessories || [],
         }))
       );
-      setBadgeStats(
-        roster.map((s) => ({
+      setBadgeStats(   // 랭킹·배지는 학생만(선생님 자리는 뺌)
+        roster.filter((s) => !s.is_teacher).map((s) => ({
           id: s.id,
           nick: s.nickname,
           totalDays: s.total_days,
@@ -783,7 +821,7 @@ export default function App() {
   }, [tab]);
 
   const chooseBook = async (b) => {
-    if (role === "student" && studentInfo?.id) {
+    if (isReader) {
       try {
         const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author, coverUrl: b.cover });
         setCurrentBook(book);
@@ -979,7 +1017,7 @@ export default function App() {
   };
 
   const syncReadingSession = (isReading) => {
-    if (role === "student" && studentInfo?.id) {
+    if (isReader) {
       setReadingSession(studentInfo.id, isReading).catch(() => {});
     }
   };
@@ -1089,7 +1127,7 @@ export default function App() {
   };
 
   const submitBonus = async (minutes) => {
-    if (role !== "student" || !studentInfo?.id) {
+    if (!isReader) {
       showToast("선생님 계정에서는 기록이 저장되지 않아요 (체험용)");
       return;
     }
@@ -1154,7 +1192,7 @@ export default function App() {
   };
 
   const handleCompleteBook = async () => {
-    if (!currentBook?.id || role !== "student" || !studentInfo?.id) return;
+    if (!currentBook?.id || !isReader) return;
     try {
       await markBookCompleted(currentBook.id);
       const finishedTitle = currentBook.title;
@@ -1266,7 +1304,7 @@ export default function App() {
     const savedNote = note.trim();
     const savedQuote = quote.trim() || null;
     const savedPages = pageCount.trim() ? Math.max(0, parseInt(pageCount, 10) || 0) : null;
-    if (role !== "student" || !studentInfo?.id) {
+    if (!isReader) {
       // 선생님 계정은 체험용으로만 동작 (실제 저장 없음)
       setReflecting(false); setNote(""); setQuote(""); setPageCount(""); setDoneToday(true); setBloomPulse(true);
       setTab("forest");
@@ -1619,16 +1657,17 @@ export default function App() {
     }
   };
 
-  const myNick = role === "student" && studentInfo ? studentInfo.nickname : "나";
-  const allTrees = role === "student"
-    ? [{ me: true, id: studentInfo?.id, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...classmates]
-    : classmates;
+  const myNick = isReader ? studentInfo.nickname : "나";
+  const shownClassmates = teacherReads ? classmates : classmates.filter((c) => !c.teacher);   // 선생님 함께 읽기를 끄면 선생님 나무는 숨김
+  const allTrees = isReader
+    ? [{ me: true, teacher: role === "teacher", id: studentInfo?.id, nick: myNick, book: myBook || "아직 책을 안 골랐어요", stage: myStage, totalDays: myDays, accessories: equippedAccessories }, ...shownClassmates]
+    : shownClassmates;
   const topDays = [...badgeStats]
     .sort((a, b) => b.totalDays - a.totalDays)
     .slice(0, 3)
     .map((s) => ({ nick: s.nick, days: s.totalDays }));
   const myRank = (() => {
-    if (role !== "student" || !studentInfo?.id || badgeStats.length === 0) return null;
+    if (!isReader || badgeStats.length === 0) return null;
     const sorted = [...badgeStats].sort((a, b) => b.totalDays - a.totalDays);
     const idx = sorted.findIndex((s) => s.id === studentInfo.id);
     return idx >= 0 ? { rank: idx + 1, total: sorted.length } : null;
@@ -2053,9 +2092,10 @@ export default function App() {
                   {lab3d ? (
                     <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>정원 문을 여는 중…</div>}>
                       <Garden3D
-                        classInfo={classInfo} studentInfo={studentInfo} role={role}
+                        classInfo={classInfo} studentInfo={studentInfo} role={isReader ? "student" : role}
                         myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
-                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter(Boolean).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
+                        trees={gardenOrder.map((id) => allTrees.find((t) => t.id === id)).filter((t) => t && !t.teacher).map((t) => ({ id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean) }))}
+                        teacherTree={(() => { const t = allTrees.find((x) => x.teacher); return t ? { id: t.id, nick: t.nick, stage: t.stage, me: !!t.me, acc: (t.accessories || []).slice(0, MAX_EQUIPPED_ACCESSORIES).map((k) => ACCESSORY_CATALOG[k]?.emoji).filter(Boolean)  } : null; })()}
                         classStage={communalStageInfo.stage} waterReady={waterReady} waterLeft={waterLeft} onWater={handleWater}
                         onTapTree={(id) => { const t = allTrees.find((x) => x.id === id); if (t) setSelected(t); }}
                         onTapClassTree={() => setShowCommunalDetail(true)}
@@ -2172,7 +2212,7 @@ export default function App() {
               {tab === "read" && lab3d && (
                 <React.Suspense fallback={<div style={{ padding: 60, textAlign: "center", color: C.inkSoft, fontSize: 14 }}>도서관 문을 여는 중…</div>}>
                   <Library3D
-                    classInfo={classInfo} studentInfo={studentInfo} role={role} reading={reading}
+                    classInfo={classInfo} studentInfo={studentInfo} role={isReader ? "student" : role} reading={reading}
                     myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
                     myBook={myBook} doneToday={doneToday} dailyTargetMinutes={dailyTargetMinutes}
                     resumeMinutes={Math.floor(getResumeElapsed(false) / 60)} bonusResumeMinutes={Math.floor(getResumeElapsed(true) / 60)}
@@ -2197,7 +2237,7 @@ export default function App() {
                       fontSize: 12, textDecoration: "underline", textDecorationStyle: "dotted", cursor: "pointer", marginBottom: 4 }}>
                       📚 읽는 책 바꾸기</button>
                   )}
-                  {myBook && role === "student" && (
+                  {myBook && isReader && (
                     <button onClick={handleCompleteBook} style={{ border: "none", background: "transparent", color: C.gold,
                       fontSize: 12.5, textDecoration: "underline", cursor: "pointer", marginBottom: 8 }}>
                       🍎 이 책 다 읽었어요 (완독하기)</button>
@@ -2206,7 +2246,7 @@ export default function App() {
                     <>
                       <div className="cs-jua" style={{ background: "#fff", color: C.greenDk, textAlign: "center", padding: "16px 24px",
                         borderRadius: 18, fontSize: 16, border: `1px solid ${C.leafL}`, marginTop: 10 }}>오늘 물주기 완료 🌸<br />내일 또 만나요!</div>
-                      {role === "student" && myBook && (
+                      {isReader && myBook && (
                         <>
                           <div style={{ fontSize: 12, color: C.inkSoft, textAlign: "center", margin: "14px 0 8px", maxWidth: 260 }}>
                             더 읽고 싶으면 자유롭게 읽어서 우리 반 나무에 보너스로 기여하고 악세서리도 받아보세요!</div>
@@ -2300,7 +2340,7 @@ export default function App() {
                             <span className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{e.date}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ fontSize: 11.5, color: C.inkSoft }}>📖 {e.book}{e.minutes ? ` · ${e.minutes}분` : ""}{e.pages ? ` · ${e.pages}쪽` : ""}</span>
-                              {e.id && role === "student" && (
+                              {e.id && isReader && (
                                 <button onClick={() => handleOpenEditLog(e)} style={{ border: "none", background: "transparent",
                                   color: C.green, fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0, whiteSpace: "nowrap" }}>✏️ 수정</button>
                               )}
@@ -2318,7 +2358,7 @@ export default function App() {
                           background: "transparent", color: C.inkSoft, fontSize: 12.5, cursor: "pointer", padding: 0,
                           textDecoration: "underline", textDecorationStyle: "dotted", alignSelf: "flex-start" }}>📖 사용법 다시 보기</button>
                       )}
-                      {role === "student" && studentInfo?.id && (
+                      {isReader && (
                         <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginTop: 4 }}>
                           <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk, marginBottom: 4 }}>🎀 나무 꾸미기</div>
                           <div style={{ fontSize: 11.5, color: C.inkSoft, marginBottom: 10 }}>
@@ -2522,7 +2562,7 @@ export default function App() {
                         const rad = ((angleOffset + (360 / n) * i - 90) * Math.PI) / 180;
                         const leftPct = FOREST_CENTER_X + ring.radius * 100 * Math.cos(rad);
                         const topPct = FOREST_CENTER_Y + ring.radius * 100 * Math.sin(rad) * FOREST_IMAGE_ASPECT;
-                        const isMe = role === "student" && t.id === studentInfo?.id;
+                        const isMe = isReader && t.id === studentInfo?.id;
                         return (
                           <div key={t.id || t.nick} onClick={() => setAlbumTree(t)} style={{ position: "absolute", left: `${leftPct}%`, top: `${topPct}%`,
                             transform: "translate(-50%,-100%)", zIndex: 10 + ringIndex, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -2656,7 +2696,7 @@ export default function App() {
                     {CHEERS.map((c) => (
                       <button key={c} onClick={async () => {
                         const nk = selected.nick; const toId = selected.id; setSelected(null);
-                        if (role === "student" && studentInfo?.id && toId) {
+                        if (isReader && toId) {
                           try { await sendCheer({ fromStudentId: studentInfo.id, toStudentId: toId, emoji: c }); }
                           catch { showToast("응원 전송에 실패했어요."); return; }
                         }
@@ -2737,6 +2777,24 @@ export default function App() {
               <button onClick={() => { setGuideTab("teacher"); setShowGuide(true); }} style={{ border: "none",
                 background: "transparent", color: C.inkSoft, fontSize: 12, cursor: "pointer", marginBottom: 10, padding: 0,
                 textDecoration: "underline", textDecorationStyle: "dotted", display: "block" }}>📖 사용법 다시 보기</button>
+
+              {/* 선생님도 함께 읽기 */}
+              {teacherReads !== null && (
+                <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: `1px solid ${teacherReads ? C.leafL : "#eee5d3"}`, marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div className="cs-jua" style={{ fontSize: 14.5, color: C.greenDk }}>🌳 선생님도 함께 읽기</div>
+                    <button onClick={() => toggleTeacherReads(!teacherReads)} disabled={teacherReadsBusy} role="switch" aria-checked={teacherReads} data-teacher-reads
+                      style={{ position: "relative", width: 52, height: 30, borderRadius: 15, border: "none", cursor: teacherReadsBusy ? "default" : "pointer",
+                        background: teacherReads ? C.green : "#d9d2c2", transition: "background .2s", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", top: 3, left: teacherReads ? 25 : 3, width: 24, height: 24, borderRadius: 12, background: "#fff",
+                        boxShadow: "0 1px 3px #0003", transition: "left .2s" }} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 6, lineHeight: 1.6 }}>
+                    켜면 선생님도 이 계정 그대로 학생처럼 읽고, 소감을 쓰고, 정원 가운데 '선생님 나무'에 물을 줄 수 있어요.
+                    선생님 기록은 반 참여율·우리 반 숲·랭킹에는 들어가지 않아요. 꺼도 기록은 남아 있어요.</div>
+                </div>
+              )}
 
               {/* 목표 설정 */}
               <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3", marginBottom: 12 }}>

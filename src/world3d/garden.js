@@ -17,6 +17,7 @@ export const STAGE_NAMES = ['씨앗', '새싹', '줄기', '잎', '꽃봉오리',
 const ISLANDS = [[-1.6, -4.85], [1.65, -4.85], [-2.55, -2.55], [2.55, -2.55], [-2.5, 0.45], [2.5, 0.45], [-1.4, 2.95], [1.5, 2.95]];
 export const CENTER = [0, -0.45];
 export const WELL = [2.45, 5.55];
+export const TEACHER_SPOT = [0, 1.85];                   // 선생님 나무 자리: 우리 반 나무 바로 앞(선생님 함께 읽기를 켰을 때만 보임)
 export const DOOR = [-2.75, 6.05];
 ISLANDS.push([0.05, 4.9], [0.0, -6.85]);                 // 학생이 32명을 넘을 때만 쓰는 추가 화단
 export const islandCount = (students) => Math.min(ISLANDS.length, Math.max(8, Math.ceil(students / 4)));
@@ -166,6 +167,17 @@ export function buildGarden(scene, students = 32) {
     const g = new THREE.Group(); g.position.set(p.x, 0.07, p.z); g.rotation.y = rnd() * 6.28; root.add(g);
     const sh = new THREE.Mesh(treeShadowGeo, shadowMat); sh.rotation.x = -Math.PI / 2; sh.scale.set(0.34, 0.26, 1); sh.position.set(p.x + 0.08, 0.035, p.z + 0.12); sh.visible = false; sh.renderOrder = 1; root.add(sh);
     trees.push({ ...p, stage: -1, group: g, shadow: sh });
+  }
+  // 선생님 화분: 금빛이 도는 돌 테두리. 학생 화분 목록 맨 끝에 붙여 같은 방식으로 나무를 그림(bed 는 숨기기·보이기용)
+  {
+    const [tx, tz] = TEACHER_SPOT, bed = new Batch(), bedGroup = new THREE.Group(); bedGroup.visible = false;
+    for (let k = 0; k < 11; k++) { const a = (k / 11) * Math.PI * 2; bed.addM(k % 2 ? '#F3D58A' : G.stone, ringStone, M4(tx + Math.cos(a) * 0.34, 0.055, tz + Math.sin(a) * 0.34, 0.12, 0.07, 0.09, qEuler(0, -a + Math.PI / 2, 0))); }
+    bed.addM(G.soil, cyl, M4(tx, 0.045, tz, 0.3, 0.05, 0.3)); bed.addM(G.soilDk, ball, M4(tx, 0.07, tz, 0.22, 0.035, 0.22));
+    for (const [color, geo] of bed.merged()) bedGroup.add(new THREE.Mesh(geo, mats(color)));
+    root.add(bedGroup);
+    const g = new THREE.Group(); g.position.set(tx, 0.07, tz); root.add(g);
+    const sh = new THREE.Mesh(treeShadowGeo, shadowMat); sh.rotation.x = -Math.PI / 2; sh.scale.set(0.34, 0.26, 1); sh.position.set(tx + 0.08, 0.035, tz + 0.12); sh.visible = false; sh.renderOrder = 1; root.add(sh);
+    trees.push({ id: 'teacher', x: tx, z: tz, stage: -1, group: g, shadow: sh, teacher: true, bed: bedGroup });
   }
   // 화분 하나의 나무 단계를 바꿈(-1 이면 빈 화분). 도형은 단계별로 한 번만 만든 것을 함께 씀
   const setStage = (index, stage) => {

@@ -24,7 +24,7 @@ async function open(ctx, id, nick, log) {
   await p.waitForTimeout(600); await p.mouse.click(195, 400);
   await p.waitForTimeout(800);
   await p.getByText('읽기', { exact: true }).click();
-  await p.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 15000 });
+  await p.waitForFunction('window.__lib3d && window.__lib3d._synced', null, { timeout: 30000, polling: 300 });
   return p;
 }
 const me = (p) => p.evaluate(() => { const w = window.__lib3d, q = w.me.avatar.root.position; return { x: +q.x.toFixed(2), z: +q.z.toFixed(2), seat: w.me.seat, walk: !!w.me.walk, view: w.view, yaw: +w.rig.yaw.toFixed(2), vis: w.me.avatar.root.visible, pose: w.me.avatar.state }; });
@@ -34,7 +34,7 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
 }
 (async () => {
   const log = [], ok = [];
-  const check = (name, cond, extra = '') => { ok.push(`${cond ? '✅' : '❌'} ${name} ${extra}`); };
+  const check = (name, cond, extra = '') => { ok.push(`${cond ? '✅' : '❌'} ${name} ${extra}`); console.log(ok[ok.length - 1]); };
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   const A = await open(ctx, 'stu-minsu', '민수', log);
@@ -90,8 +90,8 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
   check('정원 문으로 걸어 나가면 정원 화면', garden || (await A.getByText('도서관 가기').count()) > 0);
   await A.screenshot({ path: `${OUT}/roam-09-garden.png` });
   // 정원: 뒤에서 보기로 시작, 조이스틱으로 걷기, 1인칭, 문으로 걸어 도서관으로
-  await A.waitForFunction('window.__garden3d && window.__garden3d.me', null, { timeout: 15000 });
-  await A.locator('canvas').scrollIntoViewIfNeeded(); await A.waitForFunction('!window.__garden3d.me.walk', null, { timeout: 15000 }); await A.waitForTimeout(500);
+  await A.waitForFunction('window.__garden3d && window.__garden3d.me', null, { timeout: 30000, polling: 300 });
+  await A.locator('canvas').scrollIntoViewIfNeeded(); await A.waitForFunction('!window.__garden3d.me.walk', null, { timeout: 30000, polling: 300 }); await A.waitForTimeout(500);
   const gme = () => A.evaluate(() => { const w = window.__garden3d, q = w.me.avatar.root.position; return { x: +q.x.toFixed(2), z: +q.z.toFixed(2), view: w.view, ok: w.nav.walkable(q.x, q.z) }; });
   const g0 = await gme(); check('정원도 뒤에서 보기로 시작', g0.view === 'third');
   await A.screenshot({ path: `${OUT}/roam-10-garden-third.png` });
@@ -105,11 +105,12 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
   await A.waitForTimeout(300); await stick(A, 0, -40, 1500); await A.waitForTimeout(2500);
   check('정원 문으로 걸어가면 도서관', (await A.getByText('정원 가기').count()) > 0 || (await A.evaluate(() => !!document.querySelector('[data-joystick]') && /도서관/.test(document.body.innerText))));
   // 선생님으로 들어와도 보는 방법 버튼과 조이스틱이 있고 걸을 수 있음(학생 화면에는 안 보임)
+  await A.close();   // 앞 점검에 쓴 창은 닫아 둠(뒤에 남은 창이 많으면 브라우저가 느려짐)
   const T = await ctx.newPage();
   await T.route(/supabase\.co/, (route) => { const obj = (route.request().headers()['accept'] || '').includes('vnd.pgrst.object'); if (/get_class_progress/.test(route.request().url())) return route.fulfill({ status: 200, contentType: 'application/json', body: '[{"joined_today":0,"total_students":2,"class_pct":0,"communal_minutes":0}]' }); return route.fulfill({ status: obj ? 406 : 200, contentType: 'application/json', body: obj ? '{}' : '[]' }); });
   await T.addInitScript(() => { localStorage.setItem('saesak_session', JSON.stringify({ role: 'teacher', classInfo: { id: 'class-demo', name: '3학년 2반', code: '숲123456', start_date: '2026-11-01', goal_pct: 80, daily_target_minutes: 10, challenge_days: 30 } })); localStorage.setItem('saesak_lab3d', '1'); });
   await T.goto('http://localhost:4321/?lab3d=1&rtlocal=1&debug=1'); await T.waitForTimeout(600); await T.mouse.click(195, 400); await T.waitForTimeout(800);
-  await T.getByText('읽기', { exact: true }).click(); await T.waitForFunction('window.__lib3d && window.__lib3d.me', null, { timeout: 15000 }); await T.waitForTimeout(1200);
+  await T.bringToFront(); await T.getByText('읽기', { exact: true }).click(); await T.waitForFunction('!!(window.__lib3d && window.__lib3d.me)', null, { timeout: 30000, polling: 300 }).catch(async (e) => { console.log('dbgT', JSON.stringify(await T.evaluate(() => [!!window.__lib3d, !!(window.__lib3d && window.__lib3d.me), document.body.innerText.slice(0, 160)]))); await T.screenshot({ path: OUT + '/roam-failT.png' }); throw e; }); await T.waitForTimeout(1200);
   await T.mouse.click(195, 300); const t0 = await me(T); await stick(T, 0, -40, 1200); const t1 = await me(T);
   check('선생님도 보는 방법 버튼·조이스틱으로 걷기', (await T.locator('[data-view]').count()) === 3 && Math.hypot(t1.x - t0.x, t1.z - t0.z) > 0.8);
   await T.screenshot({ path: `${OUT}/roam-13-teacher.png` });
@@ -118,4 +119,4 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
   console.log(ok.join('\n'));
   console.log('errors:', log.length ? log.slice(0, 8) : 'none');
   await b.close();
-})().catch((e) => { console.error('TEST FAILED', e.message); process.exit(1); });
+})().catch((e) => { console.error('TEST FAILED', e.message.slice(0, 200), (e.stack || '').split('\n').find((l) => l.includes('roam.e2e'))); process.exit(1); });
