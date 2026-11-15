@@ -23,7 +23,8 @@ ISLANDS.push([0.05, 4.9], [0.0, -6.85]);                 // 학생이 32명을 �
 export const islandCount = (students) => Math.min(ISLANDS.length, Math.max(8, Math.ceil(students / 4)));
 export function planterLayout(students = 32) {
   const out = []; let n = 1;
-  for (const [ix, iz] of ISLANDS.slice(0, islandCount(students))) for (const [dx, dz] of [[-0.42, -0.4], [0.42, -0.4], [-0.42, 0.42], [0.42, 0.42]]) out.push({ id: n++, x: ix + dx, z: iz + dz });
+  // ux, uz: 화단 바깥쪽 방향(꾸미기 소품을 놓는 쪽)
+  for (const [ix, iz] of ISLANDS.slice(0, islandCount(students))) for (const [dx, dz] of [[-0.42, -0.4], [0.42, -0.4], [-0.42, 0.42], [0.42, 0.42]]) out.push({ id: n++, x: ix + dx, z: iz + dz, ux: Math.sign(dx) * Math.SQRT1_2, uz: Math.sign(dz) * Math.SQRT1_2 });
   return out;
 }
 
@@ -177,7 +178,7 @@ export function buildGarden(scene, students = 32) {
     root.add(bedGroup);
     const g = new THREE.Group(); g.position.set(tx, 0.07, tz); root.add(g);
     const sh = new THREE.Mesh(treeShadowGeo, shadowMat); sh.rotation.x = -Math.PI / 2; sh.scale.set(0.34, 0.26, 1); sh.position.set(tx + 0.08, 0.035, tz + 0.12); sh.visible = false; sh.renderOrder = 1; root.add(sh);
-    trees.push({ id: 'teacher', x: tx, z: tz, stage: -1, group: g, shadow: sh, teacher: true, bed: bedGroup });
+    trees.push({ id: 'teacher', x: tx, z: tz, ux: 0, uz: 1, stage: -1, group: g, shadow: sh, teacher: true, bed: bedGroup });
   }
   // 화분 하나의 나무 단계를 바꿈(-1 이면 빈 화분). 도형은 단계별로 한 번만 만든 것을 함께 씀
   const setStage = (index, stage) => {

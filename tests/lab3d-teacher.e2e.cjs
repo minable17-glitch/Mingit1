@@ -66,7 +66,9 @@ async function open(ctx, sess, log) {
   check('끄면 선생님 캐릭터 없음(조이스틱은 둘러보기용으로 남음)', !(await T.evaluate(() => window.__garden3d.slots.some((s) => s && s.me))));
   // 학생 화면: 선생님 나무가 보이고 누르면 창
   state.reads = true;
+  await T.close();   // 선생님 창은 닫음(뒤에 남은 창은 브라우저가 느리게 돌림)
   const S = await open(ctx, JSON.stringify({ role: 'student', classInfo: CLASS, studentInfo: { id: 'stu-03', nickname: '민수' } }), log);
+  await S.bringToFront();
   await S.waitForFunction('window.__garden3d && window.__garden3d.slots.filter((s) => s && s.id).length >= 5', null, { timeout: 30000, polling: 300 }).catch(async (e) => { await S.screenshot({ path: OUT + '/teacher-failS.png' }); console.log('dbgS', JSON.stringify(await S.evaluate(() => [!!window.__garden3d, window.__garden3d && window.__garden3d.slots.filter((s) => s && s.id).map((s) => s.nick), document.body.innerText.slice(0, 150)]))); throw e; });
   const sv = await S.evaluate(() => { const w = window.__garden3d, i = w.garden.trees.findIndex((t) => t.teacher), s = w.slots[i]; return { bed: w.garden.trees[i].bed.visible, nick: s && s.nick, me: s && s.me }; });
   check('학생 화면에도 선생님 나무', sv.bed && sv.nick === '선생님' && !sv.me, JSON.stringify(sv));

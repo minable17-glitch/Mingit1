@@ -315,7 +315,9 @@ export async function getClassLogsForTeacher(classId) {
 // is_teacher: 선생님 함께 읽기 자리(supabase/teacher_reader.sql 적용 전에는 칸이 없어서, 실패하면 그 칸 없이 다시 불러옴)
 export async function getClassRoster(classId) {
   const cols = 'id, nickname, total_days, communal_minutes, total_pages, equipped_accessories, created_at';
-  let { data, error } = await supabase.from('students').select(cols + ', is_teacher').eq('class_id', classId);
+  // 새 칸(선생님 자리 is_teacher, 화단 소품 decor_placed)은 SQL 적용 전에 없을 수 있어서, 실패하면 하나씩 빼고 다시 불러옴
+  let { data, error } = await supabase.from('students').select(cols + ', is_teacher, decor_placed').eq('class_id', classId);
+  if (error) ({ data, error } = await supabase.from('students').select(cols + ', is_teacher').eq('class_id', classId));
   if (error) ({ data, error } = await supabase.from('students').select(cols).eq('class_id', classId));
   if (error) throw error;
   return data;
@@ -486,4 +488,15 @@ export async function teacherReaderEnter(classId) {
   const { data, error } = await supabase.rpc('teacher_reader_enter', { p_class_id: classId });
   if (error) throw error;
   return data?.[0] || null;
+}
+
+// 내 화단 꾸미기(supabase/garden_decor.sql). 적용 전이면 null(기능 숨김)
+export async function getMyDecor(studentId) {
+  const { data, error } = await supabase.from('students').select('decor_counts, decor_placed').eq('id', studentId).maybeSingle();
+  if (error || !data) return null;
+  return { counts: data.decor_counts || {}, placed: data.decor_placed || [null, null, null] };
+}
+export async function saveMyDecor(items) {
+  const { error } = await supabase.rpc('student_set_decor', { p_items: items });
+  if (error) throw error;
 }

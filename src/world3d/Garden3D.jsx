@@ -6,11 +6,12 @@ import { webglAvailable } from "./LibraryWorld.js";
 import { connectRoom } from "./realtime.js";
 import { Joystick, ViewPicker, loadView, saveView } from "./controls.jsx";
 import DressUp from "./DressUp.jsx";
+import DecorUp from "./DecorUp.jsx";
 import { cleanDress, dressKey } from "./avatar.js";
 
 const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7E4E", gold: "#EDA83A", leafL: "#9BD187", water: "#4FA9C4" };
 
-export default function Garden3D({ classInfo, studentInfo, role, myDress = null, dressReady = false, onSaveDress, trees, teacherTree = null, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
+export default function Garden3D({ classInfo, studentInfo, role, myDress = null, dressReady = false, onSaveDress, myDecor = null, onSaveDecor, trees, teacherTree = null, classStage, waterReady, waterLeft, onWater, onTapTree, onTapClassTree, onUnsupported, showToast, onGoLibrary }) {
   const canvasRef = useRef(null), worldRef = useRef(null), roomRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -34,6 +35,24 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
   const cb = useRef({}); cb.current = { onTapTree, onTapClassTree, onGoLibrary };
   // 캐릭터 꾸미기: 버튼으로 열고, 아직 한 번도 안 고른 학생은 처음 들어올 때 한 번 자동으로 열림
   const [dressOpen, setDressOpen] = useState(false);
+  // 화단 꾸미기: 새 소품을 받으면 알려 주고 버튼에 빨간 점
+  const [decorOpen, setDecorOpen] = useState(false);
+  const decorTotal = myDecor ? Object.values(myDecor.counts || {}).reduce((a, n) => a + (Number(n) || 0), 0) : 0;
+  const decorSeenKey = studentInfo?.id ? `saesak_decor_seen_${studentInfo.id}` : null;
+  const [decorNew, setDecorNew] = useState(false);
+  useEffect(() => {
+    if (!myDecor || !decorSeenKey) return;
+    let seen = null; try { seen = localStorage.getItem(decorSeenKey); } catch { /* 무시 */ }
+    if (seen === null) { try { localStorage.setItem(decorSeenKey, String(decorTotal)); } catch { /* 무시 */ } setDecorNew(decorTotal > 0 && !(myDecor.placed || []).some(Boolean)); return; }
+    if (decorTotal > Number(seen)) {
+      setDecorNew(true); showToast?.(`🎁 화단 소품을 ${decorTotal - Number(seen)}개 받았어요! '🪴 화단'에서 놓아 보세요`);
+      try { localStorage.setItem(decorSeenKey, String(decorTotal)); } catch { /* 무시 */ }
+    }
+  }, [decorTotal, decorSeenKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const saveDecor = async (items) => {
+    try { await onSaveDecor?.(items); setDecorOpen(false); setDecorNew(false); showToast?.("화단을 꾸몄어요 🪴"); }
+    catch (e) { showToast?.(e?.message || "꾸미지 못했어요. 다시 시도해 주세요."); }
+  };
   const myDressKey = dressKey(cleanDress(myDress));
   useEffect(() => { if (isStudent && dressReady && !cleanDress(myDress)) setDressOpen(true); }, [isStudent, dressReady]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -113,6 +132,8 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
       {canWalk && ready && (
         <div style={{ position: "absolute", top: 10, right: 12, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
           <ViewPicker view={view} onChange={chooseView} />
+          {isStudent && myDecor && <button onClick={() => { setDecorOpen(true); setDecorNew(false); }} data-decor style={{ position: "relative", border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
+            padding: "4px 10px", fontSize: 11.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>🪴 화단{decorNew && <span style={{ position: "absolute", top: 1, right: 3, width: 8, height: 8, borderRadius: 4, background: "#F0605D" }} />}</button>}
           {isStudent && <button onClick={() => setDressOpen(true)} data-dress style={{ border: "none", cursor: "pointer", background: "#ffffffd9", borderRadius: 20,
             padding: "4px 10px", fontSize: 11.5, color: C.greenDk, boxShadow: "0 2px 6px #0000000f" }}>👕 꾸미기</button>}
           {view === "top" && isStudent && (
@@ -143,6 +164,7 @@ export default function Garden3D({ classInfo, studentInfo, role, myDress = null,
           )}
         </div>
       )}
+      {decorOpen && myDecor && <DecorUp counts={myDecor.counts} placed={myDecor.placed} onSave={saveDecor} onClose={() => setDecorOpen(false)} />}
       {dressOpen && <DressUp initial={myDress} firstTime={!cleanDress(myDress)} onSave={saveDress} onClose={() => setDressOpen(false)} />}
     </div>
   );
