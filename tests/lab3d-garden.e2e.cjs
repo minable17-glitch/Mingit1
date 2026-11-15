@@ -41,7 +41,7 @@ async function run(supportsWater) {
   console.log(tag, '처음:', JSON.stringify(await state()));
   if (!supportsWater) { await p.screenshot({ path: `${OUT}/g0-legacy.png` }); console.log(tag, 'errors:', errs.length ? errs.slice(0, 5) : 'none'); await b.close(); return; }
   await p.locator('canvas').scrollIntoViewIfNeeded(); await p.screenshot({ path: `${OUT}/g1-before.png` });
-  console.log(tag, '악세서리:', await p.evaluate(() => window.__garden3d.slots.filter((s) => s && s.accs && s.accs.length).map((s) => s.nick + ' ' + s.accs.length + '개').join(', ')));
+  console.log(tag, '3D 악세서리:', await p.evaluate(() => (window.__garden3d._decorKey || '').split('|').filter((k) => k.startsWith('acc_')).length + '개'));
   await p.getByText(/💧 물 주기/).click();
   const during = await p.evaluate(() => [...window.__garden3d.people.values()][0].avatar.state + ', 버튼: ' + (document.body.innerText.match(/물 주는 중…/) || ['?'])[0]);
   await p.screenshot({ path: `${OUT}/g2-watering.png` });
