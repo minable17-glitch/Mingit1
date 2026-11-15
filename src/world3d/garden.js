@@ -68,6 +68,7 @@ export function planterLayout(students = 32) {
 }
 
 const ballFar = new THREE.SphereGeometry(1, 8, 6);
+const cone = (rt, rb, seg = 12) => new THREE.CylinderGeometry(rt, rb, 1, seg);
 const ball = new THREE.SphereGeometry(1, 18, 14), cyl = new THREE.CylinderGeometry(1, 1, 1, 14), box = new THREE.BoxGeometry(1, 1, 1);
 const M4 = (x, y, z, sx, sy, sz, q) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q || new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz));
 const qEuler = (rx, ry, rz) => new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
@@ -278,31 +279,69 @@ export function buildGarden(scene, students = 32) {
   bush(wx - 1.5, wz - 0.55, 1.2); bush(wx + 0.95, wz + 0.55, 1.2);
 
   // ── 벤치 2개, 도서관 모퉁이(문·통창·지붕), 디딤돌
-  let doorSpot = null;
+  let doorSpot = null, libSpot = null;
   const bench = (x, z, ry, w = 1.2) => { obstacles.push({ kind: 'rect', x, z, w, d: 0.36, ry }); const q = qEuler(0, ry, 0); solid.addM(G.wood, box, M4(x, 0.3, z, w, 0.08, 0.36, q)); for (const s of [-1, 1]) { const o = new THREE.Vector3(s * w * 0.35, 0, 0).applyQuaternion(q); solid.addM(G.woodDk, box, M4(x + o.x, 0.14, z + o.z, 0.1, 0.28, 0.3, q)); } shadow(x, z + 0.08, 0.7, 0.3); };
   // 우리 반 나무 둘레 벤치 4개(대각선, 나무를 바라봄)
   for (const a of [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4]) bench(CENTER[0] + Math.sin(a) * 1.85, CENTER[1] + Math.cos(a) * 1.95, a, 0.75);
   {
-    const L = new Batch(), H = 1.7;                      // 건물 중심 기준 좌표. +x 벽에 문과 통창
-    L.addM(G.wall, box, M4(0, 0.12, 0, 3.4, 0.24, 3.4));
-    L.addM('#F6CFA2', box, M4(0, 0.25, 0, 3.2, 0.02, 3.2));
-    for (const [x, z] of [[H, -H], [H, H], [-H, H], [-H, -H]]) L.addM(G.wall, box, M4(x, 1.35, z, 0.22, 2.3, 0.22));
-    for (const yy of [0.3, 2.45]) { L.addM(G.frame, box, M4(H, yy, 0, 0.1, 0.1, 3.4)); L.addM(G.frame, box, M4(0, yy, H, 3.4, 0.1, 0.1)); }
-    for (const zz of [-0.55, 0.55]) L.addM(G.frame, box, M4(H, 1.35, zz, 0.1, 2.2, 0.1));
-    L.addM(G.frame, box, M4(H, 2.0, 1.1, 0.07, 0.07, 1.1)); L.addM(G.frame, box, M4(H, 2.0, -1.1, 0.07, 0.07, 1.1));
-    L.addM(G.frame, box, M4(H + 0.4, 1.25, -0.55 + 0.32, 0.07, 2.05, 1.05, qEuler(0, deg(-52), 0)));     // 열린 문
-    L.addM(G.wall, box, M4(-0.05, 2.56, 0.05, 3.75, 0.1, 3.75)); L.addM(G.roof, box, M4(-0.1, 2.68, 0.1, 3.95, 0.16, 3.95));
-    for (const [sx, sz, c] of [[0.6, -0.9, '#B4BE88'], [0.5, 0.7, '#F3E4CB']]) L.addM(c, ball, M4(sx, 0.5, sz, 0.28, 0.24, 0.26));  // 안쪽 소파
-    L.addM(G.wood, box, M4(-0.9, 0.75, -1.3, 1.4, 1.0, 0.3));                                             // 안쪽 책장
+    // 정원 쪽 도서관 건물: 크림색 벽 + 삼각 지붕 + 앞면 나무틀 통창(안에 책장·불빛) + 둥근 나무 문 + 책 간판 + 랜턴
+    // 건물 기준 좌표: +x 쪽이 앞면(문). 캐릭터 키 1 기준으로 문 높이 약 1.4
+    const L = new Batch(), BD = 2.8, BW = 3.4, BH = 1.9, Y0 = 0.16, CREAM = '#F8EAD2', WOOD = '#C98A55', ROOF = '#D9895F', ROOF_DK = '#C47450';
+    L.addM('#E3D3BA', box, M4(0, Y0 / 2, 0, BD + 0.18, Y0, BW + 0.18));                       // 돌 기초
+    L.addM('#F6CFA2', box, M4(0, Y0 + 0.01, 0, BD - 0.1, 0.02, BW - 0.1));                    // 마루
+    L.addM(CREAM, box, M4(-BD / 2 + 0.06, Y0 + BH / 2, 0, 0.12, BH, BW));                     // 뒷벽
+    for (const sd of [-1, 1]) L.addM(CREAM, box, M4(0, Y0 + BH / 2, sd * (BW / 2 - 0.06), BD, BH, 0.12));   // 옆벽
+    for (const [x, z] of [[BD / 2, BW / 2], [BD / 2, -BW / 2], [-BD / 2, BW / 2], [-BD / 2, -BW / 2]]) L.addM(G.frame, box, M4(x - Math.sign(x) * 0.07, Y0 + BH / 2, z - Math.sign(z) * 0.07, 0.17, BH + 0.02, 0.17));   // 모서리 기둥
+    // 앞면: 나무 기둥·가로대 + (유리는 아래에서 따로) + 가운데 문
+    const FX = BD / 2 - 0.04;
+    for (const z of [-1.05, -0.4, 0.4, 1.05]) L.addM(G.frame, box, M4(FX, Y0 + BH / 2, z, 0.12, BH, 0.1));
+    L.addM(G.frame, box, M4(FX, Y0 + BH - 0.05, 0, 0.14, 0.12, BW));                          // 위 가로대
+    for (const sd of [-1, 1]) { L.addM(G.frame, box, M4(FX, Y0 + 0.42, sd * 1.06, 0.12, 0.08, 1.3)); L.addM(G.frame, box, M4(FX, Y0 + 1.15, sd * 1.06, 0.06, 0.05, 1.3)); }   // 창틀
+    L.addM(WOOD, box, M4(FX + 0.03, Y0 + 0.62, 0, 0.06, 1.24, 0.66));                          // 문
+    L.addM(WOOD, cyl, M4(FX + 0.03, Y0 + 1.24, 0, 0.33, 0.06, 0.33, qEuler(0, 0, Math.PI / 2))); // 문 위 둥근 부분
+    for (const z of [-0.16, 0, 0.16]) L.addM('#B87A47', box, M4(FX + 0.065, Y0 + 0.7, z, 0.01, 1.1, 0.02));   // 문 판자 줄
+    L.addM('#F2C24A', ball, M4(FX + 0.08, Y0 + 0.65, 0.2, 0.035, 0.035, 0.035));              // 손잡이
+    L.addM(G.stoneDk, box, M4(FX + 0.32, 0.05, 0, 0.42, 0.1, 0.9));                            // 문 앞 디딤판
+    // 문 위 간판: 나무판 + 펼친 책 그림(글자 없음)
+    L.addM('#E6B06C', box, M4(FX + 0.09, Y0 + 1.7, 0, 0.05, 0.28, 0.66)); L.addM('#CF9550', box, M4(FX + 0.07, Y0 + 1.7, 0, 0.05, 0.32, 0.72));
+    for (const sd of [-1, 1]) { L.addM('#FFF4E0', box, M4(FX + 0.12, Y0 + 1.7, sd * 0.09, 0.02, 0.14, 0.17, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sd * -0.25))); L.addM('#57A365', box, M4(FX + 0.11, Y0 + 1.7, sd * 0.09, 0.015, 0.16, 0.19, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sd * -0.25))); }
+    // 옆벽 둥근 창(나무 테두리 + 따뜻한 유리는 아래에서)
+    for (const sd of [-1, 1]) L.addM(G.frame, new THREE.TorusGeometry(0.32, 0.05, 8, 24), M4(0, Y0 + 1.15, sd * (BW / 2 + 0.005), 1, 1, 1));
+    // 삼각 지붕(용마루는 앞뒤 방향) + 처마 + 박공벽 + 굴뚝
+    const pitch = deg(34), half = BW / 2 + 0.32, slope = half / Math.cos(pitch), rise = half * Math.tan(pitch), ry0 = Y0 + BH;
+    for (const sd of [-1, 1]) L.addM(ROOF, box, M4(0, ry0 + rise / 2, sd * half / 2, BD + 0.55, 0.12, slope, qEuler(sd * pitch, 0, 0)));
+    L.addM(ROOF_DK, cyl, M4(0, ry0 + rise + 0.03, 0, 0.09, BD + 0.62, 0.09, qEuler(0, 0, Math.PI / 2)));
+    { const tri = new THREE.Shape([new THREE.Vector2(-BW / 2, 0), new THREE.Vector2(BW / 2, 0), new THREE.Vector2(0, (BW / 2) * Math.tan(pitch))]);
+      const gable = new THREE.ExtrudeGeometry(tri, { depth: 0.12, bevelEnabled: false });
+      for (const x of [BD / 2 - 0.06, -BD / 2 + 0.06]) L.addM(CREAM, gable, M4(x - 0.06, ry0, 0, 1, 1, 1, qEuler(0, Math.PI / 2, 0))); }
+    L.addM(G.frame, new THREE.TorusGeometry(0.2, 0.04, 8, 20), M4(BD / 2 + 0.01, ry0 + 0.45, 0, 1, 1, 1, qEuler(0, Math.PI / 2, 0)));   // 박공 둥근 창
+    L.addM('#C98A6A', box, M4(-0.6, ry0 + rise * 0.75, -0.75, 0.3, 0.75, 0.3)); L.addM('#B87458', box, M4(-0.6, ry0 + rise * 0.75 + 0.4, -0.75, 0.36, 0.08, 0.36));
+    // 안: 뒷벽 책장 + 소파 + 탁자
+    L.addM(G.wood, box, M4(-BD / 2 + 0.3, Y0 + 0.65, 0, 0.36, 1.25, 2.4));
+    const BOOKC = ['#F2A08E', '#9DC9E8', '#F6D27A', '#A8D29A', '#D9A6E0'];
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 14; k++) L.addM(BOOKC[(k + r * 2) % 5], box, M4(-BD / 2 + 0.5, Y0 + 0.28 + r * 0.38, -1.05 + k * 0.16, 0.05, 0.26 + ((k * 7 + r) % 3) * 0.03, 0.12));
+    L.addM('#B4BE88', ball, M4(0.3, Y0 + 0.28, -0.85, 0.32, 0.22, 0.28)); L.addM('#F3E4CB', ball, M4(0.3, Y0 + 0.28, 0.85, 0.32, 0.22, 0.28));
+    L.addM(G.wood, cyl, M4(0.1, Y0 + 0.36, 0, 0.3, 0.06, 0.3));
     const lg = new THREE.Group(); for (const [color, geo] of L.merged()) lg.add(new THREE.Mesh(geo, mats(color)));
-    const glass = new THREE.MeshBasicMaterial({ color: '#FFF6E0', transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
-    for (const [px, pz, ry] of [[H, 0, Math.PI / 2], [0, H, 0]]) { const gm = new THREE.Mesh(new THREE.PlaneGeometry(3.3, 2.15), glass); gm.position.set(px, 1.38, pz); gm.rotation.y = ry; lg.add(gm); }
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85 })); glow.scale.set(1.4, 1.4, 1); glow.position.set(0.9, 1.3, 0.2); lg.add(glow);
+    // 따뜻한 유리(앞면 통창 4칸 + 옆 둥근 창 + 박공 창)와 안쪽 불빛
+    const warmGlass = new THREE.MeshStandardMaterial({ color: '#FFF1CC', emissive: '#FFD58A', emissiveIntensity: 0.35, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide, roughness: 0.2 });
+    for (const [z0, z1] of [[-1.62, -1.1], [-1.0, -0.45], [0.45, 1.0], [1.1, 1.62]]) for (const [y0, y1] of [[Y0 + 0.46, Y0 + 1.12], [Y0 + 1.18, Y0 + BH - 0.11]]) {
+      const gm = new THREE.Mesh(new THREE.PlaneGeometry(z1 - z0, y1 - y0), warmGlass); gm.position.set(FX, (y0 + y1) / 2, (z0 + z1) / 2); gm.rotation.y = Math.PI / 2; lg.add(gm); }
+    for (const sd of [-1, 1]) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.3, 24), warmGlass); c.position.set(0, Y0 + 1.15, sd * (BW / 2 + 0.01)); lg.add(c); }
+    { const c = new THREE.Mesh(new THREE.CircleGeometry(0.18, 20), warmGlass); c.position.set(BD / 2 + 0.015, ry0 + 0.45, 0); c.rotation.y = Math.PI / 2; lg.add(c); }
+    const glowMatB = new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.7 });
+    for (const z of [-0.8, 0.8]) { const glow = new THREE.Sprite(glowMatB); glow.scale.set(1.3, 1.3, 1); glow.position.set(0.5, Y0 + 1.3, z); lg.add(glow); }
+    // 문 옆 랜턴
+    { const lb = new Batch(); lb.addM(G.frame, cyl, M4(BD / 2 + 0.32, 0.45, 0.62, 0.025, 0.9, 0.025)); lb.addM('#B97A56', box, M4(BD / 2 + 0.32, 0.95, 0.62, 0.14, 0.03, 0.14)); lb.addM('#B97A56', cone(0.02, 0.1, 4), M4(BD / 2 + 0.32, 1.12, 0.62, 1, 0.06, 1, qEuler(0, Math.PI / 4, 0)));
+      for (const [color, geo] of lb.merged()) lg.add(new THREE.Mesh(geo, mats(color)));
+      const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.1), new THREE.MeshBasicMaterial({ color: '#FFF3B0' })); bulb.position.set(BD / 2 + 0.32, 1.03, 0.62); lg.add(bulb);
+      const lglow = new THREE.Sprite(glowMatB); lglow.scale.set(0.6, 0.6, 1); lglow.position.copy(bulb.position); lg.add(lglow); }
     const ang = deg(-38), [dx0, dz0] = DOOR;
-    // 문(건물 기준 (H, -0.02))이 DOOR 자리에 오도록 건물 위치를 잡음
-    const LS = 0.72, off = new THREE.Vector3((H + 0.25) * LS, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
-    lg.scale.setScalar(LS); lg.rotation.y = ang; lg.position.set(dx0 - off.x, 0, dz0 - off.z); root.add(lg);
-    obstacles.push({ kind: 'rect', x: dx0 - off.x, z: dz0 - off.z, w: 3.5 * LS, d: 3.5 * LS, ry: ang, tall: true }, { kind: 'circle', x: dx0 + 0.3, z: dz0 + 1.25, r: 0.25 });
+    // 문(건물 기준 +x 앞면)이 DOOR 자리에 오도록 건물 위치를 잡음
+    const off = new THREE.Vector3(BD / 2 + 0.1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
+    lg.rotation.y = ang; lg.position.set(dx0 - off.x, 0, dz0 - off.z); root.add(lg);
+    libSpot = { x: dx0 - off.x, z: dz0 - off.z };
+    obstacles.push({ kind: 'rect', x: dx0 - off.x, z: dz0 - off.z, w: BD + 0.3, d: BW + 0.3, ry: ang, tall: true }, { kind: 'circle', x: dx0 + 0.3, z: dz0 + 1.25, r: 0.25 });
     // 정원에 들어올 때 서는 곳(문 바로 앞)과 문으로 나가는 방향
     const out = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
     doorSpot = { x: dx0 + out.x * 0.9, z: dz0 + out.z * 0.9, door: { x: dx0 + out.x * 0.15, z: dz0 + out.z * 0.15 } };
@@ -314,6 +353,7 @@ export function buildGarden(scene, students = 32) {
   const front = new THREE.Group(); front.visible = false; root.add(front);
   const frontB = new Batch(); let fseed = 101; const frnd = () => (fseed = (fseed * 16807) % 2147483647) / 2147483647;   // 앞쪽 숲은 따로 뽑아 기존 배치가 바뀌지 않게
   const bigTree = (x, z, k, b = solid) => {
+    if (libSpot && Math.hypot(x - libSpot.x, z - libSpot.z) < 2.6 + k * 0.6) return;   // 도서관 건물과 겹치지 않게
     if (b !== solid) { b.addM(G.trunk, new THREE.CylinderGeometry(0.16, 0.26, 1.5, 8), M4(x, 0.75 * k, z, k, k, k)); for (const [bx, by, bz, r, light] of [[0, 2.15, 0, 0.9, 1], [-0.7, 1.8, 0.1, 0.65, 0], [0.7, 1.8, -0.1, 0.68, 0], [0, 1.75, 0.6, 0.62, 1]]) b.addM(light ? '#9FCF52' : '#86BD48', ballFar, M4(x + bx * k, by * k, z + bz * k, r * k, r * k * 0.9, r * k)); return; }
     solid.addM(G.trunk, new THREE.CylinderGeometry(0.16, 0.26, 1.5, 12), M4(x, 0.75 * k, z, k, k, k));
     for (const [bx, by, bz, r, light] of [[0, 2.15, 0, 0.9, 1], [-0.7, 1.8, 0.1, 0.65, 0], [0.7, 1.8, -0.1, 0.68, 0], [0, 1.75, 0.6, 0.62, 1], [0.1, 1.8, -0.6, 0.6, 0], [-0.35, 2.5, 0.2, 0.5, 1]]) solid.addM(light ? '#9FCF52' : '#86BD48', ball, M4(x + bx * k, by * k, z + bz * k, r * k, r * k * 0.9, r * k));
