@@ -88,8 +88,9 @@ export class LibraryWorld {
     }
     this._bind(); this.setView(opts.me ? (opts.view || 'third') : 'top');
     this._raf = requestAnimationFrame(() => this._frame());
-    // 지난번 자리가 비어 있으면 그 자리로 걸어감(친구 정보가 도착한 뒤에 판단)
+    // 도서관에 들어오면 빈자리로 저절로 걸어감(친구 정보가 도착한 뒤에 판단): 지난번 자리가 비어 있으면 그 자리, 아니면 가까운 빈자리
     this._wantSeat = opts.lastSeat || null;
+    this._autoEnter = !!opts.autoSeat;
   }
 
   // ── 사람 추가/삭제
@@ -208,7 +209,7 @@ export class LibraryWorld {
   // guess: 실시간 연결이 늦어서 친구 목록을 아직 모르는 채로 부르는 경우(나만 들어 있음)
   // blind: 친구 목록을 받기 전에(빈자리인지 모르고) 고른 자리 — 이미 앉아 있던 친구에게 항상 양보함
   setOthers(list, { guess = false } = {}) {
-    const first = !this._synced; this._synced = true;
+    this._synced = true;
     if (!guess) this._live = true;
     const ids = new Set(list.map((o) => o.id));
     for (const id of [...this.people.keys()]) if (!ids.has(id) && !(this.me && id === this.me.id)) this._removePerson(id);
@@ -249,13 +250,21 @@ export class LibraryWorld {
       if (lost) this._bumped();
       else if (meBlind) { this.me.blind = false; this._announce(); }    // 친구 목록을 보니 빈자리였음 → 이제 내 자리로 확정
     }
-    if (first && this.me && this._wantSeat && !this.me.seat) { const s = this._wantSeat; this._wantSeat = null; if (this.seats.has(s) && !this.occupantOf(s)) this.sitAt(s); }
+    // 들어와서 처음으로 친구 목록을 받았을 때(연결이 늦어 나만 있는 임시 목록일 때는 기다림)
+    if (!guess && this.me && !this._entered) {
+      this._entered = true; const s = this._wantSeat; this._wantSeat = null;
+      if (!this.me.seat) {
+        if (s && this.seats.has(s) && !this.occupantOf(s)) this.sitAt(s);
+        else if (this._autoEnter) this.autoSeat();
+      }
+    }
     this._dirty = true;
   }
   _bumped() {
     const s = this.seats.get(this.me.seat); const to = s ? s.stand : this.nav.nearest(this.me.avatar.root.position.x, this.me.avatar.root.position.z);
     this._leaveSeat(this.me, to); this.seatRing.visible = false;
-    this.emit('bumped'); this._announce();
+    this.autoSeat();                 // 다른 빈자리로 저절로 감
+    this.emit('bumped', { moved: !!this.me.seat }); if (!this.me.seat) this._announce();
   }
   // 내 상태 알리기. 서 있을 때는 위치(가는 곳)도 함께 — 소수 둘째 자리까지만
   _announce(at) {
