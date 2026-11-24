@@ -204,19 +204,24 @@ export class LibraryWorld {
   occupantOf(seatId) { for (const p of this.people.values()) if (p.seat === seatId) return p; return null; }
 
   // ── 밖에서 부르는 것들
-  // 친구 목록 갱신: [{ id, nick, seat, state, seatAt }]
-  setOthers(list) {
+  // 친구 목록 갱신: [{ id, nick, seat, state, seatAt, blind }]
+  // guess: 실시간 연결이 늦어서 친구 목록을 아직 모르는 채로 부르는 경우(나만 들어 있음)
+  // blind: 친구 목록을 받기 전에(빈자리인지 모르고) 고른 자리 — 이미 앉아 있던 친구에게 항상 양보함
+  setOthers(list, { guess = false } = {}) {
     const first = !this._synced; this._synced = true;
+    if (!guess) this._live = true;
     const ids = new Set(list.map((o) => o.id));
     for (const id of [...this.people.keys()]) if (!ids.has(id) && !(this.me && id === this.me.id)) this._removePerson(id);
     let lobby = 0;
-    for (const o of list) {
+    for (let o of list) {
       if (this.me && o.id === this.me.id) continue;
       let p = this.people.get(o.id); const isNew = !p;
       if (isNew) p = this._addPerson(o.id, o.nick, false, o.dress);
       else this._swapLook(p, o.dress);
       p.seatAt = o.seatAt || 0;
-      const seat = o.seat && this.seats.has(o.seat) ? o.seat : null;
+      let seat = o.seat && this.seats.has(o.seat) ? o.seat : null;
+      // 모르고 앉은 친구가 이미 누가 앉은 자리에 왔으면, 겹쳐 보이지 않게 자리 옆에 세워 둠(곧 그 친구가 양보함)
+      if (seat && o.blind) { const occ = this.occupantOf(seat); if (occ && occ !== p) { const st = this.seats.get(seat).stand; o = { ...o, seat: null, x: st.x, z: st.z }; seat = null; } }
       if (seat) { if (seat !== p.seat) this._moveToSeat(p, seat, isNew); }
       else {
         // 서 있는 친구: 알려 준 위치로 걸어감(위치를 안 보내는 예전 화면이면 입구 근처에 섬)
@@ -231,9 +236,18 @@ export class LibraryWorld {
       }
       if (p.state !== o.state) { p.state = o.state || 'stand'; if (p.seat && !p.walk) this._placeSeated(p); }
     }
-    // 같은 자리를 둘이 골랐으면 먼저 고른 사람이 앉고, 내가 늦었으면 일어남
-    if (this.me && this.me.seat) {
-      for (const o of list) if (o.id !== this.me.id && o.seat === this.me.seat && ((o.seatAt || 0) < this.me.seatAt || ((o.seatAt || 0) === this.me.seatAt && String(o.id) < String(this.me.id)))) { this._bumped(); break; }
+    // 같은 자리를 둘이 골랐으면: 친구 목록을 보고 고른 사람(blind 아님)이 이김. 둘 다 같으면 먼저 고른 사람이 앉고, 내가 늦었으면 일어남
+    // (기기마다 시계가 몇 분씩 다를 수 있어서 시간 비교는 둘 다 같은 조건일 때만 씀)
+    if (this.me && this.me.seat && !guess) {
+      const meBlind = !!this.me.blind; let lost = false;
+      for (const o of list) {
+        if (o.id === this.me.id || o.seat !== this.me.seat) continue;
+        const oBlind = !!o.blind;
+        if (meBlind !== oBlind) { if (meBlind) { lost = true; break; } continue; }
+        if ((o.seatAt || 0) < this.me.seatAt || ((o.seatAt || 0) === this.me.seatAt && String(o.id) < String(this.me.id))) { lost = true; break; }
+      }
+      if (lost) this._bumped();
+      else if (meBlind) { this.me.blind = false; this._announce(); }    // 친구 목록을 보니 빈자리였음 → 이제 내 자리로 확정
     }
     if (first && this.me && this._wantSeat && !this.me.seat) { const s = this._wantSeat; this._wantSeat = null; if (this.seats.has(s) && !this.occupantOf(s)) this.sitAt(s); }
     this._dirty = true;
@@ -248,13 +262,14 @@ export class LibraryWorld {
     if (!this.me) return; this._posT = 0;
     const q = at || this.me.goal || this.me.avatar.root.position, r = (v) => Math.round(v * 100) / 100;
     this.emit('me', { seat: this.me.seat, state: this.me.seat ? (this.reading ? 'read' : 'sit') : 'stand', seatAt: this.me.seatAt,
-      x: this.me.seat ? null : r(q.x), z: this.me.seat ? null : r(q.z) });
+      x: this.me.seat ? null : r(q.x), z: this.me.seat ? null : r(q.z), blind: !!(this.me.seat && this.me.blind) });
   }
 
   sitAt(seatId) {
     if (!this.me || this.me.seat === seatId) return false;
     const occ = this.occupantOf(seatId); if (occ && occ !== this.me) return false;
     this.me.seatAt = Date.now(); this.me.state = this.reading ? 'read' : 'sit';
+    this.me.blind = !this._live;      // 아직 친구 목록을 못 받았으면 "모르고 고른 자리"
     this._moveToSeat(this.me, seatId);
     const s = this.seats.get(seatId); this.seatRing.position.set(s.x, 0.02, s.z); this.seatRing.visible = true;
     this.panZ = 0; this.panX = 0; this._announce(); return true;

@@ -95,7 +95,7 @@ export default function Library3D({
     });
     roomRef.current = room;
     // 실시간 연결이 끝내 안 되더라도 지난번 자리로는 앉을 수 있게 함
-    const t = setTimeout(() => { if (!world._synced) world.setOthers(isStudent ? [{ id: meId, ...baseMeta }] : []); }, 3500);
+    const t = setTimeout(() => { if (!world._synced) world.setOthers(isStudent ? [{ id: meId, ...baseMeta }] : [], { guess: true }); }, 3500);
     return () => { clearTimeout(t); room.close(); world.dispose(); worldRef.current = null; roomRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, isStudent, studentInfo?.id]);
