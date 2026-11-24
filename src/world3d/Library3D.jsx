@@ -66,7 +66,7 @@ export default function Library3D({
     try {
       world = new LibraryWorld(canvasRef.current, {
         me: isStudent ? { id: meId, nick: studentInfo.nickname, dress: myDress } : canWalk ? { id: "teacher-me", nick: "선생님" } : null,
-        lastSeat, view,
+        lastSeat, view, autoSeat: isStudent,
         onEvent: (type, payload) => {
           if (type === "me") {
             setMySeat(payload.seat);
@@ -75,7 +75,7 @@ export default function Library3D({
             roomRef.current?.update(metaRef.current);
             try { if (payload.seat) localStorage.setItem(seatKey(classId, meId), String(payload.seat)); } catch { /* 무시 */ }
           } else if (type === "tapFriend") cb.current.onTapFriend?.(payload);
-          else if (type === "bumped") cb.current.showToast?.("친구가 먼저 앉았어요. 다른 자리를 골라 주세요 🙂");
+          else if (type === "bumped") cb.current.showToast?.(payload?.moved ? "친구가 먼저 앉아서 옆 빈자리로 갈게요 🙂" : "친구가 먼저 앉았어요. 다른 자리를 골라 주세요 🙂");
           else if (type === "hint") cb.current.showToast?.(payload);
           else if (type === "door" && cb.current.onGoGarden && !cb.current.timer && !cb.current.leaving) { cb.current.leaving = true; setLeaving(true); cb.current.onGoGarden(); }
         },

@@ -79,6 +79,8 @@ const seatOf = (p, nick) => p.evaluate((n) => { const q = [...window.__lib3d.peo
   // 지우: 기기 시계가 10분 늦음. 도서관에 들어온 직후 친구 목록이 늦게 와서(느린 와이파이) 민수가 안 보이는 순간에 3번을 고름
   const B = await open(ctx, 'stu-jiwoo', '지우', log, { clockOffset: -10 * 60 * 1000 });
   await B.waitForTimeout(2000);
+  const entered = await mySeat(B);
+  check('지우는 읽기를 누르자 저절로 빈자리로 감', entered != null && entered !== 3, String(entered));
   const picked = await B.evaluate(() => {
     const w = window.__lib3d, a = [...w.people.values()].find((q) => q.nick === '민수');
     if (a) a.seat = null;            // 아직 민수를 모르는 상태 흉내
@@ -92,8 +94,9 @@ const seatOf = (p, nick) => p.evaluate((n) => { const q = [...window.__lib3d.peo
   check('민수는 그대로 3번 자리', (await mySeat(A)) === 3, String(await mySeat(A)));
   check('민수 화면: 민수는 계속 읽는 중', (await A.evaluate(() => window.__lib3d.me.state)) === 'read');
   const seatB = await mySeat(B);
-  check('지우는 3번에서 비켜남', seatB !== 3, String(seatB));
+  check('지우는 3번에서 비켜나 다른 빈자리로 감', seatB !== 3 && seatB != null, String(seatB));
   check('민수 화면에서 지우가 3번에 안 앉아 있음', (await seatOf(A, '지우')) !== 3, String(await seatOf(A, '지우')));
+  check('민수 화면에도 지우가 그 빈자리에', (await seatOf(A, '지우')) === seatB, String(await seatOf(A, '지우')));
   check('지우 화면에서 민수가 3번', (await seatOf(B, '민수')) === 3, String(await seatOf(B, '민수')));
   check('민수에게 "친구가 먼저 앉았어요" 안내가 안 뜸', (await A.getByText('친구가 먼저 앉았어요').count()) === 0);
   await B.bringToFront(); await B.screenshot({ path: `${OUT}/seat-B.png` });

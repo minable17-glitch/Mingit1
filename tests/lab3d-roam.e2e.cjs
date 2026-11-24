@@ -39,6 +39,10 @@ async function stick(p, dx, dy, ms) {   // 조이스틱을 (dx, dy)로 밀고 ms
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   const A = await open(ctx, 'stu-minsu', '민수', log);
   await A.waitForTimeout(1500);
+  // 들어오면 저절로 빈자리로 걸어가서 앉음 → 확인 후, 조이스틱 점검을 위해 일으켜 세움
+  await A.waitForFunction('window.__lib3d.me.seat && !window.__lib3d.me.walk', null, { timeout: 30000, polling: 300 });
+  check('들어오면 저절로 빈자리에 앉음', !!(await A.evaluate(() => window.__lib3d.me.seat)));
+  await A.evaluate(() => { const w = window.__lib3d; w._standUp(w.me); w._announce(); }); await A.waitForTimeout(300);
   const reach = await A.evaluate(() => { const w = window.__lib3d, e = w.nav.nearest(w.me.avatar.root.position.x, w.me.avatar.root.position.z); return [...w.seats.values()].filter((s) => !w.nav.path(e, s.stand)).map((s) => s.id); });
   check('모든 자리(32곳)에 걸어갈 수 있음', reach.length === 0, reach.length ? `못 가는 자리: ${reach}` : '');
   let s0 = await me(A); check('처음엔 뒤에서 보기(3인칭)', s0.view === 'third');
