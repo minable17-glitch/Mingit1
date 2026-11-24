@@ -16,7 +16,7 @@ import {
   changeTeacherPassword, deleteStudent, deleteClass, deleteLog, updateTodayLog, verifyStudentPin, changeStudentPin,
   getMyAccessories, setEquippedAccessories as apiSetEquippedAccessories, addBonusReading,
   pauseChallenge, resumeChallenge, startNewChallenge, getForestAlbums,
-  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter, getMyDecor, saveMyDecor,
+  probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter, getMyDecor, saveMyDecor, isStillLinked, isLinkLostError,
 } from "./lib/api";
 
 const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
@@ -842,7 +842,11 @@ export default function App() {
       try {
         const book = await apiStartBook(studentInfo.id, { title: b.title, author: b.author, coverUrl: b.cover });
         setCurrentBook(book);
-      } catch (e) { showToast(e.message || "책 등록에 실패했어요."); return; }
+      } catch (e) {
+        if (isLinkLostError(e) && role === "student") { await relinkNeeded(); return; }
+        showToast(isLinkLostError(e) ? "책을 등록하지 못했어요. 앱을 새로고침해 주세요." : (e.message || "책 등록에 실패했어요."));
+        return;
+      }
     }
     setMyBook(b.title);
     showToast(`'${b.title}'을(를) 내 책으로 골랐어요 📖`);
@@ -1032,6 +1036,27 @@ export default function App() {
     setShowTeacher(false);
     setScreen("role");
   };
+
+  // 같은 닉네임으로 다른 기기(학교 크롬북 등)에서 로그인하면 이 기기의 연결이 풀림 → 영어 오류 대신 다시 로그인 화면으로 안내
+  const relinkNeeded = async () => {
+    const code = classInfo?.code || "", nickname = studentInfo?.nickname || "";
+    await handleLogout();
+    setStudentJoinForm({ code, nickname, pin: "" });
+    setAuthError("다른 기기에서 같은 닉네임으로 로그인해서 이 기기 연결이 풀렸어요. PIN만 넣고 다시 참여하면 그대로 이어져요! (기록은 모두 남아 있어요)");
+    setScreen("student-join");
+  };
+  useEffect(() => {
+    if (screen !== "main" || role !== "student" || !studentInfo?.id) return;
+    let alive = true;
+    const check = () => {
+      if (document.visibilityState === "hidden") return;
+      isStillLinked(studentInfo.id).then((ok) => { if (alive && ok === false) relinkNeeded(); }).catch(() => { /* 인터넷 문제면 다음에 다시 확인 */ });
+    };
+    check();
+    document.addEventListener("visibilitychange", check);
+    return () => { alive = false; document.removeEventListener("visibilitychange", check); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, role, studentInfo?.id]);
 
   const syncReadingSession = (isReading) => {
     if (isReader) {
@@ -1360,11 +1385,11 @@ export default function App() {
         }).catch(() => {});
       }
     } catch (e) {
-      if (e.message?.includes("row-level security")) {
-        // 로그인 세션이 꼬여서 본인 확인이 안 되는 경우: 자동으로 로그아웃시켜서
-        // 다시 로그인하면 정상화되도록 함. 쓰던 내용은 임시저장돼 있어서 로그인하면 다시 보임.
-        showToast("로그인 정보가 꼬였어요. 다시 로그인해주세요! (쓰던 내용은 그대로 남아있어요)");
-        await handleLogout();
+      if (isLinkLostError(e)) {
+        // 로그인 연결이 풀려서 본인 확인이 안 되는 경우(다른 기기 로그인 등): 다시 로그인하면 정상화됨.
+        // 쓰던 내용은 임시저장돼 있어서 로그인하면 다시 보임.
+        showToast("다시 로그인해주세요! (쓰던 내용은 그대로 남아있어요)");
+        if (role === "student") await relinkNeeded(); else await handleLogout();
         return;
       }
       showToast(e.message?.includes("duplicate") ? "오늘은 이미 기록했어요." : (e.message || "저장에 실패했어요. 다시 시도해주세요."));

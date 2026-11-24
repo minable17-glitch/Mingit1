@@ -121,6 +121,22 @@ export async function resetTeacherPassword({ username, code, newPassword }) {
   if (error) throw error;
 }
 
+// 학생 자리는 한 번에 한 기기(로그인)에만 연결됨. 같은 닉네임으로 다른 기기에서 로그인하면 이 기기의 연결이 풀림.
+// true: 아직 이 기기에 연결됨 / false: 다른 기기로 넘어감(다시 로그인 필요) / null·throw: 판단 보류(로그인 정보 없음·인터넷 문제)
+export async function isStillLinked(studentId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return null;
+  const { data, error } = await supabase.from('students').select('id').eq('id', studentId).eq('auth_user_id', uid).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+// 다른 기기 로그인 등으로 본인 확인이 안 될 때 Supabase가 주는 영어 오류(row-level security)인지
+export function isLinkLostError(e) {
+  return e?.code === '42501' || /row-level security/i.test(e?.message || '');
+}
+
 export async function getAuthSession() {
   const { data } = await supabase.auth.getSession();
   return data.session;
