@@ -107,9 +107,11 @@ export async function setEquippedAccessories(types) {
   if (error) throw error;
 }
 
+// 돌려주는 값: 실제로 받은 악세서리 개수(supabase/bonus_uncapped.sql 적용 전에는 null)
 export async function addBonusReading(extraMinutes) {
-  const { error } = await supabase.rpc('add_bonus_reading', { p_extra_minutes: extraMinutes });
+  const { data, error } = await supabase.rpc('add_bonus_reading', { p_extra_minutes: extraMinutes });
   if (error) throw error;
+  return typeof data === 'number' ? data : null;
 }
 
 export async function resetTeacherPassword({ username, code, newPassword }) {
@@ -243,7 +245,7 @@ export async function getClassProgress(classId) {
 export async function getMyLogs(studentId, withWater = false) {
   const { data, error } = await supabase
     .from('logs')
-    .select(`id, log_date, minutes, pages, note, ocr_excerpt, book_id, books(title)${withWater ? ', watered_at' : ''}`)
+    .select(`id, log_date, minutes, overflow_minutes, pages, note, ocr_excerpt, book_id, books(title)${withWater ? ', watered_at' : ''}`)
     .eq('student_id', studentId)
     .order('log_date', { ascending: false });
   if (error) throw error;
