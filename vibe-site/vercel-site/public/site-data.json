@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 118,
+ "rev": 119,
  "pages": [
   {
    "id": "home",
@@ -2137,6 +2137,14 @@
      "size": "sm",
      "bg": "green",
      "text": "🔑 연수용 실습 키 — 키가 없으면 이걸 쓰세요"
+    },
+    {
+     "_sharedkey": true,
+     "t": "html",
+     "join": true,
+     "title": "연수용 실습 키",
+     "height": "150",
+     "code": "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<style>\nbody{margin:0;font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#16202b;background:transparent}\n.box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:14px 16px}\n.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\ncode{flex:1;min-width:220px;font-family:ui-monospace,Menlo,monospace;font-size:14px;background:#fff;border:1px solid #d1fae5;border-radius:10px;padding:10px 12px;word-break:break-all;filter:blur(5px);transition:filter .2s;user-select:all}\ncode.on{filter:none}\nbutton{font:inherit;font-weight:800;font-size:14px;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;background:#15803d;color:#fff}\nbutton.ghost{background:#fff;color:#15803d;border:1px solid #86efac}\np{margin:8px 0 0;font-size:13px;color:#166534}\n</style></head><body>\n<div class=\"box\"><div class=\"row\"><code id=\"k\">불러오는 중…</code><button class=\"ghost\" id=\"show\">👀 보기</button><button id=\"copy\">📋 복사</button></div>\n<p id=\"msg\">복사해서 <b>스크립트 속성 → 값</b> 칸에 붙여 넣어요. (속성 이름은 GEMINI_API_KEY)</p></div>\n<script>\nvar k=document.getElementById('k'),msg=document.getElementById('msg'),key='';\nfetch(new URL('/api/practice-key',document.baseURI).href,{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){\n  if(j.key){key=j.key;k.textContent=key;}else{k.textContent='아직 연수용 키가 없어요';k.classList.add('on');}\n}).catch(function(){k.textContent='키를 불러오지 못했어요';k.classList.add('on');});\ndocument.getElementById('show').onclick=function(){k.classList.toggle('on');this.textContent=k.classList.contains('on')?'🙈 가리기':'👀 보기';};\ndocument.getElementById('copy').onclick=function(){if(!key)return;var b=this;\n  function ok(){b.textContent='✅ 복사됨';setTimeout(function(){b.textContent='📋 복사';},1500);}\n  if(navigator.clipboard)navigator.clipboard.writeText(key).then(ok,fb);else fb();\n  function fb(){var t=document.createElement('textarea');t.value=key;document.body.appendChild(t);t.select();try{document.execCommand('copy');ok();}catch(e){}t.remove();}};\n</script></body></html>"
     },
     {
      "_sharedkey": true,
