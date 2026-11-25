@@ -1,6 +1,6 @@
 {
  "v": 1,
- "rev": 45,
+ "rev": 46,
  "pages": [
   {
    "id": "home",
@@ -2036,6 +2036,28 @@
      "title": "",
      "tone": "plain",
      "text": "1. **sheets.new** → 스프레드시트 **확장 프로그램 → Apps Script**\n2. `Code.gs` 내용을 지우고 아래 **Code.gs** 코드로 교체\n3. 왼쪽 **＋ → HTML** → 파일명 `index` 로 생성 → 아래 **index.html** 코드 붙여넣기 → 💾 저장\n4. 왼쪽 **⚙ 톱니바퀴(프로젝트 설정) → 스크립트 속성 → 스크립트 속성 추가** — 속성: `GEMINI_API_KEY` / 값: 발급받은 API 키 → 저장 ([자세히 보기](#api-key))\n5. 오른쪽 위 **배포 → 새 배포 → 유형: 웹 앱** — 실행: **나** / 액세스 권한: **모든 사용자** (처음엔 권한 허용: 고급 → 이동 → 허용)\n6. 배포 후 나오는 **웹 앱 URL** 접속 → 실습 (시트에 **PAPS처방** 탭이 생기고 기록이 쌓여요)"
+    },
+    {
+     "_sharedkey": true,
+     "t": "h",
+     "size": "sm",
+     "bg": "green",
+     "text": "🔑 연수용 실습 키 — 키가 없으면 이걸 쓰세요"
+    },
+    {
+     "_sharedkey": true,
+     "t": "html",
+     "join": true,
+     "title": "연수용 실습 키",
+     "height": "150",
+     "code": "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<style>\nbody{margin:0;font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#16202b;background:transparent}\n.box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:14px 16px}\n.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\ncode{flex:1;min-width:220px;font-family:ui-monospace,Menlo,monospace;font-size:14px;background:#fff;border:1px solid #d1fae5;border-radius:10px;padding:10px 12px;word-break:break-all;filter:blur(5px);transition:filter .2s;user-select:all}\ncode.on{filter:none}\nbutton{font:inherit;font-weight:800;font-size:14px;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;background:#15803d;color:#fff}\nbutton.ghost{background:#fff;color:#15803d;border:1px solid #86efac}\np{margin:8px 0 0;font-size:13px;color:#166534}\n</style></head><body>\n<div class=\"box\"><div class=\"row\"><code id=\"k\">불러오는 중…</code><button class=\"ghost\" id=\"show\">👀 보기</button><button id=\"copy\">📋 복사</button></div>\n<p id=\"msg\">복사해서 <b>스크립트 속성 → 값</b> 칸에 붙여 넣어요. (속성 이름은 GEMINI_API_KEY)</p></div>\n<script>\nvar k=document.getElementById('k'),msg=document.getElementById('msg'),key='';\nfetch(new URL('/api/practice-key',document.baseURI).href,{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){\n  if(j.key){key=j.key;k.textContent=key;}else{k.textContent='아직 연수용 키가 없어요';k.classList.add('on');}\n}).catch(function(){k.textContent='키를 불러오지 못했어요';k.classList.add('on');});\ndocument.getElementById('show').onclick=function(){k.classList.toggle('on');this.textContent=k.classList.contains('on')?'🙈 가리기':'👀 보기';};\ndocument.getElementById('copy').onclick=function(){if(!key)return;var b=this;\n  function ok(){b.textContent='✅ 복사됨';setTimeout(function(){b.textContent='📋 복사';},1500);}\n  if(navigator.clipboard)navigator.clipboard.writeText(key).then(ok,fb);else fb();\n  function fb(){var t=document.createElement('textarea');t.value=key;document.body.appendChild(t);t.select();try{document.execCommand('copy');ok();}catch(e){}t.remove();}};\n</script></body></html>"
+    },
+    {
+     "_sharedkey": true,
+     "t": "note",
+     "join": true,
+     "tone": "warn",
+     "text": "연수 시간에만 쓰는 **공용 키**예요. 다 같이 쓰니 가끔 \"AI가 바빠요\"가 뜰 수 있어요. 내 수업·학생용 앱에는 **AI Studio에서 내 키를 발급받아** 넣어 주세요."
     },
     {
      "t": "h",
