@@ -19,7 +19,6 @@ import {
   probeWatering, waterTree, getClassReadDays, getMyAvatar, saveMyAvatar, getTeacherReads, setTeacherReads, teacherReaderEnter, getMyDecor, saveMyDecor, isStillLinked, isLinkLostError,
 } from "./lib/api";
 
-const DAILY_CAP_MINUTES = 40; // 하루 인정 상한(개인+공동 합산)
 const MIN_NOTE_LENGTH = 10; // 느낀점 최소 글자 수
 import { getSession, setSession, clearSession, getReadingProgress, setReadingProgress, clearReadingProgress,
   getSavedTeacherUsername, setSavedTeacherUsername, clearSavedTeacherUsername,
@@ -125,7 +124,7 @@ async function preprocessImageForOcr(file) {
 // DB의 기록 한 줄을 화면에서 쓰는 모양으로 바꿈. watered: 물을 줬는지(정원 물주기를 안 쓰는 경우엔 항상 true)
 function mapLog(l) {
   return { id: l.id, log_date: l.log_date, date: formatLogDate(l.log_date), book: l.books?.title || "", note: l.note, quote: l.ocr_excerpt,
-    minutes: l.minutes, pages: l.pages, watered: l.watered_at === undefined ? true : !!l.watered_at };
+    minutes: l.minutes, extra: l.overflow_minutes || 0, pages: l.pages, watered: l.watered_at === undefined ? true : !!l.watered_at };
 }
 
 function formatDotDate(isoDate) {
@@ -518,6 +517,9 @@ export default function App() {
   const [editBusy, setEditBusy] = useState(false);
   const [pin, setPin] = useState("");
   const [myLog, setMyLog] = useState([]);
+  // 목표 시간보다 더 읽은 시간(자유 읽기 + 보너스 더 읽기) — 누적과 오늘
+  const extraTotal = myLog.reduce((a, l) => a + (l.extra || 0), 0);
+  const extraToday = myLog.find((l) => l.log_date === todayKST())?.extra || 0;
   const [teacherLogs, setTeacherLogs] = useState([]);
   const [teacherRoster, setTeacherRoster] = useState([]);
   const [teacherCompletedCounts, setTeacherCompletedCounts] = useState({});
@@ -1174,8 +1176,8 @@ export default function App() {
       return;
     }
     try {
-      await addBonusReading(minutes);
-      const earned = Math.floor(minutes / 10);
+      const got = await addBonusReading(minutes);
+      const earned = got ?? Math.floor(minutes / 10);     // 서버가 알려 준 실제 개수(예전 서버면 어림값)
       showToast(`우리 반 나무에 ${minutes}분 더 기여했어요! 🌱💧${earned > 0 ? ` (악세서리 ${earned}개 획득 🎁)` : ""}`);
       if (classInfo?.id) refreshClassProgress(classInfo.id);
       getMyAccessories(studentInfo.id).then(({ counts, equipped }) => {
@@ -1356,7 +1358,7 @@ export default function App() {
     }
     setSubmitBusy(true);
     try {
-      const overflowMinutes = Math.max(0, Math.min(sessionMinutes, DAILY_CAP_MINUTES) - dailyTargetMinutes);
+      const overflowMinutes = Math.max(0, sessionMinutes - dailyTargetMinutes);   // 하루 상한 없음(supabase/bonus_uncapped.sql)
       const saved = await submitLog({
         studentId: studentInfo.id,
         bookId: currentBook?.id ?? null,
@@ -1370,7 +1372,7 @@ export default function App() {
       clearPendingReflection(studentInfo.id);
       setReflecting(false); setNote(""); setQuote(""); setPageCount("");
       setDoneToday(true); setBloomPulse(true);
-      setMyLog((l) => [{ id: saved.id, log_date: saved.log_date, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, pages: savedPages, watered: !waterReady }, ...l]);
+      setMyLog((l) => [{ id: saved.id, log_date: saved.log_date, date: "오늘", book: currentBook?.title || "", note: savedNote, quote: savedQuote, minutes: sessionMinutes, extra: overflowMinutes, pages: savedPages, watered: !waterReady }, ...l]);
       setTab("forest");
       const earnedAccessories = Math.floor(overflowMinutes / 10);
       if (waterReady) showToast(`기록을 저장했어요! 정원에서 나무에 물을 주세요 💧${earnedAccessories > 0 ? ` (악세서리 ${earnedAccessories}개 획득 🎁)` : ""}`);
@@ -2259,6 +2261,7 @@ export default function App() {
                     myDress={myDress} dressReady={dressReady} onSaveDress={saveDress}
                     myBook={myBook} doneToday={doneToday} dailyTargetMinutes={dailyTargetMinutes}
                     resumeMinutes={Math.floor(getResumeElapsed(false) / 60)} bonusResumeMinutes={Math.floor(getResumeElapsed(true) / 60)}
+                    extraToday={extraToday} extraTotal={extraTotal}
                     onStartTarget={() => startReading("target")} onStartFree={() => startReading("free")} onStartBonus={() => startReading("free", true)}
                     onPickBook={() => setTab("search")} onCompleteBook={handleCompleteBook}
                     onTapFriend={(f) => { const m = classmates.find((c) => c.id === f.id); if (m) setSelected(m); else showToast(`${f.nick || "친구"}${f.state === "read" ? " · 읽는 중 📖" : ""}`); }}
@@ -2292,7 +2295,8 @@ export default function App() {
                       {isReader && myBook && (
                         <>
                           <div style={{ fontSize: 12, color: C.inkSoft, textAlign: "center", margin: "14px 0 8px", maxWidth: 260 }}>
-                            더 읽고 싶으면 자유롭게 읽어서 우리 반 나무에 보너스로 기여하고 악세서리도 받아보세요!</div>
+                            더 읽고 싶으면 자유롭게 읽어서 우리 반 나무에 보너스로 기여하고 악세서리도 받아보세요!
+                            <div style={{ marginTop: 4, color: C.greenDk }}>⏱️ 더 읽은 시간: 오늘 {extraToday}분 · 누적 {extraTotal}분</div></div>
                           <button onClick={() => startReading("free", true)} className="cs-jua" style={{ padding: "13px 22px", borderRadius: 18,
                             fontSize: 14.5, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                             {getResumeElapsed(true) > 0
@@ -2357,6 +2361,13 @@ export default function App() {
                     </div>
                   ) : (
                     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div data-extra-total style={{ background: "#fff", borderRadius: 16, padding: "12px 14px", border: "1px solid #eee5d3", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ fontSize: 26 }}>⏱️</div>
+                        <div style={{ flex: 1 }}>
+                          <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk }}>더 읽은 시간 누적 {extraTotal}분</div>
+                          <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>오늘 {extraToday}분 · 목표 시간보다 더 읽은 시간(보너스 포함)이에요</div>
+                        </div>
+                      </div>
                       {myCompletedBooks.length > 0 && (
                         <div style={{ background: "#fff", borderRadius: 16, padding: 14, border: "1px solid #eee5d3" }}>
                           <div className="cs-jua" style={{ fontSize: 15, color: C.greenDk, marginBottom: 10 }}>

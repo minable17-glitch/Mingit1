@@ -11,7 +11,7 @@ const C = { ink: "#35503F", inkSoft: "#6E8574", green: "#57A365", greenDk: "#3F7
 const seatKey = (classId, studentId) => `saesak_seat_${classId}_${studentId}`;
 export default function Library3D({
   classInfo, studentInfo, role, reading, myBook, doneToday, dailyTargetMinutes,
-  resumeMinutes, bonusResumeMinutes, onStartTarget, onStartFree, onStartBonus,
+  resumeMinutes, bonusResumeMinutes, extraToday = 0, extraTotal = 0, onStartTarget, onStartFree, onStartBonus,
   onPickBook, onCompleteBook, onTapFriend, onUnsupported, showToast, timer, waterLeft = 0, onGoGarden,
   myDress = null, dressReady = false, onSaveDress,
 }) {
@@ -207,7 +207,10 @@ export default function Library3D({
         <div style={{ marginTop: 10 }}>
           {doneToday ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div className="cs-jua" style={{ flex: 1, fontSize: 14, color: C.greenDk }}>{waterLeft > 0 ? `오늘 기록 완료 🌸 정원에 줄 물이 ${waterLeft}번 있어요 💧` : "오늘 물주기 완료 🌸"}</div>
+              <div style={{ flex: 1 }}>
+                <div className="cs-jua" style={{ fontSize: 14, color: C.greenDk }}>{waterLeft > 0 ? `오늘 기록 완료 🌸 정원에 줄 물이 ${waterLeft}번 있어요 💧` : "오늘 물주기 완료 🌸"}</div>
+                {isStudent && <div data-extra style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>⏱️ 더 읽은 시간 오늘 {extraToday}분 · 누적 {extraTotal}분</div>}
+              </div>
               {isStudent && myBook && (
                 <button onClick={() => start(onStartBonus)} className="cs-jua" style={{ padding: "11px 14px", borderRadius: 14, fontSize: 13.5, color: C.greenDk, cursor: "pointer", background: "#fff", border: `1.5px solid ${C.green}` }}>
                   {bonusResumeMinutes > 0 ? `▶ 보너스 이어 읽기 (${bonusResumeMinutes}분)` : "⏱ 더 읽기 (보너스)"}</button>
